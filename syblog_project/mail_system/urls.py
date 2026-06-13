@@ -10,4 +10,5 @@ urlpatterns = [
     path('compose/', views.compose, name='compose'),
     path('compose/<str:recipient_username>/', views.compose, name='compose_to'),
     path('delete/<int:pk>/', views.delete_mail, name='delete'),
+    path('api/search-users/', views.search_users, name='search_users'),
 ]

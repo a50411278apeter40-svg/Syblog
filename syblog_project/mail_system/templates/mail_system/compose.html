@@ -1,16 +1,157 @@
 {% extends 'blog/base.html' %}
-{% load crispy_forms_tags %}
 {% block head_title %}메일 작성 - SyBlog{% endblock %}
+
 {% block main_area %}
-<div class="card">
-  <div class="card-header"><i class="fas fa-pen"></i> 메일 작성</div>
-  <div class="card-body">
-    <form method="POST">
+<div class="d-flex align-items-center mb-3">
+  <a href="/mail/" class="btn btn-outline-secondary btn-sm mr-2">
+    <i class="fas fa-arrow-left"></i> 메일함
+  </a>
+  <h4 class="mb-0"><i class="fas fa-pen" style="color:#6c63ff;"></i> 메일 작성</h4>
+</div>
+
+<div class="card shadow-sm" style="border-radius:14px; overflow:hidden; border:none;">
+  <div class="card-header py-3" style="background:linear-gradient(135deg,#6c63ff,#48cfad); border-radius:0;">
+    <h5 class="mb-0 text-white"><i class="fas fa-envelope-open-text"></i> 새 메일</h5>
+  </div>
+  <div class="card-body p-4" style="background:#fff;">
+    <form method="POST" id="compose-form">
       {% csrf_token %}
-      {{ form|crispy }}
-      <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> 보내기</button>
-      <a href="/mail/" class="btn btn-secondary">취소</a>
+
+      <!-- 받는 사람 (자동완성 포함) -->
+      <div class="form-group">
+        <label class="font-weight-bold" style="color:#444;">
+          <i class="fas fa-user" style="color:#6c63ff;"></i> 받는 사람
+        </label>
+        <div class="position-relative">
+          <input type="text" id="recipient-input" name="recipient_username"
+                 class="form-control form-control-lg"
+                 placeholder="사용자명 입력 또는 검색..."
+                 autocomplete="off"
+                 value="{{ form.recipient_username.value|default:'' }}"
+                 style="border-radius:10px; border:2px solid {% if form.recipient_username.errors %}#e74c3c{% else %}#e9ecef{% endif %}; padding-right:40px;">
+          <span id="recipient-status" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); font-size:1.1rem;"></span>
+          <!-- 드롭다운 -->
+          <div id="user-dropdown"
+               style="display:none; position:absolute; top:100%; left:0; right:0; z-index:1000;
+                      background:#fff; border:2px solid #6c63ff; border-top:none;
+                      border-radius:0 0 10px 10px; box-shadow:0 4px 15px rgba(108,99,255,.15); max-height:220px; overflow-y:auto;">
+          </div>
+        </div>
+        {% if form.recipient_username.errors %}
+        <div class="text-danger mt-1" style="font-size:.85rem;">
+          <i class="fas fa-exclamation-circle"></i>
+          {% for e in form.recipient_username.errors %}{{ e }}{% endfor %}
+        </div>
+        {% endif %}
+        <small class="text-muted">이름을 입력하면 검색 결과가 나타납니다</small>
+      </div>
+
+      <!-- 제목 -->
+      <div class="form-group">
+        <label class="font-weight-bold" style="color:#444;">
+          <i class="fas fa-heading" style="color:#6c63ff;"></i> 제목
+        </label>
+        <input type="text" name="subject"
+               class="form-control form-control-lg"
+               placeholder="메일 제목을 입력하세요"
+               value="{{ form.subject.value|default:'' }}"
+               style="border-radius:10px; border:2px solid {% if form.subject.errors %}#e74c3c{% else %}#e9ecef{% endif %};">
+        {% if form.subject.errors %}
+        <div class="text-danger mt-1" style="font-size:.85rem;">
+          {% for e in form.subject.errors %}{{ e }}{% endfor %}
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- 내용 -->
+      <div class="form-group">
+        <label class="font-weight-bold" style="color:#444;">
+          <i class="fas fa-align-left" style="color:#6c63ff;"></i> 내용
+        </label>
+        <textarea name="body" rows="10"
+                  class="form-control"
+                  placeholder="메일 내용을 입력하세요..."
+                  style="border-radius:10px; border:2px solid {% if form.body.errors %}#e74c3c{% else %}#e9ecef{% endif %}; resize:vertical; font-size:.95rem;">{{ form.body.value|default:'' }}</textarea>
+        {% if form.body.errors %}
+        <div class="text-danger mt-1" style="font-size:.85rem;">
+          {% for e in form.body.errors %}{{ e }}{% endfor %}
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center mt-4">
+        <a href="/mail/" class="btn btn-outline-secondary" style="border-radius:8px;">
+          <i class="fas fa-times"></i> 취소
+        </a>
+        <button type="submit" id="send-btn" class="btn btn-lg text-white font-weight-bold px-5"
+                style="background:linear-gradient(135deg,#6c63ff,#48cfad); border:none; border-radius:10px;">
+          <i class="fas fa-paper-plane"></i> 보내기
+        </button>
+      </div>
     </form>
   </div>
 </div>
+
+<script>
+(function(){
+  const input = document.getElementById('recipient-input');
+  const dropdown = document.getElementById('user-dropdown');
+  const status = document.getElementById('recipient-status');
+  let timer = null;
+  let selectedUser = input.value.trim() || null;
+
+  function showDropdown(users) {
+    dropdown.innerHTML = '';
+    if (!users.length) {
+      dropdown.innerHTML = '<div style="padding:12px 16px; color:#aaa; font-size:.9rem;"><i class="fas fa-search"></i> 검색 결과 없음</div>';
+      dropdown.style.display = 'block';
+      return;
+    }
+    users.forEach(function(u) {
+      const item = document.createElement('div');
+      item.style.cssText = 'padding:10px 16px; cursor:pointer; display:flex; align-items:center; gap:10px; border-bottom:1px solid #f0f0f0;';
+      item.innerHTML = '<img src="https://ui-avatars.com/api/?name=' + u.username + '&size=32&background=random" style="border-radius:50%; width:32px; height:32px;">'
+        + '<span style="font-weight:600;">' + u.username + '</span>';
+      item.addEventListener('mouseenter', function(){ this.style.background='#f0eeff'; });
+      item.addEventListener('mouseleave', function(){ this.style.background=''; });
+      item.addEventListener('mousedown', function(e){
+        e.preventDefault();
+        input.value = u.username;
+        selectedUser = u.username;
+        status.textContent = '✅';
+        dropdown.style.display = 'none';
+      });
+      dropdown.appendChild(item);
+    });
+    dropdown.style.display = 'block';
+  }
+
+  input.addEventListener('input', function(){
+    const q = this.value.trim();
+    selectedUser = null;
+    status.textContent = '';
+    clearTimeout(timer);
+    if (q.length < 1) { dropdown.style.display = 'none'; return; }
+    timer = setTimeout(function(){
+      fetch('/mail/api/search-users/?q=' + encodeURIComponent(q))
+        .then(function(r){ return r.json(); })
+        .then(function(data){ showDropdown(data.users); })
+        .catch(function(){ dropdown.style.display='none'; });
+    }, 200);
+  });
+
+  input.addEventListener('blur', function(){
+    setTimeout(function(){ dropdown.style.display='none'; }, 200);
+    // 입력값이 직접 타이핑된 경우 그냥 허용 (서버에서 검증)
+    if (input.value.trim()) status.textContent = '';
+  });
+
+  input.addEventListener('focus', function(){
+    if (input.value.trim().length >= 1) input.dispatchEvent(new Event('input'));
+  });
+
+  // 초기값 있으면 체크 표시
+  if (selectedUser) status.textContent = '✅';
+})();
+</script>
 {% endblock %}

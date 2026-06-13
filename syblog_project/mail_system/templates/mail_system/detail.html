@@ -1,18 +1,66 @@
 {% extends 'blog/base.html' %}
 {% block head_title %}{{ mail.subject }} - SyBlog{% endblock %}
+
 {% block main_area %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <a href="/mail/" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left"></i> 돌아가기</a>
-  <div>
-    <a href="/mail/compose/{{ mail.sender.username }}/" class="btn btn-primary btn-sm"><i class="fas fa-reply"></i> 답장</a>
-    <a href="/mail/delete/{{ mail.pk }}/" class="btn btn-danger btn-sm" onclick="return confirm('삭제?')"><i class="fas fa-trash"></i></a>
+  <a href="{% if back_tab == 'sent' %}/mail/sent/{% else %}/mail/{% endif %}"
+     class="btn btn-outline-secondary btn-sm" style="border-radius:8px;">
+    <i class="fas fa-arrow-left"></i> 돌아가기
+  </a>
+  <div class="d-flex gap-2" style="gap:8px;">
+    {% if mail.recipient == request.user %}
+    <a href="/mail/compose/{{ mail.sender.username }}/"
+       class="btn btn-primary btn-sm" style="border-radius:8px;">
+      <i class="fas fa-reply"></i> 답장
+    </a>
+    {% endif %}
+    <form method="POST" action="/mail/delete/{{ mail.pk }}/"
+          onsubmit="return confirm('이 메일을 삭제하시겠습니까?')" style="display:inline;">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-danger btn-sm" style="border-radius:8px;">
+        <i class="fas fa-trash"></i> 삭제
+      </button>
+    </form>
   </div>
 </div>
-<div class="card">
-  <div class="card-header">
-    <h5 class="mb-0">{{ mail.subject }}</h5>
-    <small class="text-muted">발신: <strong>{{ mail.sender.username }}</strong> → 수신: <strong>{{ mail.recipient.username }}</strong> · {{ mail.sent_at|date:"Y.m.d H:i" }}</small>
+
+<div class="card shadow-sm" style="border:none; border-radius:14px; overflow:hidden;">
+  <!-- 헤더 -->
+  <div class="card-header p-4" style="background:linear-gradient(135deg,#6c63ff,#48cfad); border-radius:0;">
+    <h5 class="mb-1 text-white font-weight-bold">{{ mail.subject }}</h5>
+    <div style="font-size:.85rem; color:rgba(255,255,255,.85);">
+      <span>
+        <img src="https://ui-avatars.com/api/?name={{ mail.sender.username }}&size=20&background=ffffff&color=6c63ff"
+             style="border-radius:50%; vertical-align:middle; margin-right:4px;">
+        <strong>{{ mail.sender.username }}</strong>
+      </span>
+      <span class="mx-2">→</span>
+      <span>
+        <img src="https://ui-avatars.com/api/?name={{ mail.recipient.username }}&size=20&background=ffffff&color=48cfad"
+             style="border-radius:50%; vertical-align:middle; margin-right:4px;">
+        <strong>{{ mail.recipient.username }}</strong>
+      </span>
+      <span class="ml-3"><i class="fas fa-clock"></i> {{ mail.sent_at|date:"Y년 m월 d일 H:i" }}</span>
+    </div>
   </div>
-  <div class="card-body" style="white-space:pre-wrap;min-height:200px;">{{ mail.body }}</div>
+
+  <!-- 본문 -->
+  <div class="card-body p-4" style="background:#fff;">
+    <div style="white-space:pre-wrap; line-height:1.8; font-size:.97rem; color:#333; min-height:200px;">{{ mail.body }}</div>
+  </div>
+
+  <!-- 하단 -->
+  {% if mail.recipient == request.user %}
+  <div class="card-footer bg-white border-top p-3 d-flex justify-content-end">
+    <a href="/mail/compose/{{ mail.sender.username }}/"
+       class="btn btn-primary btn-sm" style="border-radius:8px;">
+      <i class="fas fa-reply"></i> {{ mail.sender.username }}에게 답장
+    </a>
+  </div>
+  {% endif %}
 </div>
+
+<style>
+.card-footer { border-top: 1px solid #f0f0f0 !important; }
+</style>
 {% endblock %}
