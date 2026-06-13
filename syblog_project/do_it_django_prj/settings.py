@@ -7,7 +7,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'syblog-secret-key-very-secure-2024!')
 
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['*', 'lived-lawsuit-radar-birmingham.trycloudflare.com', 'localhost', '127.0.0.1']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
