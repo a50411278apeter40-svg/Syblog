@@ -8,7 +8,16 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'syblog-secret-key-very-secure-2024-xy
 
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = [
+    '*',
+    'syblog.onrender.com',
+    'localhost',
+    '127.0.0.1',
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://syblog.onrender.com',
+]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
