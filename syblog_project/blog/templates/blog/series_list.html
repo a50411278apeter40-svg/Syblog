@@ -1,0 +1,47 @@
+{% extends 'blog/base.html' %}
+
+{% block head_title %}시리즈 - SyBlog{% endblock %}
+
+{% block main_area %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-layer-group" style="color:#6c63ff;"></i> 시리즈</h2>
+    {% if user.is_authenticated %}
+    <a href="/blog/series/create/" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> 시리즈 만들기</a>
+    {% endif %}
+</div>
+
+<div class="row">
+{% for s in series_list %}
+<div class="col-md-6 mb-4">
+    <div class="card h-100">
+        {% if s.thumbnail %}
+        <img src="{{ s.thumbnail.url }}" class="card-img-top" style="height:150px;object-fit:cover;">
+        {% else %}
+        <div style="height:150px;background:linear-gradient(135deg,#6c63ff,#48cfad);display:flex;align-items:center;justify-content:center;border-radius:12px 12px 0 0;">
+            <i class="fas fa-layer-group" style="font-size:3rem;color:white;"></i>
+        </div>
+        {% endif %}
+        <div class="card-body">
+            <h5><a href="{{ s.get_absolute_url }}" class="text-dark text-decoration-none">{{ s.title }}</a></h5>
+            <p class="text-muted small">{{ s.description|truncatechars:80 }}</p>
+            <small class="text-muted">
+                <img src="https://ui-avatars.com/api/?name={{ s.author.username }}&size=20" class="rounded-circle mr-1" width="20">
+                {{ s.author.username }} · {{ s.posts.count }}편
+            </small>
+        </div>
+        <div class="card-footer text-right">
+            <a href="{{ s.get_absolute_url }}" class="btn btn-sm btn-outline-primary">보기</a>
+            {% if user == s.author %}
+            <a href="/blog/series/{{ s.pk }}/edit/" class="btn btn-sm btn-outline-secondary">수정</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% empty %}
+<div class="col-12 text-center py-5">
+    <i class="fas fa-layer-group" style="font-size:4rem;color:#ddd;"></i>
+    <p class="text-muted mt-3">아직 시리즈가 없습니다.</p>
+</div>
+{% endfor %}
+</div>
+{% endblock %}

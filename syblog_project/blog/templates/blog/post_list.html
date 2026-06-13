@@ -1,0 +1,88 @@
+{% extends 'blog/base.html' %}
+
+{% block main_area %}
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 style="color: #2d3436; font-weight: 800;">
+            <i class="fas fa-blog" style="color:#6c63ff;"></i>
+            Blog
+            {% if search_info %}<small class="text-muted">{{ search_info }}</small>{% endif %}
+            {% if category %}<span class="badge badge-secondary">{{ category }}</span>{% endif %}
+            {% if tag %}<span class="badge badge-light"><i class="fas fa-tag"></i> {{ tag }}</span>{% endif %}
+        </h2>
+        {% if user.is_authenticated %}
+        <a class="btn btn-primary btn-sm" href="/blog/create_post/"><i class="fas fa-pen"></i> 새 글 쓰기</a>
+        {% endif %}
+    </div>
+
+    {% if post_list %}
+        {% for p in post_list %}
+        <div class="card mb-4" id="post-{{ p.pk }}">
+            {% if p.head_image %}
+            <img class="card-img-top" src="{{ p.head_image.url }}" alt="{{ p }}" style="height:200px;object-fit:cover;border-radius:12px 12px 0 0;">
+            {% else %}
+            <img class="card-img-top" src="https://picsum.photos/seed/{{ p.id }}/800/200" alt="random" style="height:200px;object-fit:cover;border-radius:12px 12px 0 0;">
+            {% endif %}
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        {% if p.category %}
+                        <span class="badge badge-primary mb-2">{{ p.category }}</span>
+                        {% else %}
+                        <span class="badge badge-secondary mb-2">미분류</span>
+                        {% endif %}
+                        {% if p.series %}
+                        <a href="{{ p.series.get_absolute_url }}" class="badge badge-info mb-2">📚 {{ p.series.title }}</a>
+                        {% endif %}
+                    </div>
+                    <small class="text-muted"><i class="fas fa-eye"></i> {{ p.view_count }}</small>
+                </div>
+                <h4 class="card-title"><a href="{{ p.get_absolute_url }}" class="text-dark text-decoration-none">{{ p.title }}</a></h4>
+                {% if p.hook_text %}<p class="text-muted">{{ p.hook_text }}</p>{% endif %}
+                {% if p.tags.exists %}
+                <div class="mb-2">
+                    <i class="fas fa-tags text-muted"></i>
+                    {% for tag in p.tags.all %}
+                    <a href="{{ tag.get_absolute_url }}"><span class="badge badge-light">{{ tag }}</span></a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                <a href="{{ p.get_absolute_url }}" class="btn btn-primary btn-sm">더 보기 &rarr;</a>
+            </div>
+            <div class="card-footer text-muted d-flex justify-content-between align-items-center">
+                <span>
+                    <img src="https://ui-avatars.com/api/?name={{ p.author.username }}&size=25&background=random" class="rounded-circle mr-1" width="25">
+                    <a href="/user/profile/{{ p.author.username }}/" class="text-dark font-weight-bold">{{ p.author.username }}</a>
+                </span>
+                <div>
+                    <small>{{ p.created_at|date:"Y.m.d" }}</small>
+                    <small class="ml-2"><i class="fas fa-heart text-danger"></i> {{ p.like_count }}</small>
+                    <small class="ml-2"><i class="fas fa-comment text-info"></i> {{ p.comments.count }}</small>
+                    {% if user.is_superuser or user.is_staff %}
+                    <a href="/blog/admin-delete-post/{{ p.pk }}/" class="btn btn-danger btn-sm ml-2" onclick="return confirm('정말 삭제하시겠습니까?')"><i class="fas fa-trash"></i></a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-inbox" style="font-size:4rem;color:#ddd;"></i>
+            <p class="text-muted mt-3">아직 게시물이 없습니다.</p>
+            {% if user.is_authenticated %}
+            <a href="/blog/create_post/" class="btn btn-primary">첫 글 쓰기</a>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    {% if is_paginated %}
+    <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">&laquo; 이전</a></li>
+        {% endif %}
+        <li class="page-item disabled"><a class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</a></li>
+        {% if page_obj.has_next %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">다음 &raquo;</a></li>
+        {% endif %}
+    </ul>
+    {% endif %}
+{% endblock %}

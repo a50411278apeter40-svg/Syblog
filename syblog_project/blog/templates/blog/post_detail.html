@@ -1,0 +1,197 @@
+{% extends 'blog/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block head_title %}{{ post.title }} - SyBlog{% endblock %}
+
+{% block main_area %}
+<div class="card mb-4">
+    {% if post.head_image %}
+    <img class="card-img-top" src="{{ post.head_image.url }}" style="height:300px;object-fit:cover;border-radius:12px 12px 0 0;">
+    {% else %}
+    <img class="card-img-top" src="https://picsum.photos/seed/{{ post.id }}/800/300" style="height:300px;object-fit:cover;border-radius:12px 12px 0 0;">
+    {% endif %}
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <div>
+                {% if post.category %}
+                <span class="badge badge-primary">{{ post.category }}</span>
+                {% endif %}
+                {% if post.series %}
+                <a href="{{ post.series.get_absolute_url }}" class="badge badge-info">📚 {{ post.series.title }}</a>
+                {% endif %}
+            </div>
+            <div>
+                <small class="text-muted mr-2"><i class="fas fa-eye"></i> {{ post.view_count }}</small>
+                {% if user.is_authenticated and user == post.author or user.is_superuser %}
+                <a class="btn btn-sm btn-outline-primary" href="/blog/update_post/{{ post.pk }}/"><i class="fas fa-edit"></i> 수정</a>
+                {% endif %}
+                {% if user.is_superuser or user.is_staff %}
+                <a class="btn btn-sm btn-outline-danger" href="/blog/admin-delete-post/{{ post.pk }}/" onclick="return confirm('정말 삭제?')"><i class="fas fa-trash"></i> 삭제</a>
+                {% endif %}
+            </div>
+        </div>
+        <h1 class="card-title">{{ post.title }}</h1>
+        {% if post.hook_text %}<h5 class="text-muted">{{ post.hook_text }}</h5>{% endif %}
+        <div class="d-flex align-items-center mb-3">
+            <img src="https://ui-avatars.com/api/?name={{ post.author.username }}&size=40&background=random" class="rounded-circle mr-2" width="40">
+            <div>
+                <a href="/user/profile/{{ post.author.username }}/" class="font-weight-bold text-dark">{{ post.author.username }}</a>
+                {% if post.author.profile %}
+                <span class="level-badge ml-1">Lv.{{ post.author.profile.level }}</span>
+                {% endif %}
+                <br><small class="text-muted">{{ post.created_at|date:"Y년 m월 d일" }}</small>
+            </div>
+        </div>
+        <hr>
+        <div class="post-content">{{ post.get_content_markdown|safe }}</div>
+        {% if post.tags.exists %}
+        <div class="mt-3">
+            <i class="fas fa-tags text-muted"></i>
+            {% for tag in post.tags.all %}
+            <a href="{{ tag.get_absolute_url }}" class="badge badge-light text-dark">{{ tag }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% if post.file_upload %}
+        <a href="{{ post.file_upload.url }}" class="btn btn-outline-dark btn-sm mt-3" download>
+            <i class="fas fa-download"></i> {{ post.get_file_name }}
+        </a>
+        {% endif %}
+        <hr>
+        <!-- Like Button -->
+        <div class="text-center">
+            <a href="/blog/{{ post.pk }}/like/" id="like-btn" class="btn {% if user in post.likes.all %}btn-danger{% else %}btn-outline-danger{% endif %}">
+                <i class="fas fa-heart"></i> <span id="like-count">{{ post.like_count }}</span>
+            </a>
+            <a href="/mail/compose/{{ post.author.username }}/" class="btn btn-outline-info ml-2">
+                <i class="fas fa-envelope"></i> 메일 보내기
+            </a>
+        </div>
+    </div>
+</div>
+
+{% if series_posts %}
+<div class="card mb-4">
+    <div class="card-header"><i class="fas fa-layer-group"></i> 시리즈: {{ post.series.title }}</div>
+    <div class="card-body p-0">
+        <ul class="list-group list-group-flush">
+            {% for sp in series_posts %}
+            <li class="list-group-item {% if sp.pk == post.pk %}active{% endif %}">
+                <span class="badge badge-secondary mr-2">{{ sp.series_order }}</span>
+                <a href="{{ sp.get_absolute_url }}" class="{% if sp.pk == post.pk %}text-white{% else %}text-dark{% endif %} text-decoration-none">{{ sp.title }}</a>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% endif %}
+
+<!-- Comments Section -->
+<div class="card mb-4" id="comment-area">
+    <div class="card-header"><i class="fas fa-comments"></i> 댓글 {{ post.comments.count }}개</div>
+    <div class="card-body">
+        {% if user.is_authenticated %}
+        <form method="POST" action="/blog/{{ post.pk }}/new_comment/" class="mb-4">
+            {% csrf_token %}
+            <input type="hidden" name="parent_id" id="reply-parent-id" value="">
+            <div id="reply-notice" class="alert alert-info py-1 px-2 mb-2" style="display:none;">
+                <small>답글 작성 중... <a href="#" onclick="cancelReply()">취소</a></small>
+            </div>
+            {{ comment_form.content }}
+            <button type="submit" class="btn btn-primary btn-sm mt-2"><i class="fas fa-paper-plane"></i> 댓글 등록</button>
+        </form>
+        {% else %}
+        <div class="text-center py-3">
+            <a href="#" data-toggle="modal" data-target="#loginModal" class="btn btn-outline-primary">로그인 후 댓글 작성</a>
+        </div>
+        {% endif %}
+
+        {% for comment in comments %}
+        <div class="mb-3" id="comment-{{ comment.pk }}">
+            <div class="d-flex">
+                <img src="{{ comment.get_avatar_url }}" class="rounded-circle mr-2" width="40" height="40">
+                <div class="flex-grow-1">
+                    <div class="bg-light p-3 rounded">
+                        <div class="d-flex justify-content-between">
+                            <strong>{{ comment.author.username }}
+                            {% if comment.author.profile %}
+                            <span class="level-badge" style="font-size:0.65rem;">Lv.{{ comment.author.profile.level }}</span>
+                            {% endif %}
+                            </strong>
+                            <small class="text-muted">{{ comment.created_at|date:"Y.m.d H:i" }}</small>
+                        </div>
+                        <p class="mb-1 mt-1">{{ comment.content }}</p>
+                    </div>
+                    <div class="mt-1">
+                        {% if user.is_authenticated and not comment.is_deleted %}
+                        <a href="#" class="btn btn-sm btn-link text-muted p-0 mr-2" onclick="setReply({{ comment.pk }}, '{{ comment.author.username }}')">
+                            <i class="fas fa-reply"></i> 답글
+                        </a>
+                        {% endif %}
+                        {% if user.is_authenticated and user == comment.author or user.is_superuser %}
+                        <a href="/blog/update_comment/{{ comment.pk }}/" class="btn btn-sm btn-link text-info p-0 mr-2"><i class="fas fa-edit"></i></a>
+                        <a href="/blog/delete_comment/{{ comment.pk }}/" class="btn btn-sm btn-link text-danger p-0" onclick="return confirm('삭제?')"><i class="fas fa-trash"></i></a>
+                        {% endif %}
+                    </div>
+                    <!-- Replies -->
+                    {% for reply in comment.replies.all %}
+                    {% if not reply.is_deleted %}
+                    <div class="d-flex mt-2 ml-4" id="comment-{{ reply.pk }}">
+                        <img src="{{ reply.get_avatar_url }}" class="rounded-circle mr-2" width="32" height="32">
+                        <div class="flex-grow-1">
+                            <div class="bg-white border p-2 rounded">
+                                <div class="d-flex justify-content-between">
+                                    <strong style="font-size:0.85rem;">{{ reply.author.username }}</strong>
+                                    <small class="text-muted">{{ reply.created_at|date:"Y.m.d H:i" }}</small>
+                                </div>
+                                <p class="mb-0 mt-1" style="font-size:0.9rem;">{{ reply.content }}</p>
+                            </div>
+                            {% if user.is_authenticated and user == reply.author or user.is_superuser %}
+                            <div class="mt-1">
+                                <a href="/blog/update_comment/{{ reply.pk }}/" class="btn btn-sm btn-link text-info p-0 mr-1"><i class="fas fa-edit"></i></a>
+                                <a href="/blog/delete_comment/{{ reply.pk }}/" class="btn btn-sm btn-link text-danger p-0" onclick="return confirm('삭제?')"><i class="fas fa-trash"></i></a>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <p class="text-muted text-center">첫 댓글을 남겨보세요!</p>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+function setReply(commentId, username) {
+    document.getElementById('reply-parent-id').value = commentId;
+    document.getElementById('reply-notice').style.display = 'block';
+    document.getElementById('reply-notice').innerHTML = '<small>@' + username + ' 에게 답글 작성 중... <a href="#" onclick="cancelReply()">취소</a></small>';
+    document.querySelector('textarea').focus();
+    document.querySelector('textarea').scrollIntoView({behavior: 'smooth'});
+}
+function cancelReply() {
+    document.getElementById('reply-parent-id').value = '';
+    document.getElementById('reply-notice').style.display = 'none';
+    return false;
+}
+// Like AJAX
+document.getElementById('like-btn').addEventListener('click', function(e) {
+    e.preventDefault();
+    {% if user.is_authenticated %}
+    fetch('/blog/{{ post.pk }}/like/', {
+        method: 'GET',
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    }).then(r => r.json()).then(data => {
+        document.getElementById('like-count').textContent = data.count;
+        this.className = data.liked ? 'btn btn-danger' : 'btn btn-outline-danger';
+    });
+    {% else %}
+    document.getElementById('loginModal') && ($('#loginModal').modal('show'));
+    {% endif %}
+});
+</script>
+{% endblock %}

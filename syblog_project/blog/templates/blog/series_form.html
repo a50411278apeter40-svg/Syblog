@@ -1,0 +1,18 @@
+{% extends 'blog/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block head_title %}시리즈 {% if series %}수정{% else %}생성{% endif %} - SyBlog{% endblock %}
+
+{% block main_area %}
+<div class="card">
+    <div class="card-header"><i class="fas fa-layer-group"></i> 시리즈 {% if series %}수정{% else %}만들기{% endif %}</div>
+    <div class="card-body">
+        <form method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            {{ form|crispy }}
+            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> 저장</button>
+            <a href="/blog/series/" class="btn btn-secondary">취소</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

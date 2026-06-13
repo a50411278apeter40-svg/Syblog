@@ -1,0 +1,22 @@
+{% extends 'blog/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block head_title %}새 글 작성 - SyBlog{% endblock %}
+
+{% block main_area %}
+<div class="card">
+    <div class="card-header"><i class="fas fa-pen"></i> 새 글 작성</div>
+    <div class="card-body">
+        <form method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            {{ form|crispy }}
+            <div class="form-group">
+                <label>태그 (;로 구분)</label>
+                <input type="text" name="tags_str" class="form-control" placeholder="django; python; web">
+            </div>
+            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> 저장</button>
+            <a href="/blog/" class="btn btn-secondary">취소</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

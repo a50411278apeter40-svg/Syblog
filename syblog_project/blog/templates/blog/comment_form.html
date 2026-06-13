@@ -1,0 +1,16 @@
+{% extends 'blog/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block main_area %}
+<div class="card">
+    <div class="card-header">댓글 수정</div>
+    <div class="card-body">
+        <form method="POST">
+            {% csrf_token %}
+            {{ form|crispy }}
+            <button type="submit" class="btn btn-primary">수정</button>
+            <a href="{{ object.get_absolute_url }}" class="btn btn-secondary">취소</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

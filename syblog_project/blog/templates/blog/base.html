@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block head_title %}SyBlog{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'blog/bootstrap/bootstrap.min.css' %}" media="screen">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #6c63ff;
+            --secondary: #48cfad;
+            --dark: #2d3436;
+            --light-bg: #f8f9fa;
+            --card-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+        body { background-color: #f5f6fa; font-family: 'Segoe UI', sans-serif; }
+        .navbar { background: linear-gradient(135deg, #2d3436, #6c63ff) !important; box-shadow: 0 2px 15px rgba(108,99,255,0.3); }
+        .navbar-brand { color: #fff !important; font-weight: 800; font-size: 1.5rem; }
+        .nav-link { color: rgba(255,255,255,0.85) !important; }
+        .nav-link:hover { color: #fff !important; }
+        .card { border: none; border-radius: 12px; box-shadow: var(--card-shadow); }
+        .card-header { background: linear-gradient(135deg, #6c63ff, #48cfad); color: white; border-radius: 12px 12px 0 0 !important; }
+        .btn-primary { background: #6c63ff; border-color: #6c63ff; border-radius: 8px; }
+        .btn-primary:hover { background: #5a52e0; border-color: #5a52e0; }
+        .badge-level { 
+            background: linear-gradient(135deg, #6c63ff, #48cfad);
+            color: white; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem;
+        }
+        .nav-badge { background: #ff6b6b; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.7rem; }
+        .sidebar-widget { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--card-shadow); }
+        .sidebar-widget h5 { color: var(--primary); font-weight: 700; border-bottom: 2px solid var(--primary); padding-bottom: 8px; margin-bottom: 15px; }
+        footer { background: linear-gradient(135deg, #2d3436, #1e1e2e); color: #adb5bd; padding: 30px 0; margin-top: 40px; }
+        .level-badge { display: inline-block; background: linear-gradient(135deg, #6c63ff, #48cfad); color: white; padding: 2px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+        .points-display { color: #6c63ff; font-weight: 700; }
+        .alert { border-radius: 10px; border: none; }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+{% include 'blog/navbar.html' %}
+
+{% if messages %}
+<div class="container mt-2">
+{% for msg in messages %}
+<div class="alert alert-{{ msg.tags }} alert-dismissible fade show" role="alert">
+    {{ msg }}
+    <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
+</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<div class="container my-3">
+    <div class="row">
+        <div class="col-md-8 col-lg-9" id="main-area">
+            {% block main_area %}{% endblock %}
+        </div>
+        <div class="col-md-4 col-lg-3">
+            <!-- Search Widget -->
+            <div class="sidebar-widget">
+                <h5><i class="fas fa-search"></i> 검색</h5>
+                <div class="input-group">
+                    <input type="text" class="form-control" placeholder="검색어 입력..." id="search-input">
+                    <div class="input-group-append">
+                        <button class="btn btn-primary" type="button" onclick="searchPost()">Go</button>
+                    </div>
+                </div>
+            </div>
+            {% if user.is_authenticated %}
+            <!-- User Widget -->
+            <div class="sidebar-widget text-center">
+                <img src="https://ui-avatars.com/api/?name={{ user.username }}&background=6c63ff&color=fff&size=60" class="rounded-circle mb-2" width="60">
+                <h6 class="font-weight-bold">{{ user.username }}</h6>
+                {% if user.profile %}
+                <span class="level-badge">Lv.{{ user.profile.level }} {{ user.profile.level_title }}</span>
+                <div class="mt-2">
+                    <small class="text-muted">포인트: <strong class="points-display">{{ user.profile.points }}</strong></small>
+                </div>
+                <div class="progress mt-1" style="height: 6px; border-radius: 3px;">
+                    <div class="progress-bar" style="width: {{ user.profile.level_progress }}%; background: linear-gradient(90deg, #6c63ff, #48cfad);"></div>
+                </div>
+                {% endif %}
+                <div class="mt-2">
+                    <a href="/user/profile/" class="btn btn-sm btn-outline-primary btn-block">내 프로필</a>
+                    <a href="/challenges/" class="btn btn-sm btn-outline-success btn-block">챌린지</a>
+                </div>
+            </div>
+            {% endif %}
+            <!-- Categories Widget -->
+            <div class="sidebar-widget">
+                <h5><i class="fas fa-folder"></i> 카테고리</h5>
+                <ul class="list-unstyled">
+                    {% for category in categories %}
+                    <li class="mb-1">
+                        <a href="{{ category.get_absolute_url }}" class="text-decoration-none text-dark">
+                            <i class="fas fa-chevron-right text-primary" style="font-size:0.7rem;"></i>
+                            {{ category }} <span class="badge badge-pill badge-light float-right">{{ category.post_set.count }}</span>
+                        </a>
+                    </li>
+                    {% endfor %}
+                    <li class="mb-1">
+                        <a href="/blog/category/no_category/" class="text-decoration-none text-dark">
+                            <i class="fas fa-chevron-right text-primary" style="font-size:0.7rem;"></i>
+                            미분류 <span class="badge badge-pill badge-light float-right">{{ no_category_post_count }}</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer class="mt-5">
+    <div class="container text-center">
+        <p class="mb-1"><strong style="color:#6c63ff;">SyBlog</strong> &copy; 2024</p>
+        <small>파이썬 장고로 만든 블로그 플랫폼</small>
+    </div>
+</footer>
+
+<script>
+function searchPost(){
+    let v = document.getElementById('search-input').value.trim();
+    if(v.length > 1){ location.href="/blog/search/"+v+"/"; }
+    else{ alert('검색어가 너무 짧습니다.'); }
+}
+document.getElementById('search-input').addEventListener('keyup', function(e){
+    if(e.key==='Enter') searchPost();
+});
+</script>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"></script>
+<script src="{% static 'blog/bootstrap/bootstrap.min.js' %}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>
