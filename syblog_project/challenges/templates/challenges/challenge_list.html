@@ -1,0 +1,48 @@
+{% load challenge_extras %}
+{% extends 'blog/base.html' %}
+{% block head_title %}챌린지 - SyBlog{% endblock %}
+{% block main_area %}
+<div class="text-center mb-5" style="background:linear-gradient(135deg,#6c63ff,#48cfad);border-radius:16px;padding:40px 20px;color:white;">
+  <h1><i class="fas fa-gamepad"></i> 챌린지 센터</h1>
+  <p class="mb-0">미니게임을 플레이하고 포인트를 모아 레벨을 올리세요!</p>
+  {% if user.is_authenticated and user.profile %}
+  <div class="mt-3">
+    <span class="badge" style="background:rgba(255,255,255,0.2);padding:8px 20px;border-radius:20px;font-size:1rem;">
+      <i class="fas fa-star"></i> {{ user.profile.points }} 포인트 · Lv.{{ user.profile.level }} {{ user.profile.level_title }}
+    </span>
+  </div>
+  {% endif %}
+</div>
+
+<div class="row">
+{% for game_id, game_name, _ in challenges %}
+<div class="col-md-4 col-sm-6 mb-4">
+  <div class="card h-100 game-card" style="border-radius:12px;overflow:hidden;transition:transform 0.2s;">
+    <div style="height:100px;background:linear-gradient(135deg,hsl({{ forloop.counter0|add:20 }}0,70%,60%),hsl({{ forloop.counter0|add:20 }}0,80%,40%));display:flex;align-items:center;justify-content:center;">
+      <i class="fas fa-gamepad" style="font-size:2.5rem;color:white;"></i>
+    </div>
+    <div class="card-body">
+      <h6 class="font-weight-bold">{{ game_name }}</h6>
+      {% with scores|get_item:game_id as best %}
+      {% if best %}
+      <small class="text-muted"><i class="fas fa-medal text-warning"></i> 최고: {{ best.score }}점 (+{{ best.points_earned }}p)</small>
+      {% else %}
+      <small class="text-muted">아직 플레이하지 않았습니다</small>
+      {% endif %}
+      {% endwith %}
+    </div>
+    <div class="card-footer">
+      <a href="/challenges/play/{{ game_id }}/" class="btn btn-primary btn-block btn-sm"><i class="fas fa-play"></i> 플레이</a>
+    </div>
+  </div>
+</div>
+{% endfor %}
+</div>
+<div class="text-center mt-3">
+  <a href="/challenges/my-scores/" class="btn btn-outline-primary mr-2"><i class="fas fa-history"></i> 내 플레이 기록</a>
+  <a href="/user/leaderboard/" class="btn btn-outline-warning"><i class="fas fa-trophy"></i> 리더보드</a>
+</div>
+<style>
+.game-card:hover { transform: translateY(-5px); box-shadow: 0 8px 25px rgba(108,99,255,0.2); }
+</style>
+{% endblock %}

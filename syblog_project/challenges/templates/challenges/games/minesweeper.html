@@ -1,0 +1,76 @@
+{% extends 'challenges/game_base.html' %}
+{% block game_area %}
+<div style="text-align:center;">
+  <div id="mine-board" style="display:inline-grid;grid-template-columns:repeat(9,38px);gap:2px;background:#7b7b7b;padding:4px;border-radius:6px;"></div>
+  <div class="mt-2"><span id="mine-info" class="badge badge-danger">💣 10개</span> <span id="flag-info" class="badge badge-warning">🚩 0개</span></div>
+  <small class="text-muted d-block mt-1">좌클릭: 열기 / 우클릭: 깃발</small>
+</div>
+{% endblock %}
+{% block game_script %}
+<script>
+const ROWS=9,COLS=9,MINES=10;
+let board,revealed,flagged,score,running=false,firstClick;
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  board=Array(ROWS).fill(0).map(()=>Array(COLS).fill(0));
+  revealed=Array(ROWS).fill(0).map(()=>Array(COLS).fill(false));
+  flagged=Array(ROWS).fill(0).map(()=>Array(COLS).fill(false));
+  score=0; running=true; firstClick=true;
+  render();
+}
+function placeMines(ex,ey){
+  let count=0;
+  while(count<MINES){
+    const r=Math.floor(Math.random()*ROWS),c=Math.floor(Math.random()*COLS);
+    if(board[r][c]!=-1&&!(r===ex&&c===ey)){ board[r][c]=-1; count++; }
+  }
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) if(board[r][c]!==-1){
+    let n=0;
+    for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
+      const nr=r+dr,nc=c+dc;
+      if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&board[nr][nc]===-1) n++;
+    }
+    board[r][c]=n;
+  }
+}
+function reveal(r,c){
+  if(r<0||r>=ROWS||c<0||c>=COLS||revealed[r][c]||flagged[r][c])return;
+  revealed[r][c]=true; score++;
+  if(board[r][c]===0){ for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++) reveal(r+dr,c+dc); }
+}
+function render(){
+  const el=document.getElementById('mine-board'); el.innerHTML='';
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const cell=document.createElement('div');
+    const num=board[r][c];
+    const clr=['','#0000ff','#007b00','#ff0000','#00008b','#8b0000','#008b8b','#000000','#808080'];
+    let bg='#c0c0c0',text='',fw='normal';
+    if(flagged[r][c]){bg='#c0c0c0';text='🚩';}
+    else if(!revealed[r][c]){bg='linear-gradient(135deg,#e8e8e8,#a0a0a0)';}
+    else if(num===-1){bg='#ff4444';text='💣';}
+    else{bg='#ddd';text=num>0?num:'';fw='bold';}
+    cell.style.cssText='width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:4px;background:'+bg+';color:'+(num>0&&num<9?clr[num]:'black')+';font-weight:'+fw+';font-size:0.9rem;';
+    cell.textContent=text;
+    cell.addEventListener('click',()=>{
+      if(!running||flagged[r][c])return;
+      if(firstClick){ firstClick=false; placeMines(r,c); }
+      if(board[r][c]===-1){ revealAll(); running=false; submitScore(Math.floor(score*5)); return; }
+      reveal(r,c);
+      document.getElementById('score-display').textContent=score;
+      if(score===(ROWS*COLS-MINES)){ running=false; submitScore(score*10); return; }
+      render();
+    });
+    cell.addEventListener('contextmenu',e=>{
+      e.preventDefault();
+      if(!running||revealed[r][c])return;
+      flagged[r][c]=!flagged[r][c];
+      document.getElementById('flag-info').textContent='🚩 '+flagged.flat().filter(Boolean).length+'개';
+      render();
+    });
+    el.appendChild(cell);
+  }
+}
+function revealAll(){ for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) revealed[r][c]=true; render(); }
+document.getElementById('mine-board').innerHTML='<div style="color:white;grid-column:1/-1;padding:80px 20px;text-align:center;">시작 버튼을 눌러주세요!</div>';
+</script>
+{% endblock %}

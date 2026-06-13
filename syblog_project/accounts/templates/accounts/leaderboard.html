@@ -1,0 +1,62 @@
+{% extends 'blog/base.html' %}
+{% block head_title %}리더보드 - SyBlog{% endblock %}
+{% block main_area %}
+<h2 class="mb-4 text-center"><i class="fas fa-trophy" style="color:#ffd200;"></i> 리더보드</h2>
+
+<!-- Level Filter Tabs -->
+<ul class="nav nav-pills justify-content-center mb-4" id="levelTabs">
+  <li class="nav-item"><a class="nav-link active" href="#" onclick="filterLevel(0)">전체</a></li>
+  {% for lv, pts, name in level_thresholds %}
+  <li class="nav-item"><a class="nav-link" href="#" onclick="filterLevel({{ lv }})">Lv.{{ lv }} {{ name }}</a></li>
+  {% endfor %}
+</ul>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table mb-0" id="leaderboard-table">
+      <thead style="background:linear-gradient(135deg,#6c63ff,#48cfad);color:white;">
+        <tr><th width="60">순위</th><th>사용자</th><th>레벨</th><th>포인트</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for profile in profiles %}
+        <tr class="level-row" data-level="{{ profile.level }}">
+          <td>
+            {% if forloop.counter == 1 %}<span style="font-size:1.5rem;">🥇</span>
+            {% elif forloop.counter == 2 %}<span style="font-size:1.5rem;">🥈</span>
+            {% elif forloop.counter == 3 %}<span style="font-size:1.5rem;">🥉</span>
+            {% else %}<strong>{{ forloop.counter }}</strong>{% endif %}
+          </td>
+          <td>
+            {% if profile.avatar %}
+            <img src="{{ profile.avatar.url }}" class="rounded-circle mr-2" width="35">
+            {% else %}
+            <img src="https://ui-avatars.com/api/?name={{ profile.user.username }}&size=35&background=random" class="rounded-circle mr-2" width="35">
+            {% endif %}
+            <a href="/user/profile/{{ profile.user.username }}/" class="text-dark font-weight-bold">{{ profile.user.username }}</a>
+          </td>
+          <td><span class="level-badge">Lv.{{ profile.level }} {{ profile.level_title }}</span></td>
+          <td><strong class="text-primary">{{ profile.points }}</strong></td>
+          <td>
+            <div class="progress" style="height:6px;width:80px;">
+              <div class="progress-bar" style="width:{{ profile.level_progress }}%;background:linear-gradient(90deg,#6c63ff,#48cfad);"></div>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center text-muted py-4">아직 참여자가 없습니다.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<script>
+function filterLevel(lv) {
+  document.querySelectorAll('#levelTabs .nav-link').forEach(a => a.classList.remove('active'));
+  event.target.classList.add('active');
+  document.querySelectorAll('.level-row').forEach(row => {
+    if (lv === 0 || parseInt(row.dataset.level) === lv) row.style.display = '';
+    else row.style.display = 'none';
+  });
+}
+</script>
+{% endblock %}

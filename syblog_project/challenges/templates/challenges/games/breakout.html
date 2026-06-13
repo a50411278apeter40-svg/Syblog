@@ -1,0 +1,60 @@
+{% extends 'challenges/game_base.html' %}
+{% block game_area %}
+<canvas id="gameCanvas" width="480" height="400" style="background:#0d1b2a;border-radius:8px;"></canvas>
+{% endblock %}
+{% block game_script %}
+<script>
+const canvas=document.getElementById('gameCanvas');const ctx=canvas.getContext('2d');
+let ball,paddle,bricks,score,lives,running=false,animFrame;
+const ROWS=5;const COLS=10;const BW=44;const BH=15;const BP=2;
+const COLORS=['#ff6b6b','#f7971e','#ffd200','#48cfad','#6c63ff'];
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  ball={x:240,y:300,dx:4,dy:-4,r:8};
+  paddle={x:190,w:100,y:370,h:12};
+  score=0; lives=3; running=true;
+  bricks=[];
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++)
+    bricks.push({x:c*(BW+BP)+2,y:r*(BH+BP)+50,alive:true,color:COLORS[r]});
+  cancelAnimationFrame(animFrame); loop();
+}
+function loop(){
+  if(!running)return;
+  ctx.fillStyle='#0d1b2a';ctx.fillRect(0,0,480,400);
+  ball.x+=ball.dx; ball.y+=ball.dy;
+  if(ball.x-ball.r<0||ball.x+ball.r>480) ball.dx*=-1;
+  if(ball.y-ball.r<0) ball.dy*=-1;
+  if(ball.y+ball.r>400){ lives--; if(lives<=0){running=false;submitScore(score);return;}ball.x=240;ball.y=300;ball.dy=-4; }
+  if(ball.y+ball.r>paddle.y&&ball.x>paddle.x&&ball.x<paddle.x+paddle.w) ball.dy=-Math.abs(ball.dy);
+  bricks.forEach(b=>{
+    if(!b.alive)return;
+    ctx.fillStyle=b.color; ctx.fillRect(b.x,b.y,BW,BH);
+    ctx.strokeStyle='rgba(255,255,255,0.2)';ctx.strokeRect(b.x,b.y,BW,BH);
+    if(ball.x>b.x&&ball.x<b.x+BW&&ball.y-ball.r<b.y+BH&&ball.y+ball.r>b.y){
+      b.alive=false; ball.dy*=-1; score+=10;
+    }
+  });
+  ctx.fillStyle='#6c63ff'; ctx.fillRect(paddle.x,paddle.y,paddle.w,paddle.h);
+  ctx.fillStyle='#ffd200'; ctx.beginPath(); ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='white'; ctx.font='14px sans-serif';
+  ctx.fillText('점수: '+score,10,25); ctx.fillText('생명: '+'❤️'.repeat(lives),380,25);
+  document.getElementById('score-display').textContent=score;
+  if(bricks.every(b=>!b.alive)){running=false;submitScore(score);return;}
+  animFrame=requestAnimationFrame(loop);
+}
+document.addEventListener('mousemove',e=>{
+  if(!running)return;
+  const r=canvas.getBoundingClientRect();
+  paddle.x=e.clientX-r.left-paddle.w/2;
+  paddle.x=Math.max(0,Math.min(480-paddle.w,paddle.x));
+});
+canvas.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  const r=canvas.getBoundingClientRect();
+  paddle.x=e.touches[0].clientX-r.left-paddle.w/2;
+},{passive:false});
+ctx.fillStyle='#0d1b2a';ctx.fillRect(0,0,480,400);
+ctx.fillStyle='#6c63ff';ctx.font='16px sans-serif';ctx.textAlign='center';
+ctx.fillText('마우스로 패들 이동! 시작 버튼을 눌러주세요.',240,200);ctx.textAlign='left';
+</script>
+{% endblock %}

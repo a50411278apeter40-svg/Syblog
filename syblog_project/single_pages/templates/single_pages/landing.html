@@ -2,61 +2,142 @@
 {% load static %}
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <title>Do It Django</title>
-
-    <link rel="stylesheet" href="{% static 'blog/bootstrap/bootstrap.min.css' %}" media="screen">
-    <link rel="stylesheet" href="{% static 'single_pages/css/landing.css' %}" media="screen">
-    <script src="https://kit.fontawesome.com/726bbd6862.js" crossorigin="anonymous"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SyBlog - 코딩 블로그 플랫폼</title>
+<link rel="stylesheet" href="{% static 'blog/bootstrap/bootstrap.min.css' %}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'Segoe UI', sans-serif; background: #0d1b2a; color: white; overflow-x: hidden; }
+.navbar { background: rgba(13,27,42,0.9) !important; backdrop-filter: blur(10px); border-bottom: 1px solid rgba(108,99,255,0.3); }
+.navbar-brand { color: #6c63ff !important; font-weight: 800; font-size: 1.5rem; }
+.nav-link { color: rgba(255,255,255,0.8) !important; }
+.hero { min-height: 100vh; display: flex; align-items: center; position: relative; overflow: hidden; }
+.hero-bg { position: absolute; top:0; left:0; right:0; bottom:0; background: linear-gradient(135deg, #0d1b2a 0%, #1a1a3e 50%, #0d2b1a 100%); }
+.code-rain { position: absolute; top:0; left:0; right:0; bottom:0; overflow: hidden; opacity: 0.15; }
+.hero-content { position: relative; z-index: 1; }
+.hero h1 { font-size: 4rem; font-weight: 900; }
+.hero h1 span { background: linear-gradient(135deg, #6c63ff, #48cfad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.hero p { font-size: 1.2rem; color: #adb5bd; }
+.btn-hero { background: linear-gradient(135deg, #6c63ff, #48cfad); border: none; color: white; padding: 15px 40px; border-radius: 50px; font-size: 1.1rem; font-weight: 700; transition: all 0.3s; }
+.btn-hero:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(108,99,255,0.4); color: white; }
+.feature-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(108,99,255,0.2); border-radius: 16px; padding: 30px; text-align: center; transition: all 0.3s; }
+.feature-card:hover { background: rgba(108,99,255,0.1); border-color: #6c63ff; transform: translateY(-5px); }
+.feature-icon { font-size: 2.5rem; margin-bottom: 15px; }
+.post-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; margin-bottom: 15px; transition: all 0.3s; }
+.post-card:hover { border-color: #6c63ff; background: rgba(108,99,255,0.1); }
+.stats-section { background: linear-gradient(135deg, #6c63ff22, #48cfad22); border: 1px solid rgba(108,99,255,0.2); border-radius: 20px; padding: 40px; }
+footer { background: rgba(0,0,0,0.5); border-top: 1px solid rgba(108,99,255,0.2); padding: 30px 0; }
+</style>
 </head>
 <body>
-
-{% include 'blog/navbar.html' %}
-
-<section>
-    <div class="container">
-        <div class="row justify-content-between">
-            <div class="col-lg-6 text-light">
-                <h1 class="mt-5">Do It Django</h1>
-                <p>파이썬 진영의 가장 대표적인 웹프레임워크 중 하나인 django를 이용하여 여러분만의 블로그 사이트를 만들어보세요.</p>
-            </div>
-
-            <div class="col-lg-5 mt-5">
-                <h2 class="text-light">Blog - Recent posts</h2>
-                {% for post in recent_posts %}
-                    <div class="card mt-1">
-                        <div class="card-body">
-                            <h6><a href="{{ post.get_absolute_url }}" class="text-decoration-none text-dark">{{ post.title }}</a></h6>
-                            <span class="badge badge-pill badge-light float-right">
-                                <img class="mr-1 rounded-circle" width="20px" src="{{ post.get_avatar_url }}" alt="{{ post.author }}">
-                                {{ post.author.username }}
-                                &nbsp;
-                                &nbsp;
-                                {{ post.created_at }}
-                           </span>
-                        </div>
-                    </div>
-                {% endfor %}
-            </div>
-
-        </div>
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-dark fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="/"><i class="fas fa-code"></i> SyBlog</a>
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"><span class="navbar-toggler-icon"></span></button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ml-auto">
+        <li class="nav-item"><a class="nav-link" href="/blog/"><i class="fas fa-blog"></i> 블로그</a></li>
+        <li class="nav-item"><a class="nav-link" href="/challenges/"><i class="fas fa-gamepad"></i> 챌린지</a></li>
+        <li class="nav-item"><a class="nav-link" href="/user/leaderboard/"><i class="fas fa-trophy"></i> 리더보드</a></li>
+        {% if user.is_authenticated %}
+        <li class="nav-item"><a class="nav-link" href="/user/profile/"><i class="fas fa-user"></i> {{ user.username }}</a></li>
+        <li class="nav-item"><a class="nav-link" href="/accounts/logout/"><i class="fas fa-sign-out-alt"></i> 로그아웃</a></li>
+        {% else %}
+        <li class="nav-item"><a class="nav-link" href="/accounts/login/"><i class="fas fa-sign-in-alt"></i> 로그인</a></li>
+        <li class="nav-item"><a class="nav-link" href="/accounts/signup/"><i class="fas fa-user-plus"></i> 회원가입</a></li>
+        {% endif %}
+      </ul>
     </div>
+  </div>
+</nav>
+
+<!-- Hero Section -->
+<section class="hero" style="padding-top:80px;">
+  <div class="hero-bg"></div>
+  <canvas id="codeCanvas" class="code-rain"></canvas>
+  <div class="container hero-content">
+    <div class="row align-items-center">
+      <div class="col-lg-6">
+        <h1><span>SyBlog</span></h1>
+        <h2 style="color:#48cfad;font-weight:300;margin-bottom:20px;">코드로 세상을 연결하다</h2>
+        <p class="mb-4">개발자를 위한 블로그 플랫폼. 글을 쓰고, 게임을 즐기고, 포인트를 모아 레벨을 올리세요!</p>
+        <a href="/blog/" class="btn-hero mr-3"><i class="fas fa-blog"></i> 블로그 보기</a>
+        {% if not user.is_authenticated %}
+        <a href="/accounts/signup/" class="btn btn-outline-light" style="border-radius:50px;padding:15px 30px;font-size:1rem;"><i class="fas fa-rocket"></i> 지금 시작</a>
+        {% else %}
+        <a href="/challenges/" class="btn btn-outline-light" style="border-radius:50px;padding:15px 30px;font-size:1rem;"><i class="fas fa-gamepad"></i> 챌린지 하기</a>
+        {% endif %}
+      </div>
+      <div class="col-lg-6 mt-5 mt-lg-0">
+        <h4 style="color:#48cfad;margin-bottom:20px;"><i class="fas fa-clock"></i> 최신 게시글</h4>
+        {% for post in recent_posts %}
+        <div class="post-card">
+          <div class="d-flex justify-content-between align-items-center">
+            <a href="{{ post.get_absolute_url }}" class="text-white font-weight-bold text-decoration-none" style="font-size:0.95rem;">{{ post.title|truncatechars:40 }}</a>
+            <small style="color:#6c63ff;">{{ post.created_at|date:"m.d" }}</small>
+          </div>
+          <small style="color:#adb5bd;"><i class="fas fa-user"></i> {{ post.author.username }} &nbsp;<i class="fas fa-eye"></i> {{ post.view_count }}</small>
+        </div>
+        {% empty %}
+        <div class="post-card"><p class="text-muted">아직 게시글이 없습니다.</p></div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
 </section>
 
-<div class="fixed-bottom">
-    {% include 'blog/footer.html' %}
-</div>
+<!-- Features -->
+<section style="padding:100px 0;">
+  <div class="container">
+    <h2 class="text-center mb-5" style="color:#48cfad;">SyBlog의 특징</h2>
+    <div class="row">
+      <div class="col-md-4 mb-4"><div class="feature-card"><div class="feature-icon">📝</div><h5>시리즈 블로그</h5><p style="color:#adb5bd;">연재형 글을 시리즈로 묶어 독자가 순서대로 읽을 수 있습니다.</p></div></div>
+      <div class="col-md-4 mb-4"><div class="feature-card"><div class="feature-icon">🎮</div><h5>챌린지 미니게임</h5><p style="color:#adb5bd;">20가지 미니게임을 플레이하고 점수에 따라 포인트를 획득하세요!</p></div></div>
+      <div class="col-md-4 mb-4"><div class="feature-card"><div class="feature-icon">🏆</div><h5>레벨 시스템</h5><p style="color:#adb5bd;">포인트를 모아 10단계 레벨을 올리고 리더보드에서 경쟁하세요.</p></div></div>
+      <div class="col-md-4 mb-4"><div class="feature-card"><div class="feature-icon">💌</div><h5>내부 메일</h5><p style="color:#adb5bd;">블로거끼리 내부 메일 시스템으로 소통하세요.</p></div></div>
+      <div class="col-md-4 mb-4"><div class="feature-card"><div class="feature-icon">💬</div><h5>대댓글</h5><p style="color:#adb5bd;">댓글에 답글을 달며 활발한 토론을 나눠보세요.</p></div></div>
+      <div class="col-md-4 mb-4"><div class="feature-card"><div class="feature-icon">🛡️</div><h5>스마트 필터링</h5><p style="color:#adb5bd;">악성/성인 키워드 자동 차단으로 건강한 커뮤니티를 유지합니다.</p></div></div>
+    </div>
+  </div>
+</section>
 
-<script src="https://code.jquery.com/jquery-3.4.1.slim.min.js"
-        integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n"
-        crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"
-        integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo"
-        crossorigin="anonymous"></script>
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"
-        integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6"
-        crossorigin="anonymous"></script>
+<footer>
+  <div class="container text-center">
+    <p><strong style="color:#6c63ff;font-size:1.3rem;">SyBlog</strong></p>
+    <p style="color:#adb5bd;">파이썬 장고로 만든 코딩 블로그 플랫폼 &copy; 2024</p>
+  </div>
+</footer>
 
-
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"></script>
+<script src="{% static 'blog/bootstrap/bootstrap.min.js' %}"></script>
+<script>
+// Code Rain Animation
+const canvas = document.getElementById('codeCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789<>{}[]();=+-*/\\|!@#$%';
+const cols = Math.floor(canvas.width / 18);
+const drops = Array(cols).fill(0);
+function drawRain() {
+  ctx.fillStyle = 'rgba(13, 27, 42, 0.05)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#6c63ff';
+  ctx.font = '14px monospace';
+  drops.forEach((y, i) => {
+    const char = chars[Math.floor(Math.random() * chars.length)];
+    ctx.fillStyle = i % 3 === 0 ? '#48cfad' : '#6c63ff';
+    ctx.fillText(char, i * 18, y * 18);
+    if (y * 18 > canvas.height && Math.random() > 0.975) drops[i] = 0;
+    drops[i]++;
+  });
+}
+setInterval(drawRain, 50);
+window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
+</script>
 </body>
 </html>

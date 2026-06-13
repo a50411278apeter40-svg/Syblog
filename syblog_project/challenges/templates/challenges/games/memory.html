@@ -1,0 +1,54 @@
+{% extends 'challenges/game_base.html' %}
+{% block game_area %}
+<div id="memory-board" style="display:grid;grid-template-columns:repeat(4,80px);gap:10px;justify-content:center;min-height:340px;"></div>
+<div class="text-center mt-3"><span id="moves-count" class="badge badge-info" style="font-size:1rem;">이동: 0</span> <span id="matches-count" class="badge badge-success" style="font-size:1rem;">매칭: 0/8</span></div>
+{% endblock %}
+{% block game_script %}
+<script>
+const EMOJIS=['🎮','🚀','🌟','🎯','🔥','💎','🌈','🎵'];
+let cards=[],flipped=[],matched=0,moves=0,running=false,canClick=true;
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  const pairs=[...EMOJIS,...EMOJIS].sort(()=>Math.random()-0.5);
+  cards=[]; flipped=[]; matched=0; moves=0; running=true; canClick=true;
+  document.getElementById('matches-count').textContent='매칭: 0/8';
+  document.getElementById('moves-count').textContent='이동: 0';
+  const board=document.getElementById('memory-board');
+  board.innerHTML='';
+  pairs.forEach((emoji,i)=>{
+    const card=document.createElement('div');
+    card.style.cssText='width:80px;height:80px;background:linear-gradient(135deg,#6c63ff,#48cfad);border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:2rem;transition:all 0.3s;user-select:none;';
+    card.dataset.emoji=emoji; card.dataset.idx=i; card.dataset.flipped='false'; card.dataset.matched='false';
+    card.innerHTML='<span style="opacity:0;">'+emoji+'</span>';
+    card.addEventListener('click',()=>flipCard(card));
+    board.appendChild(card);
+    cards.push(card);
+  });
+}
+function flipCard(card){
+  if(!running||!canClick||card.dataset.flipped==='true'||card.dataset.matched==='true')return;
+  card.dataset.flipped='true';
+  card.querySelector('span').style.opacity='1';
+  card.style.background='white';
+  card.style.color='black';
+  flipped.push(card);
+  if(flipped.length===2){
+    canClick=false; moves++;
+    document.getElementById('moves-count').textContent='이동: '+moves;
+    document.getElementById('score-display').textContent=matched;
+    setTimeout(()=>{
+      if(flipped[0].dataset.emoji===flipped[1].dataset.emoji){
+        flipped.forEach(c=>{c.dataset.matched='true';c.style.background='linear-gradient(135deg,#11998e,#38ef7d)';});
+        matched++;
+        document.getElementById('matches-count').textContent='매칭: '+matched+'/8';
+        if(matched===8){ running=false; const finalScore=Math.max(0,1000-moves*20); submitScore(finalScore); }
+      } else {
+        flipped.forEach(c=>{c.dataset.flipped='false';c.querySelector('span').style.opacity='0';c.style.background='linear-gradient(135deg,#6c63ff,#48cfad)';c.style.color='white';});
+      }
+      flipped=[]; canClick=true;
+    },800);
+  }
+}
+document.getElementById('memory-board').innerHTML='<div style="grid-column:1/-1;color:#aaa;text-align:center;padding-top:150px;">시작 버튼을 눌러주세요!</div>';
+</script>
+{% endblock %}

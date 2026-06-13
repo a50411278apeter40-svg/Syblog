@@ -1,0 +1,54 @@
+{% extends 'challenges/game_base.html' %}
+{% block game_area %}
+<canvas id="gameCanvas" width="600" height="400" style="background:#1a1a2e;border-radius:8px;"></canvas>
+<small class="d-block text-center text-muted mt-1">← → 이동 / 스페이스 점프</small>
+{% endblock %}
+{% block game_script %}
+<script>
+const canvas=document.getElementById('gameCanvas');const ctx=canvas.getContext('2d');
+let player,platforms,coins,score,running=false,animFrame,keys={};
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  player={x:80,y:300,w:30,h:40,vx:0,vy:0,onGround:false};
+  platforms=[{x:0,y:370,w:600,h:30},{x:100,y:300,w:120,h:15},{x:280,y:250,w:100,h:15},{x:420,y:200,w:120,h:15},{x:150,y:180,w:100,h:15},{x:350,y:140,w:80,h:15}];
+  coins=[{x:150,y:270,collected:false},{x:330,y:220,collected:false},{x:460,y:170,collected:false},{x:190,y:150,collected:false},{x:380,y:110,collected:false}];
+  score=0; running=true;
+  cancelAnimationFrame(animFrame); loop();
+}
+function loop(){
+  if(!running)return;
+  ctx.fillStyle='#1a1a2e';ctx.fillRect(0,0,600,400);
+  if(keys['ArrowLeft']||keys['a']) player.vx=-4;
+  else if(keys['ArrowRight']||keys['d']) player.vx=4;
+  else player.vx*=0.8;
+  player.vy+=0.5; player.x+=player.vx; player.y+=player.vy;
+  player.onGround=false;
+  platforms.forEach(p=>{
+    ctx.fillStyle='#6c63ff';ctx.fillRect(p.x,p.y,p.w,p.h);
+    if(player.x+player.w>p.x&&player.x<p.x+p.w&&player.y+player.h>p.y&&player.y+player.h-player.vy<=p.y){
+      player.y=p.y-player.h; player.vy=0; player.onGround=true;
+    }
+  });
+  coins.forEach((c,i)=>{
+    if(!c.collected){
+      ctx.fillStyle='#ffd200';ctx.beginPath();ctx.arc(c.x+10,c.y+10,10,0,Math.PI*2);ctx.fill();
+      if(player.x<c.x+20&&player.x+player.w>c.x&&player.y<c.y+20&&player.y+player.h>c.y){
+        c.collected=true; score+=20; document.getElementById('score-display').textContent=score;
+        if(coins.every(cn=>cn.collected)){ score+=50; running=false; submitScore(score); return; }
+      }
+    }
+  });
+  if(player.x<0)player.x=0; if(player.x+player.w>600)player.x=600-player.w;
+  if(player.y>450){ running=false; submitScore(score); return; }
+  ctx.fillStyle='#48cfad';ctx.fillRect(player.x,player.y,player.w,player.h);
+  ctx.fillStyle='white';ctx.font='14px sans-serif';ctx.fillText('코인: '+score,10,25);
+  ctx.fillText('남은: '+coins.filter(c=>!c.collected).length,10,45);
+  animFrame=requestAnimationFrame(loop);
+}
+document.addEventListener('keydown',e=>{ keys[e.key]=true; if(e.key===' '&&player&&player.onGround){e.preventDefault();player.vy=-12;} });
+document.addEventListener('keyup',e=>keys[e.key]=false);
+ctx.fillStyle='#1a1a2e';ctx.fillRect(0,0,600,400);
+ctx.fillStyle='#6c63ff';ctx.font='16px sans-serif';ctx.textAlign='center';
+ctx.fillText('← → 이동, 스페이스 점프! 시작 버튼을 눌러주세요.',300,200);ctx.textAlign='left';
+</script>
+{% endblock %}

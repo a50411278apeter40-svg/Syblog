@@ -1,0 +1,55 @@
+{% extends 'challenges/game_base.html' %}
+{% block game_area %}
+<canvas id="gameCanvas" width="500" height="500" style="background:#0d1b2a;border-radius:8px;cursor:crosshair;"></canvas>
+<small class="d-block text-center text-muted mt-1">클릭으로 공 쏘기!</small>
+{% endblock %}
+{% block game_script %}
+<script>
+const canvas=document.getElementById('gameCanvas');const ctx=canvas.getContext('2d');
+let targets,bullets,score,timeLeft,timer,running=false,animFrame;
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  targets=[]; bullets=[]; score=0; timeLeft=30; running=true;
+  clearInterval(timer);
+  timer=setInterval(()=>{timeLeft--;if(timeLeft<=0){running=false;clearInterval(timer);}},1000);
+  cancelAnimationFrame(animFrame); spawnTargets(); loop();
+}
+function spawnTargets(){
+  while(targets.length<6){
+    targets.push({x:50+Math.random()*400,y:50+Math.random()*400,r:15+Math.random()*20,vx:(Math.random()-0.5)*3,vy:(Math.random()-0.5)*3,color:['#ff6b6b','#ffd200','#6c63ff','#48cfad','#f953c6'][Math.floor(Math.random()*5)]});
+  }
+}
+function loop(){
+  if(!running){submitScore(score);return;}
+  ctx.fillStyle='#0d1b2a';ctx.fillRect(0,0,500,500);
+  targets.forEach((t,i)=>{
+    t.x+=t.vx;t.y+=t.vy;
+    if(t.x-t.r<0||t.x+t.r>500)t.vx*=-1;
+    if(t.y-t.r<0||t.y+t.r>500)t.vy*=-1;
+    ctx.fillStyle=t.color;ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=2;ctx.stroke();
+  });
+  bullets.forEach((b,i)=>{
+    b.x+=b.vx;b.y+=b.vy;
+    ctx.fillStyle='#ffd200';ctx.beginPath();ctx.arc(b.x,b.y,5,0,Math.PI*2);ctx.fill();
+    targets.forEach((t,j)=>{
+      const dist=Math.hypot(b.x-t.x,b.y-t.y);
+      if(dist<t.r+5){ targets.splice(j,1); bullets.splice(i,1); score+=Math.ceil(30/t.r); document.getElementById('score-display').textContent=score; spawnTargets(); }
+    });
+    if(b.x<0||b.x>500||b.y<0||b.y>500)bullets.splice(i,1);
+  });
+  ctx.fillStyle='white';ctx.font='bold 20px sans-serif';ctx.fillText('⏱'+timeLeft,10,30);ctx.fillText('💥'+score,10,55);
+  animFrame=requestAnimationFrame(loop);
+}
+canvas.addEventListener('click',e=>{
+  if(!running)return;
+  const r=canvas.getBoundingClientRect();
+  const mx=e.clientX-r.left,my=e.clientY-r.top;
+  const angle=Math.atan2(my-250,mx-250);
+  bullets.push({x:250,y:250,vx:Math.cos(angle)*10,vy:Math.sin(angle)*10});
+});
+ctx.fillStyle='#0d1b2a';ctx.fillRect(0,0,500,500);
+ctx.fillStyle='#6c63ff';ctx.font='16px sans-serif';ctx.textAlign='center';
+ctx.fillText('클릭으로 공을 쏘세요! 시작 버튼을 눌러주세요.',250,250);ctx.textAlign='left';
+</script>
+{% endblock %}

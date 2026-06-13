@@ -1,0 +1,33 @@
+{% extends 'blog/base.html' %}
+{% block head_title %}관리자 대시보드 - SyBlog{% endblock %}
+{% block main_area %}
+<h2 class="mb-4"><i class="fas fa-tachometer-alt" style="color:#6c63ff;"></i> 관리자 대시보드</h2>
+<div class="row mb-4">
+    <div class="col-md-4 mb-3"><div class="card text-white" style="background:linear-gradient(135deg,#6c63ff,#48cfad);"><div class="card-body text-center"><h1>{{ stats.total_users }}</h1><p class="mb-0">전체 사용자</p></div></div></div>
+    <div class="col-md-4 mb-3"><div class="card text-white" style="background:linear-gradient(135deg,#f7971e,#ffd200);"><div class="card-body text-center"><h1>{{ stats.total_posts }}</h1><p class="mb-0">전체 게시글</p></div></div></div>
+    <div class="col-md-4 mb-3"><div class="card text-white" style="background:linear-gradient(135deg,#f953c6,#b91d73);"><div class="card-body text-center"><h1>{{ stats.blocked_users }}</h1><p class="mb-0">차단된 사용자</p></div></div></div>
+    <div class="col-md-4 mb-3"><div class="card text-white" style="background:linear-gradient(135deg,#11998e,#38ef7d);"><div class="card-body text-center"><h1>{{ stats.total_comments }}</h1><p class="mb-0">전체 댓글</p></div></div></div>
+    <div class="col-md-4 mb-3"><div class="card text-white" style="background:linear-gradient(135deg,#667eea,#764ba2);"><div class="card-body text-center"><h1>{{ stats.total_mails }}</h1><p class="mb-0">전체 메일</p></div></div></div>
+    <div class="col-md-4 mb-3"><div class="card text-white" style="background:linear-gradient(135deg,#fc5c7d,#6a82fb);"><div class="card-body text-center"><h1>{{ stats.total_scores }}</h1><p class="mb-0">챌린지 기록</p></div></div></div>
+</div>
+<div class="card mb-4"><div class="card-header">빠른 관리</div><div class="card-body">
+    <a href="/user/admin/users/" class="btn btn-primary mr-2"><i class="fas fa-users-cog"></i> 사용자 관리</a>
+    <a href="/admin/" class="btn btn-dark mr-2"><i class="fas fa-cog"></i> Django Admin</a>
+    <a href="/blog/create_post/" class="btn btn-success mr-2"><i class="fas fa-pen"></i> 글 작성</a>
+    <a href="/user/leaderboard/" class="btn btn-warning mr-2"><i class="fas fa-trophy"></i> 리더보드</a>
+</div></div>
+<div class="row">
+    <div class="col-md-6"><div class="card"><div class="card-header">최근 게시글</div><ul class="list-group list-group-flush">
+    {% for post in recent_posts %}<li class="list-group-item d-flex justify-content-between align-items-center">
+        <div><a href="{{ post.get_absolute_url }}" class="text-dark">{{ post.title|truncatechars:30 }}</a><br><small class="text-muted">{{ post.author.username }} · {{ post.created_at|date:"m.d" }}</small></div>
+        <a href="/blog/admin-delete-post/{{ post.pk }}/" class="btn btn-sm btn-outline-danger" onclick="return confirm('삭제?')"><i class="fas fa-trash"></i></a>
+    </li>{% endfor %}
+    </ul></div></div>
+    <div class="col-md-6"><div class="card"><div class="card-header">최근 가입 사용자</div><ul class="list-group list-group-flush">
+    {% for u in recent_users %}<li class="list-group-item d-flex justify-content-between align-items-center">
+        <div><img src="https://ui-avatars.com/api/?name={{ u.username }}&size=25" class="rounded-circle mr-2" width="25">{{ u.username }}<br><small class="text-muted">{{ u.date_joined|date:"Y.m.d" }}</small></div>
+        <a href="/user/admin/users/{{ u.pk }}/toggle-block/" class="btn btn-sm btn-outline-warning"><i class="fas fa-ban"></i></a>
+    </li>{% endfor %}
+    </ul></div></div>
+</div>
+{% endblock %}

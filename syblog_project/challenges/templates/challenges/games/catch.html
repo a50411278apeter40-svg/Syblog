@@ -1,0 +1,53 @@
+{% extends 'challenges/game_base.html' %}
+{% block game_area %}
+<canvas id="gameCanvas" width="500" height="450" style="background:#0d1b2a;border-radius:8px;"></canvas>
+<small class="d-block text-center text-muted mt-1">마우스로 바구니 이동!</small>
+{% endblock %}
+{% block game_script %}
+<script>
+const canvas=document.getElementById('gameCanvas');const ctx=canvas.getContext('2d');
+let basket,items,score,missed,timeLeft,timer,running=false,animFrame;
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  basket={x:210,y:410,w:80,h:20}; items=[]; score=0; missed=0; timeLeft=40; running=true;
+  clearInterval(timer);
+  timer=setInterval(()=>{ timeLeft--; if(timeLeft<=0){running=false;clearInterval(timer);} },1000);
+  cancelAnimationFrame(animFrame); loop();
+}
+function addItem(){
+  if(Math.random()<0.05) items.push({x:Math.random()*470,y:0,r:12,speed:2+Math.random()*3,bomb:Math.random()<0.15,color:['#ffd200','#48cfad','#6c63ff','#ff6b6b'][Math.floor(Math.random()*4)]});
+}
+function loop(){
+  if(!running){submitScore(score);return;}
+  ctx.fillStyle='#0d1b2a';ctx.fillRect(0,0,500,450);
+  addItem();
+  items.forEach((item,i)=>{
+    item.y+=item.speed;
+    ctx.beginPath();ctx.arc(item.x,item.y,item.r,0,Math.PI*2);
+    ctx.fillStyle=item.bomb?'#ff4444':item.color; ctx.fill();
+    if(item.bomb){ ctx.fillStyle='black';ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.fillText('💣',item.x,item.y+4);ctx.textAlign='left'; }
+    if(item.y+item.r>basket.y&&item.x>basket.x&&item.x<basket.x+basket.w&&!item.caught){
+      item.caught=true;
+      if(item.bomb){ score=Math.max(0,score-20); ctx.fillStyle='#ff4444'; }
+      else{ score+=10; }
+      items.splice(i,1);
+      document.getElementById('score-display').textContent=score;
+    } else if(item.y-item.r>450){ if(!item.bomb&&!item.caught) missed++; items.splice(i,1); }
+  });
+  ctx.fillStyle='#6c63ff';ctx.fillRect(basket.x,basket.y,basket.w,basket.h);
+  ctx.fillStyle='rgba(255,255,255,0.1)';ctx.fillRect(basket.x+5,basket.y+3,basket.w-10,5);
+  ctx.fillStyle='white';ctx.font='bold 18px sans-serif';
+  ctx.fillText('⏱'+timeLeft,10,30);ctx.fillText('💰'+score,10,55);ctx.fillText('❌'+missed,10,80);
+  animFrame=requestAnimationFrame(loop);
+}
+document.addEventListener('mousemove',e=>{
+  if(!running||!basket)return;
+  const r=canvas.getBoundingClientRect();
+  basket.x=e.clientX-r.left-basket.w/2;
+  basket.x=Math.max(0,Math.min(420,basket.x));
+});
+ctx.fillStyle='#0d1b2a';ctx.fillRect(0,0,500,450);
+ctx.fillStyle='#6c63ff';ctx.font='16px sans-serif';ctx.textAlign='center';
+ctx.fillText('마우스로 바구니를 움직여 공을 받으세요!',250,225);ctx.textAlign='left';
+</script>
+{% endblock %}

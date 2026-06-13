@@ -1,0 +1,60 @@
+{% extends 'challenges/game_base.html' %}
+{% block game_area %}
+<div id="quiz-area" style="min-height:350px;" class="text-center">
+  <div id="quiz-q" style="font-size:1.3rem;margin:30px 0;padding:20px;background:rgba(108,99,255,0.1);border-radius:12px;">시작 버튼을 눌러주세요!</div>
+  <div id="quiz-opts" class="row justify-content-center"></div>
+  <div class="mt-3">
+    <span id="quiz-progress" class="badge badge-info" style="font-size:1rem;">0 / 10</span>
+    <span id="quiz-result" class="ml-3" style="font-size:1rem;"></span>
+  </div>
+</div>
+{% endblock %}
+{% block game_script %}
+<script>
+const QS=[
+  {q:'Python을 만든 사람은?',a:'귀도 반 로섬',o:['귀도 반 로섬','빌 게이츠','리누스 토르발스','제임스 고슬링']},
+  {q:'HTML의 전체 이름은?',a:'HyperText Markup Language',o:['HyperText Markup Language','High Tech Modern Language','Hyperlink Text Markup','High Transfer Machine Logic']},
+  {q:'CSS에서 글자 색을 바꾸는 속성은?',a:'color',o:['color','font-color','text-color','letter-color']},
+  {q:'JavaScript의 console.log()는 어디에 출력?',a:'브라우저 콘솔',o:['브라우저 콘솔','알림창','HTML 페이지','서버']},
+  {q:'Django는 어떤 언어 기반?',a:'Python',o:['Python','Ruby','PHP','Java']},
+  {q:'git commit -m "msg"에서 -m은?',a:'메시지',o:['메시지','마스터','머지','모드']},
+  {q:'HTTP 상태코드 404는?',a:'Not Found',o:['Not Found','Server Error','Unauthorized','Forbidden']},
+  {q:'SQL에서 테이블 조회 명령어는?',a:'SELECT',o:['SELECT','FIND','GET','FETCH']},
+  {q:'JSON의 전체 이름은?',a:'JavaScript Object Notation',o:['JavaScript Object Notation','Java Syntax Object Node','Just Simple Object Name','Java Standard Output Notation']},
+  {q:'def 키워드는 무엇을 정의?',a:'함수',o:['함수','변수','클래스','모듈']},
+  {q:'Python 리스트에서 마지막 요소는?',a:'[-1]',o:['[-1]','[last]','[end]','[final]']},
+  {q:'URL에서 http://의 역할은?',a:'프로토콜',o:['프로토콜','도메인','경로','포트']},
+];
+let questions,current,correct,running=false;
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  questions=[...QS].sort(()=>Math.random()-0.5).slice(0,10);
+  current=0; correct=0; running=true;
+  showQuestion();
+}
+function showQuestion(){
+  if(current>=questions.length){ running=false; submitScore(correct); return; }
+  const q=questions[current];
+  document.getElementById('quiz-q').textContent='Q'+(current+1)+'. '+q.q;
+  document.getElementById('quiz-progress').textContent=(current+1)+' / '+questions.length;
+  document.getElementById('quiz-result').textContent='';
+  const opts=[...q.o].sort(()=>Math.random()-0.5);
+  document.getElementById('quiz-opts').innerHTML=opts.map(o=>`
+    <div class="col-md-6 mb-2">
+      <button class="btn btn-outline-light btn-block" onclick="answer('${o.replace(/'/g,"\\'")}','${q.a.replace(/'/g,"\\'")}')">
+        ${o}
+      </button>
+    </div>`).join('');
+}
+function answer(chosen,correct_ans){
+  if(!running)return;
+  const isCorrect=chosen===correct_ans;
+  if(isCorrect){ correct++; document.getElementById('quiz-result').innerHTML='<span style="color:#48cfad;">✅ 정답!</span>'; }
+  else{ document.getElementById('quiz-result').innerHTML='<span style="color:#ff6b6b;">❌ 오답! 정답: '+correct_ans+'</span>'; }
+  document.getElementById('score-display').textContent=correct;
+  document.querySelectorAll('#quiz-opts button').forEach(b=>b.disabled=true);
+  current++;
+  setTimeout(showQuestion,1200);
+}
+</script>
+{% endblock %}

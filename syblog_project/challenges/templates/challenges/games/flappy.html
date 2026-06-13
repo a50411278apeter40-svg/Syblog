@@ -1,0 +1,57 @@
+{% extends 'challenges/game_base.html' %}
+{% block game_area %}
+<canvas id="gameCanvas" width="400" height="500" style="background:#70c5ce;border-radius:8px;"></canvas>
+{% endblock %}
+{% block game_script %}
+<script>
+const canvas=document.getElementById('gameCanvas');const ctx=canvas.getContext('2d');
+let bird,pipes,score,running=false,animFrame,frameCount=0;
+const GAP=140;const PIPE_W=60;const BIRD_R=18;
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  bird={y:250,vy:0}; pipes=[]; score=0; frameCount=0; running=true;
+  cancelAnimationFrame(animFrame); loop();
+}
+function addPipe(){ const h=80+Math.random()*200; pipes.push({x:400,top:h}); }
+function loop(){
+  if(!running)return;
+  ctx.clearRect(0,0,400,500);
+  // sky
+  ctx.fillStyle='#70c5ce'; ctx.fillRect(0,0,400,500);
+  // ground
+  ctx.fillStyle='#ded895'; ctx.fillRect(0,450,400,50);
+  ctx.fillStyle='#5d4e37'; ctx.fillRect(0,480,400,20);
+  bird.vy+=0.5; bird.y+=bird.vy;
+  frameCount++;
+  if(frameCount%90===0) addPipe();
+  // bird
+  ctx.fillStyle='#ffd200'; ctx.beginPath(); ctx.arc(80,bird.y,BIRD_R,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#ff6b6b'; ctx.beginPath(); ctx.arc(90,bird.y-5,8,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(93,bird.y-7,3,0,Math.PI*2); ctx.fill();
+  // pipes
+  pipes.forEach((p,i)=>{
+    p.x-=3;
+    ctx.fillStyle='#2ecc71';
+    ctx.fillRect(p.x,0,PIPE_W,p.top);
+    ctx.fillRect(p.x,p.top+GAP,PIPE_W,500-p.top-GAP);
+    ctx.fillStyle='#27ae60';
+    ctx.fillRect(p.x-5,p.top-25,PIPE_W+10,25);
+    ctx.fillRect(p.x-5,p.top+GAP,PIPE_W+10,25);
+    if(p.x+PIPE_W<80&&!p.passed){ p.passed=true; score++; document.getElementById('score-display').textContent=score; }
+    if(p.x+PIPE_W<0) pipes.splice(i,1);
+    if(80+BIRD_R>p.x&&80-BIRD_R<p.x+PIPE_W&&(bird.y-BIRD_R<p.top||bird.y+BIRD_R>p.top+GAP)){
+      running=false; submitScore(score); return;
+    }
+  });
+  if(bird.y+BIRD_R>450||bird.y-BIRD_R<0){ running=false; submitScore(score); return; }
+  ctx.fillStyle='white'; ctx.font='bold 20px sans-serif'; ctx.fillText('Score: '+score,10,30);
+  animFrame=requestAnimationFrame(loop);
+}
+function flap(){ if(running) bird.vy=-10; }
+document.addEventListener('keydown',e=>{ if(e.code==='Space'){e.preventDefault();flap();} });
+canvas.addEventListener('click',flap);
+ctx.fillStyle='#70c5ce';ctx.fillRect(0,0,400,500);
+ctx.fillStyle='white';ctx.font='16px sans-serif';ctx.textAlign='center';
+ctx.fillText('스페이스 또는 클릭! 시작 버튼을 눌러주세요.',200,250);ctx.textAlign='left';
+</script>
+{% endblock %}

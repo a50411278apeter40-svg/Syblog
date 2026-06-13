@@ -1,0 +1,67 @@
+{% extends 'challenges/game_base.html' %}
+{% block game_area %}
+<canvas id="gameCanvas" width="750" height="200" style="background:#fff;border-radius:8px;"></canvas>
+{% endblock %}
+{% block game_script %}
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let dino, obstacles, score, speed, gameLoop, running=false, animFrame;
+
+class Dino {
+  constructor(){ this.x=60;this.y=150;this.w=40;this.h=50;this.vy=0;this.onGround=true; }
+  jump(){ if(this.onGround){this.vy=-15;this.onGround=false;} }
+  update(){ this.vy+=0.8;this.y+=this.vy; if(this.y>=150){this.y=150;this.onGround=true;this.vy=0;} }
+  draw(){
+    ctx.fillStyle='#2d3436';
+    ctx.fillRect(this.x,this.y,this.w,this.h);
+    ctx.fillStyle='#6c63ff';
+    ctx.fillRect(this.x+5,this.y-15,30,20);
+    ctx.fillStyle='white';
+    ctx.fillRect(this.x+20,this.y-10,8,8);
+    ctx.fillStyle='black';
+    ctx.fillRect(this.x+23,this.y-8,4,4);
+  }
+  collides(o){ return this.x<o.x+o.w&&this.x+this.w>o.x&&this.y<o.y+o.h&&this.y+this.h>o.y; }
+}
+
+class Obstacle {
+  constructor(){ this.x=750;this.y=140;this.w=20+Math.random()*20;this.h=10+Math.random()*50; }
+  update(){ this.x-=speed; }
+  draw(){ ctx.fillStyle='#48cfad';ctx.fillRect(this.x,this.y,this.w,this.h); }
+}
+
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  dino=new Dino(); obstacles=[]; score=0; speed=5; running=true;
+  if(animFrame)cancelAnimationFrame(animFrame);
+  let frameCount=0;
+  function loop(){
+    if(!running)return;
+    ctx.clearRect(0,0,750,200);
+    ctx.fillStyle='#333'; ctx.fillRect(0,190,750,10);
+    dino.update(); dino.draw();
+    frameCount++;
+    if(frameCount%80===0){ obstacles.push(new Obstacle()); }
+    if(frameCount%200===0){ speed+=0.5; }
+    score=Math.floor(frameCount/5);
+    document.getElementById('score-display').textContent=score;
+    ctx.fillStyle='#333';ctx.font='16px monospace';ctx.fillText('점수: '+score,620,25);
+    for(let i=obstacles.length-1;i>=0;i--){
+      obstacles[i].update(); obstacles[i].draw();
+      if(dino.collides(obstacles[i])){ running=false; submitScore(score); return; }
+      if(obstacles[i].x+obstacles[i].w<0)obstacles.splice(i,1);
+    }
+    animFrame=requestAnimationFrame(loop);
+  }
+  loop();
+}
+document.addEventListener('keydown',e=>{ if(e.code==='Space'||e.code==='ArrowUp'){ e.preventDefault(); dino&&dino.jump(); }});
+canvas.addEventListener('click',()=>dino&&dino.jump());
+// draw initial screen
+ctx.fillStyle='#f8f9fa';ctx.fillRect(0,0,750,200);
+ctx.fillStyle='#6c63ff';ctx.font='20px sans-serif';ctx.textAlign='center';
+ctx.fillText('스페이스 또는 화면 클릭으로 점프! 시작 버튼을 눌러주세요.',375,100);
+ctx.textAlign='left';
+</script>
+{% endblock %}

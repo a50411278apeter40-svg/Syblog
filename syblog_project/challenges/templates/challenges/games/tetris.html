@@ -1,0 +1,97 @@
+{% extends 'challenges/game_base.html' %}
+{% block game_area %}
+<div style="display:flex;justify-content:center;gap:20px;align-items:flex-start;">
+<canvas id="gameCanvas" width="240" height="480" style="background:#0d1b2a;border-radius:8px;"></canvas>
+<div style="color:white;min-width:120px;">
+  <div class="mb-3"><strong>다음 블록</strong><canvas id="nextCanvas" width="100" height="100" style="background:#16213e;border-radius:8px;display:block;margin-top:8px;"></canvas></div>
+  <div><strong>줄 수:</strong><div id="lines-count">0</div></div>
+  <div class="mt-2"><small>← → 이동<br>↑ 회전<br>↓ 빠르게</small></div>
+</div>
+</div>
+{% endblock %}
+{% block game_script %}
+<script>
+const canvas=document.getElementById('gameCanvas');const ctx=canvas.getContext('2d');
+const nextCanvas=document.getElementById('nextCanvas');const nctx=nextCanvas.getContext('2d');
+const CELL=24;const COLS=10;const ROWS=20;
+const PIECES=[
+  {s:[[1,1,1,1]],c:'#48cfad'},
+  {s:[[1,1],[1,1]],c:'#ffd200'},
+  {s:[[0,1,0],[1,1,1]],c:'#6c63ff'},
+  {s:[[1,1,0],[0,1,1]],c:'#f953c6'},
+  {s:[[0,1,1],[1,1,0]],c:'#ff6b6b'},
+  {s:[[1,0],[1,0],[1,1]],c:'#f7971e'},
+  {s:[[0,1],[0,1],[1,1]],c:'#11998e'},
+];
+let board,piece,next,score,lines,running=false,interval;
+function newBoard(){ return Array(ROWS).fill(0).map(()=>Array(COLS).fill(0)); }
+function randPiece(){ const p=PIECES[Math.floor(Math.random()*PIECES.length)]; return {s:p.s.map(r=>[...r]),c:p.c,x:Math.floor(COLS/2)-1,y:0}; }
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  board=newBoard(); score=0; lines=0; running=true;
+  piece=randPiece(); next=randPiece();
+  clearInterval(interval); interval=setInterval(tick,500);
+  draw();
+}
+function tick(){
+  if(!running)return;
+  if(!move(0,1)){ place(); clearLines(); if(piece.y<=0){running=false;clearInterval(interval);submitScore(score);return;} }
+  draw();
+}
+function move(dx,dy){
+  piece.x+=dx; piece.y+=dy;
+  if(collides()){ piece.x-=dx; piece.y-=dy; return false; }
+  return true;
+}
+function rotate(){
+  const r=piece.s[0].map((_,i)=>piece.s.map(row=>row[i]).reverse());
+  const old=piece.s; piece.s=r;
+  if(collides()) piece.s=old;
+}
+function collides(){
+  return piece.s.some((row,y)=>row.some((v,x)=>v&&(piece.y+y>=ROWS||piece.x+x<0||piece.x+x>=COLS||board[piece.y+y][piece.x+x])));
+}
+function place(){
+  piece.s.forEach((row,y)=>row.forEach((v,x)=>{ if(v) board[piece.y+y][piece.x+x]=piece.c; }));
+  piece=next; next=randPiece();
+  document.getElementById('score-display').textContent=score;
+}
+function clearLines(){
+  let cleared=0;
+  for(let y=ROWS-1;y>=0;y--){
+    if(board[y].every(c=>c)){ board.splice(y,1); board.unshift(Array(COLS).fill(0)); cleared++; y++; }
+  }
+  if(cleared){ lines+=cleared; score+=cleared*100*cleared; document.getElementById('lines-count').textContent=lines; }
+}
+function draw(){
+  ctx.fillStyle='#0d1b2a'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  board.forEach((row,y)=>row.forEach((c,x)=>{
+    if(c){ ctx.fillStyle=c; ctx.fillRect(x*CELL+1,y*CELL+1,CELL-2,CELL-2); }
+  }));
+  piece.s.forEach((row,y)=>row.forEach((v,x)=>{
+    if(v){ ctx.fillStyle=piece.c; ctx.fillRect((piece.x+x)*CELL+1,(piece.y+y)*CELL+1,CELL-2,CELL-2); }
+  }));
+  // Grid
+  ctx.strokeStyle='rgba(255,255,255,0.05)';
+  for(let i=0;i<=COLS;i++){ ctx.beginPath();ctx.moveTo(i*CELL,0);ctx.lineTo(i*CELL,ROWS*CELL);ctx.stroke(); }
+  for(let i=0;i<=ROWS;i++){ ctx.beginPath();ctx.moveTo(0,i*CELL);ctx.lineTo(COLS*CELL,i*CELL);ctx.stroke(); }
+  // Next
+  nctx.fillStyle='#16213e'; nctx.fillRect(0,0,100,100);
+  const off=Math.floor((4-next.s[0].length)/2)*12;
+  next.s.forEach((row,y)=>row.forEach((v,x)=>{
+    if(v){ nctx.fillStyle=next.c; nctx.fillRect(x*12+off+10,y*12+10,10,10); }
+  }));
+}
+document.addEventListener('keydown',e=>{
+  if(!running)return;
+  if(e.key==='ArrowLeft'){e.preventDefault();move(-1,0);}
+  else if(e.key==='ArrowRight'){e.preventDefault();move(1,0);}
+  else if(e.key==='ArrowDown'){e.preventDefault();move(0,1);}
+  else if(e.key==='ArrowUp'){e.preventDefault();rotate();}
+  draw();
+});
+ctx.fillStyle='#0d1b2a';ctx.fillRect(0,0,240,480);
+ctx.fillStyle='#6c63ff';ctx.font='14px sans-serif';ctx.textAlign='center';
+ctx.fillText('시작 버튼을 눌러주세요',120,240);ctx.textAlign='left';
+</script>
+{% endblock %}

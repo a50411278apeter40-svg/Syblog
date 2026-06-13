@@ -1,0 +1,48 @@
+{% extends 'challenges/game_base.html' %}
+{% block game_area %}
+<canvas id="gameCanvas" width="400" height="400" style="background:#0d1b2a;border-radius:8px;"></canvas>
+{% endblock %}
+{% block game_script %}
+<script>
+const canvas=document.getElementById('gameCanvas');const ctx=canvas.getContext('2d');
+const CELL=20;let snake,dir,food,score,running=false,interval;
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  snake=[{x:10,y:10}]; dir={x:1,y:0}; score=0; running=true;
+  placeFood();
+  clearInterval(interval);
+  interval=setInterval(update,150);
+}
+function placeFood(){ food={x:Math.floor(Math.random()*20),y:Math.floor(Math.random()*20)}; }
+function update(){
+  if(!running)return;
+  const head={x:snake[0].x+dir.x,y:snake[0].y+dir.y};
+  if(head.x<0||head.x>=20||head.y<0||head.y>=20||snake.some(s=>s.x===head.x&&s.y===head.y)){
+    running=false; clearInterval(interval); submitScore(score); return;
+  }
+  snake.unshift(head);
+  if(head.x===food.x&&head.y===food.y){ score++; placeFood(); }
+  else snake.pop();
+  draw();
+}
+function draw(){
+  ctx.fillStyle='#0d1b2a'; ctx.fillRect(0,0,400,400);
+  snake.forEach((s,i)=>{ 
+    ctx.fillStyle=i===0?'#48cfad':'#6c63ff';
+    ctx.fillRect(s.x*CELL+1,s.y*CELL+1,CELL-2,CELL-2);
+    ctx.fillStyle='rgba(255,255,255,0.1)'; ctx.fillRect(s.x*CELL+1,s.y*CELL+1,CELL/2,CELL/2);
+  });
+  ctx.fillStyle='#ffd200'; ctx.beginPath();
+  ctx.arc(food.x*CELL+CELL/2,food.y*CELL+CELL/2,CELL/2-2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='white'; ctx.font='16px monospace'; ctx.fillText('점수: '+score,10,390);
+  document.getElementById('score-display').textContent=score;
+}
+document.addEventListener('keydown',e=>{
+  const m={ArrowUp:{x:0,y:-1},ArrowDown:{x:0,y:1},ArrowLeft:{x:-1,y:0},ArrowRight:{x:1,y:0}};
+  if(m[e.key]&&!(dir.x===-m[e.key].x&&dir.y===-m[e.key].y)){ e.preventDefault(); dir=m[e.key]; }
+});
+ctx.fillStyle='#0d1b2a';ctx.fillRect(0,0,400,400);
+ctx.fillStyle='#6c63ff';ctx.font='16px sans-serif';ctx.textAlign='center';
+ctx.fillText('방향키로 조작! 시작 버튼을 눌러주세요.',200,200);ctx.textAlign='left';
+</script>
+{% endblock %}

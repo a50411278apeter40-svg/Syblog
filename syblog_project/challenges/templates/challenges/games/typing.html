@@ -1,0 +1,49 @@
+{% extends 'challenges/game_base.html' %}
+{% block game_area %}
+<div class="text-center" style="min-height:300px;">
+  <div id="word-display" style="font-size:2.5rem;font-weight:800;color:#48cfad;margin:30px 0;letter-spacing:4px;">시작 버튼을 눌러주세요</div>
+  <input type="text" id="type-input" class="form-control" style="max-width:400px;margin:0 auto;font-size:1.2rem;text-align:center;" placeholder="단어를 입력하세요..." autocomplete="off" disabled>
+  <div class="mt-3">
+    <span id="time-display" style="font-size:1.5rem;color:#ffd200;">⏱ 60</span>초
+    <span class="ml-4" id="correct-display" style="color:#48cfad;">정답: 0</span>
+    <span class="ml-4" id="wrong-display" style="color:#ff6b6b;">오답: 0</span>
+  </div>
+  <div id="progress-bar" style="height:6px;background:#333;border-radius:3px;margin-top:15px;"><div id="progress-fill" style="height:100%;width:100%;background:linear-gradient(90deg,#6c63ff,#48cfad);border-radius:3px;transition:width 1s;"></div></div>
+</div>
+{% endblock %}
+{% block game_script %}
+<script>
+const WORDS=['python','django','html','css','javascript','react','nodejs','database','server','github',
+'algorithm','function','variable','class','object','array','string','integer','boolean','loop',
+'코딩','프로그램','컴퓨터','개발자','소프트웨어','데이터','네트워크','클라우드','인공지능','알고리즘'];
+let current,score,correct,wrong,timeLeft,timer,running=false;
+function getWord(){ return WORDS[Math.floor(Math.random()*WORDS.length)]; }
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  score=0; correct=0; wrong=0; timeLeft=60; running=true;
+  current=getWord();
+  document.getElementById('word-display').textContent=current;
+  document.getElementById('type-input').value='';
+  document.getElementById('type-input').disabled=false;
+  document.getElementById('type-input').focus();
+  clearInterval(timer);
+  timer=setInterval(()=>{
+    timeLeft--;
+    document.getElementById('time-display').textContent='⏱ '+timeLeft;
+    document.getElementById('progress-fill').style.width=(timeLeft/60*100)+'%';
+    if(timeLeft<=0){ clearInterval(timer); running=false; document.getElementById('type-input').disabled=true; submitScore(score); }
+  },1000);
+}
+document.getElementById('type-input').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){
+    const val=e.target.value.trim();
+    if(val===current){ correct++; score+=Math.ceil(current.length*2); document.getElementById('correct-display').textContent='정답: '+correct; e.target.style.background='#d4edda'; }
+    else { wrong++; document.getElementById('wrong-display').textContent='오답: '+wrong; e.target.style.background='#f8d7da'; }
+    setTimeout(()=>{e.target.style.background='';},300);
+    e.target.value=''; current=getWord();
+    document.getElementById('word-display').textContent=current;
+    document.getElementById('score-display').textContent=score;
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends 'blog/base.html' %}
+{% block head_title %}내 점수 기록 - SyBlog{% endblock %}
+{% block main_area %}
+<h3 class="mb-4"><i class="fas fa-history" style="color:#6c63ff;"></i> 내 플레이 기록</h3>
+<div class="card mb-4" style="background:linear-gradient(135deg,#6c63ff,#48cfad);color:white;">
+  <div class="card-body text-center">
+    <h2>총 획득 포인트: {{ user.profile.points }}</h2>
+    <small>레벨 {{ user.profile.level }} {{ user.profile.level_title }}</small>
+  </div>
+</div>
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead><tr><th>게임</th><th>점수</th><th>획득 포인트</th><th>날짜</th></tr></thead>
+      <tbody>
+        {% for s in scores %}
+        <tr>
+          <td><i class="fas fa-gamepad text-primary mr-1"></i> {{ s.game_type }}</td>
+          <td><strong>{{ s.score }}</strong></td>
+          <td><span class="badge badge-success">+{{ s.points_earned }}p</span></td>
+          <td><small class="text-muted">{{ s.played_at|date:"m.d H:i" }}</small></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" class="text-center text-muted py-4">아직 플레이 기록이 없습니다.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="text-center mt-3">
+  <a href="/challenges/" class="btn btn-primary"><i class="fas fa-gamepad"></i> 게임 하러 가기</a>
+</div>
+{% endblock %}

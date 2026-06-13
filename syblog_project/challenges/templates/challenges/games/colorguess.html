@@ -1,0 +1,42 @@
+{% extends 'challenges/game_base.html' %}
+{% block game_area %}
+<div class="text-center" style="min-height:350px;">
+  <div id="color-box" style="width:200px;height:200px;border-radius:16px;margin:20px auto;background:#6c63ff;box-shadow:0 8px 25px rgba(0,0,0,0.3);"></div>
+  <h4 id="rgb-text" style="color:#48cfad;font-family:monospace;">rgb(108, 99, 255)</h4>
+  <div id="color-opts" class="row justify-content-center mt-3"></div>
+  <div class="mt-2"><span id="streak-info" class="badge badge-warning" style="font-size:1rem;">연속: 0</span></div>
+</div>
+{% endblock %}
+{% block game_script %}
+<script>
+let target,score,streak,running=false;
+function rnd(){ return Math.floor(Math.random()*256); }
+function rgb(r,g,b){ return `rgb(${r}, ${g}, ${b})`; }
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  score=0; streak=0; running=true;
+  newRound();
+}
+function newRound(){
+  const r=rnd(),g=rnd(),b=rnd();
+  target={r,g,b,css:rgb(r,g,b)};
+  document.getElementById('color-box').style.background=target.css;
+  document.getElementById('rgb-text').textContent=target.css;
+  const opts=[target];
+  while(opts.length<4){ const dr=rnd(),dg=rnd(),db=rnd(); opts.push({r:dr,g:dg,b:db,css:rgb(dr,dg,db)}); }
+  opts.sort(()=>Math.random()-0.5);
+  document.getElementById('color-opts').innerHTML=opts.map(o=>`
+    <div class="col-6 mb-2"><div onclick="guess('${o.css}')" style="height:60px;border-radius:10px;background:${o.css};cursor:pointer;border:3px solid transparent;transition:all 0.2s;" onmouseover="this.style.border='3px solid white'" onmouseout="this.style.border='3px solid transparent'"></div></div>
+  `).join('');
+}
+function guess(css){
+  if(!running)return;
+  if(css===target.css){ score+=10+streak*2; streak++; }
+  else { if(streak>0)streak=0; score=Math.max(0,score-2); }
+  document.getElementById('streak-info').textContent='연속: '+streak;
+  document.getElementById('score-display').textContent=score;
+  if(score<0||score>=100){ running=false; submitScore(score); return; }
+  setTimeout(newRound,300);
+}
+</script>
+{% endblock %}

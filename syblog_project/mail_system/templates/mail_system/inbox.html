@@ -1,0 +1,33 @@
+{% extends 'blog/base.html' %}
+{% block head_title %}받은 메일함 - SyBlog{% endblock %}
+{% block main_area %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h3><i class="fas fa-inbox" style="color:#6c63ff;"></i> 받은 메일함</h3>
+  <a href="/mail/compose/" class="btn btn-primary btn-sm"><i class="fas fa-pen"></i> 메일 작성</a>
+</div>
+<div class="mb-3">
+  <a href="/mail/" class="btn btn-primary btn-sm mr-2">받은 메일함</a>
+  <a href="/mail/sent/" class="btn btn-outline-secondary btn-sm">보낸 메일함</a>
+</div>
+<div class="card">
+  <div class="card-body p-0">
+    {% for mail in mails %}
+    <div class="d-flex align-items-center p-3 border-bottom {% if not mail.is_read %}bg-light{% endif %}" style="cursor:pointer;" onclick="location.href='/mail/{{ mail.pk }}/'">
+      <img src="https://ui-avatars.com/api/?name={{ mail.sender.username }}&size=40&background=random" class="rounded-circle mr-3" width="40">
+      <div class="flex-grow-1">
+        <div class="d-flex justify-content-between">
+          <strong {% if not mail.is_read %}class="text-primary"{% endif %}>{{ mail.sender.username }}</strong>
+          <small class="text-muted">{{ mail.sent_at|date:"m.d H:i" }}</small>
+        </div>
+        <div>{{ mail.subject|truncatechars:50 }} {% if not mail.is_read %}<span class="badge badge-primary badge-pill" style="font-size:0.65rem;">NEW</span>{% endif %}</div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="text-center py-5">
+      <i class="fas fa-inbox" style="font-size:3rem;color:#ddd;"></i>
+      <p class="text-muted mt-3">받은 메일이 없습니다.</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
