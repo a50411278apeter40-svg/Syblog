@@ -1,78 +1,158 @@
-{% extends "blog/base.html" %}
-{% load socialaccount %}
-
-{% block main_area %}
-<div class="d-flex justify-content-center">
-<div style="width:100%; max-width:440px;">
-  <div class="card shadow-lg border-0 mt-4" style="border-radius:16px; overflow:hidden;">
-    <div class="card-header text-white text-center py-4"
-         style="background:linear-gradient(135deg,#6c63ff,#48cfad); border-radius:0 !important;">
-      <h4 class="mb-0"><i class="fas fa-sign-in-alt"></i> 로그인</h4>
-    </div>
-    <div class="card-body p-4" style="background:#fff;">
-
-      {# 구글 로그인 버튼 #}
-      {% get_providers as socialaccount_providers %}
-      {% if socialaccount_providers %}
-      <a href="{% provider_login_url 'google' %}"
-         class="btn btn-block mb-3 d-flex align-items-center justify-content-center"
-         style="background:#fff; border:2px solid #ddd; border-radius:8px; font-weight:600; color:#444; gap:10px; padding:10px;">
-        <img src="https://developers.google.com/identity/images/g-logo.png" width="20" alt="G">
-        Google 계정으로 로그인
-      </a>
-      <div class="text-center text-muted mb-3" style="font-size:.85rem;">── 또는 ──</div>
-      {% endif %}
-
-      {# 일반 로그인 폼 #}
-      <form method="post" action="{% url 'account_login' %}">
-        {% csrf_token %}
-        <div class="form-group">
-          <label class="font-weight-bold">아이디</label>
-          <input type="text" name="login" class="form-control form-control-lg"
-                 placeholder="사용자명 입력" required autofocus
-                 style="border-radius:8px; border:1.5px solid #ddd;">
-        </div>
-        <div class="form-group">
-          <label class="font-weight-bold">비밀번호</label>
-          <input type="password" name="password" class="form-control form-control-lg"
-                 placeholder="비밀번호 입력" required
-                 style="border-radius:8px; border:1.5px solid #ddd;">
-        </div>
-        <div class="form-check mb-3">
-          <input class="form-check-input" type="checkbox" name="remember" id="id_remember">
-          <label class="form-check-label text-muted" for="id_remember">로그인 상태 유지</label>
-        </div>
-        <button type="submit" class="btn btn-block btn-lg text-white font-weight-bold"
-                style="background:linear-gradient(135deg,#6c63ff,#48cfad); border-radius:8px; border:none; padding:12px;">
-          <i class="fas fa-sign-in-alt"></i> 로그인
-        </button>
-      </form>
-
-      {% if form.errors %}
-      <div class="alert alert-danger mt-3 py-2">
-        아이디 또는 비밀번호가 올바르지 않습니다.
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>로그인 - SyBlog</title>
+  <link rel="stylesheet" href="{% static 'blog/bootstrap/bootstrap.min.css' %}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .login-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 16px;
+    }
+    .login-card {
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+      width: 100%;
+      max-width: 420px;
+      overflow: hidden;
+    }
+    .login-header {
+      background: linear-gradient(135deg, #6c63ff, #48cfad);
+      padding: 32px 24px;
+      text-align: center;
+      color: #fff;
+    }
+    .login-header h2 { font-weight: 800; margin: 0; font-size: 1.8rem; }
+    .login-header p { margin: 6px 0 0; opacity: .85; font-size: .9rem; }
+    .login-body { padding: 32px 28px; }
+    .form-label { font-weight: 600; color: #444; margin-bottom: 6px; font-size: .9rem; }
+    .form-control {
+      border-radius: 10px;
+      border: 2px solid #e9ecef;
+      padding: 12px 14px;
+      font-size: 1rem;
+      transition: border-color .2s;
+    }
+    .form-control:focus {
+      border-color: #6c63ff;
+      box-shadow: 0 0 0 3px rgba(108,99,255,.15);
+    }
+    .btn-login {
+      background: linear-gradient(135deg, #6c63ff, #48cfad);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-weight: 700;
+      font-size: 1rem;
+      padding: 13px;
+      width: 100%;
+      margin-top: 8px;
+      cursor: pointer;
+      transition: opacity .2s;
+    }
+    .btn-login:hover { opacity: .9; }
+    .btn-google {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      background: #fff;
+      border: 2px solid #e9ecef;
+      border-radius: 10px;
+      color: #444;
+      font-weight: 600;
+      font-size: .95rem;
+      padding: 11px;
+      width: 100%;
+      text-decoration: none;
+      margin-bottom: 20px;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .btn-google:hover { border-color: #6c63ff; box-shadow: 0 2px 10px rgba(108,99,255,.15); color: #333; text-decoration: none; }
+    .divider { display: flex; align-items: center; gap: 12px; color: #aaa; font-size: .85rem; margin: 4px 0 20px; }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #e9ecef; }
+    .bottom-link { text-align: center; margin-top: 20px; font-size: .9rem; color: #666; }
+    .bottom-link a { color: #6c63ff; font-weight: 600; text-decoration: none; }
+    .bottom-link a:hover { text-decoration: underline; }
+    .brand { text-align: center; margin-bottom: 32px; }
+    .brand a { font-size: 1.4rem; font-weight: 800; color: #fff; text-decoration: none; letter-spacing: -0.5px; }
+    .alert-error { background: #fff5f5; border: 1px solid #fed7d7; color: #c53030; border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <div class="login-wrap">
+    <div style="width:100%; max-width:420px;">
+      <div class="brand">
+        <a href="/"><i class="fas fa-code"></i> SyBlog</a>
       </div>
-      {% endif %}
-
-      {% if messages %}
-      <div class="mt-3">
-        {% for message in messages %}
-        <div class="alert alert-warning py-2 alert-dismissible fade show">
-          {{ message }}
-          <button type="button" class="close py-1" data-dismiss="alert"><span>&times;</span></button>
+      <div class="login-card">
+        <div class="login-header">
+          <h2><i class="fas fa-sign-in-alt"></i> 로그인</h2>
+          <p>SyBlog에 오신 것을 환영합니다</p>
         </div>
-        {% endfor %}
-      </div>
-      {% endif %}
+        <div class="login-body">
 
-      <hr>
-      <p class="text-center text-muted mb-2" style="font-size:.9rem;">아직 계정이 없으신가요?</p>
-      <a href="/accounts/signup/" class="btn btn-outline-primary btn-block"
-         style="border-radius:8px;">
-        <i class="fas fa-user-plus"></i> 회원가입하기
-      </a>
+          <!-- 구글 로그인 -->
+          <a href="/accounts/google/login/?process=login" class="btn-google">
+            <img src="https://developers.google.com/identity/images/g-logo.png" width="20" alt="Google">
+            Google 계정으로 로그인
+          </a>
+
+          <div class="divider">또는</div>
+
+          <!-- 일반 로그인 폼 -->
+          {% if form.errors %}
+          <div class="alert-error">
+            <i class="fas fa-exclamation-circle"></i> 아이디 또는 비밀번호가 올바르지 않습니다.
+          </div>
+          {% endif %}
+
+          {% if messages %}
+            {% for message in messages %}
+            <div class="alert-error">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+
+          <form method="post" action="{% url 'account_login' %}">
+            {% csrf_token %}
+            <div class="form-group">
+              <label class="form-label">아이디</label>
+              <input type="text" name="login" class="form-control"
+                     placeholder="사용자명을 입력하세요" required autofocus>
+            </div>
+            <div class="form-group mt-3">
+              <label class="form-label">비밀번호</label>
+              <input type="password" name="password" class="form-control"
+                     placeholder="비밀번호를 입력하세요" required>
+            </div>
+            <div class="form-check mt-3">
+              <input class="form-check-input" type="checkbox" name="remember" id="remember">
+              <label class="form-check-label text-muted" for="remember" style="font-size:.9rem;">로그인 상태 유지</label>
+            </div>
+            <button type="submit" class="btn-login mt-3">
+              <i class="fas fa-sign-in-alt"></i> 로그인
+            </button>
+          </form>
+
+          <div class="bottom-link">
+            계정이 없으신가요? <a href="/accounts/signup/">회원가입</a>
+          </div>
+          <div class="bottom-link mt-2">
+            <a href="/">← 홈으로</a>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
-</div>
-</div>
-{% endblock %}
+</body>
+</html>
