@@ -289,3 +289,13 @@ def admin_delete_post(request, pk):
     post.delete()
     messages.success(request, '게시글이 삭제되었습니다.')
     return redirect('blog:index')
+
+
+# ── 카테고리 context processor (전역) ──
+from blog.models import Category as BlogCategory
+
+def global_categories(request):
+    return {
+        'categories': BlogCategory.objects.all(),
+        'no_category_post_count': Post.objects.filter(category=None).count(),
+    }

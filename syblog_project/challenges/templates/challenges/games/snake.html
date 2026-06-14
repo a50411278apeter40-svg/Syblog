@@ -1,48 +1,198 @@
 {% extends 'challenges/game_base.html' %}
 {% block game_area %}
-<canvas id="gameCanvas" width="400" height="400" style="background:#0d1b2a;border-radius:8px;"></canvas>
+<canvas id="gameCanvas" style="border-radius:14px;max-width:100%;touch-action:none;"></canvas>
+<div id="swipe-hint" style="text-align:center;color:#aaa;font-size:13px;margin-top:6px;">📱 스와이프로 방향 조작</div>
 {% endblock %}
 {% block game_script %}
 <script>
-const canvas=document.getElementById('gameCanvas');const ctx=canvas.getContext('2d');
-const CELL=20;let snake,dir,food,score,running=false,interval;
+const canvas=document.getElementById('gameCanvas');
+const ctx=canvas.getContext('2d');
+const SZ=400, CELL=20, COLS=20, ROWS=20;
+canvas.width=SZ; canvas.height=SZ;
+canvas.style.width='min(400px,100vw)'; canvas.style.height='auto';
+
+let snake,dir,nextDir,food,bonus,score,running=false,interval,frame=0,particles=[];
+let bgGrad,glowAnim=0;
+
 function startGame(){
   document.getElementById('result-overlay').classList.remove('show');
-  snake=[{x:10,y:10}]; dir={x:1,y:0}; score=0; running=true;
-  placeFood();
+  snake=[{x:10,y:10},{x:9,y:10},{x:8,y:10}];
+  dir={x:1,y:0}; nextDir={x:1,y:0};
+  score=0; frame=0; particles=[];
+  placeFood(); bonus=null; running=true;
   clearInterval(interval);
-  interval=setInterval(update,150);
+  interval=setInterval(update,110);
 }
-function placeFood(){ food={x:Math.floor(Math.random()*20),y:Math.floor(Math.random()*20)}; }
+
+function placeFood(){
+  let pos;
+  do{ pos={x:Math.floor(Math.random()*COLS),y:Math.floor(Math.random()*ROWS)}; }
+  while(snake.some(s=>s.x===pos.x&&s.y===pos.y));
+  food={...pos,anim:0};
+  // 보너스 (5점마다)
+  if(score>0&&score%5===0&&!bonus){
+    let bp;
+    do{ bp={x:Math.floor(Math.random()*COLS),y:Math.floor(Math.random()*ROWS)}; }
+    while(snake.some(s=>s.x===bp.x&&s.y===bp.y)||(bp.x===pos.x&&bp.y===pos.y));
+    bonus={...bp,timer:80,anim:0};
+  }
+}
+
 function update(){
-  if(!running)return;
+  if(!running) return;
+  dir={...nextDir}; frame++;
+  glowAnim++;
   const head={x:snake[0].x+dir.x,y:snake[0].y+dir.y};
-  if(head.x<0||head.x>=20||head.y<0||head.y>=20||snake.some(s=>s.x===head.x&&s.y===head.y)){
-    running=false; clearInterval(interval); submitScore(score); return;
+  // 벽 충돌
+  if(head.x<0||head.x>=COLS||head.y<0||head.y>=ROWS||snake.slice(1).some(s=>s.x===head.x&&s.y===head.y)){
+    running=false; clearInterval(interval);
+    for(let i=0;i<12;i++) spawnParticle(snake[0].x*CELL+CELL/2,snake[0].y*CELL+CELL/2,'#ff4444');
+    draw(); setTimeout(()=>submitScore(score),600); return;
   }
   snake.unshift(head);
-  if(head.x===food.x&&head.y===food.y){ score++; placeFood(); }
-  else snake.pop();
+  if(head.x===food.x&&head.y===food.y){
+    score++; document.getElementById('score-display').textContent=score;
+    spawnParticle(food.x*CELL+CELL/2,food.y*CELL+CELL/2,'#4CAF50',8);
+    placeFood();
+  } else snake.pop();
+  if(bonus){
+    bonus.timer--;
+    if(head.x===bonus.x&&head.y===bonus.y){
+      score+=3; document.getElementById('score-display').textContent=score;
+      spawnParticle(bonus.x*CELL+CELL/2,bonus.y*CELL+CELL/2,'#FFD700',10);
+      bonus=null;
+    } else if(bonus.timer<=0) bonus=null;
+  }
   draw();
 }
-function draw(){
-  ctx.fillStyle='#0d1b2a'; ctx.fillRect(0,0,400,400);
-  snake.forEach((s,i)=>{ 
-    ctx.fillStyle=i===0?'#48cfad':'#6c63ff';
-    ctx.fillRect(s.x*CELL+1,s.y*CELL+1,CELL-2,CELL-2);
-    ctx.fillStyle='rgba(255,255,255,0.1)'; ctx.fillRect(s.x*CELL+1,s.y*CELL+1,CELL/2,CELL/2);
-  });
-  ctx.fillStyle='#ffd200'; ctx.beginPath();
-  ctx.arc(food.x*CELL+CELL/2,food.y*CELL+CELL/2,CELL/2-2,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='white'; ctx.font='16px monospace'; ctx.fillText('점수: '+score,10,390);
-  document.getElementById('score-display').textContent=score;
+
+function spawnParticle(x,y,color,n=6){
+  for(let i=0;i<n;i++)
+    particles.push({x,y,vx:(Math.random()-0.5)*5,vy:(Math.random()-0.5)*5,life:25,color});
 }
+
+function draw(){
+  // 배경
+  if(!bgGrad){
+    bgGrad=ctx.createLinearGradient(0,0,SZ,SZ);
+    bgGrad.addColorStop(0,'#0d1b2a'); bgGrad.addColorStop(1,'#1a2d4a');
+  }
+  ctx.fillStyle=bgGrad; ctx.fillRect(0,0,SZ,SZ);
+  // 그리드
+  ctx.strokeStyle='rgba(100,200,255,0.07)'; ctx.lineWidth=0.5;
+  for(let i=0;i<=COLS;i++){
+    ctx.beginPath(); ctx.moveTo(i*CELL,0); ctx.lineTo(i*CELL,SZ); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,i*CELL); ctx.lineTo(SZ,i*CELL); ctx.stroke();
+  }
+  // 뱀
+  snake.forEach((s,i)=>{
+    let r=CELL*0.5-1;
+    let t=i/snake.length;
+    let hue=130-t*40;
+    let sg=ctx.createRadialGradient(s.x*CELL+CELL/2,s.y*CELL+CELL/2,1,s.x*CELL+CELL/2,s.y*CELL+CELL/2,r);
+    if(i===0){
+      sg.addColorStop(0,'#80ff80'); sg.addColorStop(1,'#00cc44');
+    }else{
+      sg.addColorStop(0,`hsl(${hue},85%,60%)`); sg.addColorStop(1,`hsl(${hue},85%,35%)`);
+    }
+    ctx.fillStyle=sg;
+    ctx.beginPath();
+    ctx.roundRect(s.x*CELL+1,s.y*CELL+1,CELL-2,CELL-2,i===0?6:4);
+    ctx.fill();
+    // 뱀 머리 눈
+    if(i===0){
+      ctx.fillStyle='#fff';
+      let ex=dir.x===0?CELL*0.3:dir.x>0?CELL*0.65:CELL*0.15;
+      let ey=dir.y===0?CELL*0.3:dir.y>0?CELL*0.65:CELL*0.15;
+      let ex2=dir.x===0?CELL*0.7:ex;
+      let ey2=dir.y===0?CELL*0.7:ey;
+      ctx.beginPath(); ctx.arc(s.x*CELL+ex,s.y*CELL+ey,3,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(s.x*CELL+ex2,s.y*CELL+ey2,3,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#000';
+      ctx.beginPath(); ctx.arc(s.x*CELL+ex+0.5,s.y*CELL+ey+0.5,1.5,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(s.x*CELL+ex2+0.5,s.y*CELL+ey2+0.5,1.5,0,Math.PI*2); ctx.fill();
+    }
+    // 광택
+    ctx.fillStyle='rgba(255,255,255,0.18)';
+    ctx.beginPath(); ctx.roundRect(s.x*CELL+3,s.y*CELL+3,CELL*0.4,CELL*0.3,3); ctx.fill();
+  });
+  // 먹이
+  food.anim=(food.anim||0)+0.1;
+  let fp=Math.sin(food.anim)*3;
+  let fg=ctx.createRadialGradient(food.x*CELL+CELL/2,food.y*CELL+CELL/2-fp,2,food.x*CELL+CELL/2,food.y*CELL+CELL/2-fp,CELL*0.5);
+  fg.addColorStop(0,'#ff6060'); fg.addColorStop(1,'#cc0000');
+  ctx.fillStyle=fg;
+  ctx.beginPath(); ctx.arc(food.x*CELL+CELL/2,food.y*CELL+CELL/2-fp,CELL*0.42,0,Math.PI*2); ctx.fill();
+  // 사과 꼭지
+  ctx.fillStyle='#8B4513'; ctx.fillRect(food.x*CELL+CELL/2-1,food.y*CELL+3-fp,2,5);
+  ctx.fillStyle='#00aa00'; ctx.font='10px Arial';
+  ctx.fillText('🌿',food.x*CELL+CELL/2,food.y*CELL+7-fp);
+  // 글로우
+  ctx.fillStyle=`rgba(255,60,60,${0.08+Math.sin(glowAnim*0.15)*0.05})`;
+  ctx.beginPath(); ctx.arc(food.x*CELL+CELL/2,food.y*CELL+CELL/2-fp,CELL*0.7,0,Math.PI*2); ctx.fill();
+  // 보너스
+  if(bonus){
+    bonus.anim=(bonus.anim||0)+0.15;
+    let ba=bonus.anim; let pulse=Math.sin(ba)*2;
+    let alpha=bonus.timer<20?bonus.timer/20:1;
+    ctx.globalAlpha=alpha;
+    let bg2=ctx.createRadialGradient(bonus.x*CELL+CELL/2,bonus.y*CELL+CELL/2,2,bonus.x*CELL+CELL/2,bonus.y*CELL+CELL/2,CELL*0.55);
+    bg2.addColorStop(0,'#FFE566'); bg2.addColorStop(1,'#FF8C00');
+    ctx.fillStyle=bg2;
+    ctx.beginPath(); ctx.arc(bonus.x*CELL+CELL/2,bonus.y*CELL+CELL/2,CELL*0.42+pulse,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.font='bold 12px Arial'; ctx.textAlign='center';
+    ctx.fillText('⭐',bonus.x*CELL+CELL/2,bonus.y*CELL+CELL/2+5); ctx.textAlign='left';
+    ctx.globalAlpha=1;
+  }
+  // 파티클
+  for(let i=particles.length-1;i>=0;i--){
+    let p=particles[i]; p.life--;
+    if(p.life<=0){particles.splice(i,1);continue;}
+    p.x+=p.vx; p.y+=p.vy; p.vx*=0.9; p.vy*=0.9;
+    ctx.globalAlpha=p.life/25;
+    ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+  // 점수
+  ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.roundRect(4,4,100,28,8); ctx.fill();
+  ctx.fillStyle='#48cfad'; ctx.font='bold 15px Arial';
+  ctx.fillText('🍎 '+score,12,23);
+}
+
+// 키보드
+const DIRS={'ArrowUp':{x:0,y:-1},'ArrowDown':{x:0,y:1},'ArrowLeft':{x:-1,y:0},'ArrowRight':{x:1,y:0},
+            'KeyW':{x:0,y:-1},'KeyS':{x:0,y:1},'KeyA':{x:-1,y:0},'KeyD':{x:1,y:0}};
 document.addEventListener('keydown',e=>{
-  const m={ArrowUp:{x:0,y:-1},ArrowDown:{x:0,y:1},ArrowLeft:{x:-1,y:0},ArrowRight:{x:1,y:0}};
-  if(m[e.key]&&!(dir.x===-m[e.key].x&&dir.y===-m[e.key].y)){ e.preventDefault(); dir=m[e.key]; }
+  let d=DIRS[e.code];
+  if(d&&!(d.x===-dir.x&&d.y===0)&&!(d.y===-dir.y&&d.x===0)){nextDir=d;}
+  if(Object.keys(DIRS).includes(e.code)) e.preventDefault();
 });
-ctx.fillStyle='#0d1b2a';ctx.fillRect(0,0,400,400);
-ctx.fillStyle='#6c63ff';ctx.font='16px sans-serif';ctx.textAlign='center';
-ctx.fillText('방향키로 조작! 시작 버튼을 눌러주세요.',200,200);ctx.textAlign='left';
+// 스와이프
+let tx,ty;
+canvas.addEventListener('touchstart',e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY;},{passive:true});
+canvas.addEventListener('touchend',e=>{
+  let dx=e.changedTouches[0].clientX-tx, dy=e.changedTouches[0].clientY-ty;
+  if(Math.abs(dx)>Math.abs(dy)){
+    if(dx>20&&dir.x!==(-1)) nextDir={x:1,y:0};
+    if(dx<-20&&dir.x!==1) nextDir={x:-1,y:0};
+  }else{
+    if(dy>20&&dir.y!==(-1)) nextDir={x:0,y:1};
+    if(dy<-20&&dir.y!==1) nextDir={x:0,y:-1};
+  }
+},{passive:true});
+
+// 초기화면
+(function initScreen(){
+  let bg=ctx.createLinearGradient(0,0,SZ,SZ);
+  bg.addColorStop(0,'#0d1b2a'); bg.addColorStop(1,'#1a2d4a');
+  ctx.fillStyle=bg; ctx.fillRect(0,0,SZ,SZ);
+  ctx.fillStyle='rgba(0,220,100,0.15)'; ctx.beginPath(); ctx.roundRect(80,140,240,120,18); ctx.fill();
+  ctx.strokeStyle='rgba(0,220,100,0.4)'; ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect(80,140,240,120,18); ctx.stroke();
+  ctx.fillStyle='#48cfad'; ctx.font='bold 26px Arial'; ctx.textAlign='center';
+  ctx.fillText('🐍 스네이크 게임',SZ/2,185);
+  ctx.fillStyle='#aaa'; ctx.font='13px Arial';
+  ctx.fillText('화살표키 / WASD / 스와이프',SZ/2,215);
+  ctx.fillText('⭐ 보너스 먹이 = +3점',SZ/2,238); ctx.textAlign='left';
+})();
 </script>
 {% endblock %}

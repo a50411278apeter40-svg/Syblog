@@ -68,6 +68,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'mail_system.context_processors.unread_mail_count',
+                'blog.views.global_categories',
             ],
             'loaders': [
                 'django.template.loaders.filesystem.Loader',

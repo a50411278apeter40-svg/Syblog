@@ -1,63 +1,264 @@
 {% extends 'challenges/game_base.html' %}
 {% block game_area %}
-<canvas id="gameCanvas" width="550" height="500" style="background:#0d1b2a;border-radius:8px;"></canvas>
-<small class="d-block text-center text-muted mt-1">← → 이동 / 스페이스 발사</small>
+<canvas id="gameCanvas" style="border-radius:14px;max-width:100%;touch-action:none;"></canvas>
+<div style="display:flex;justify-content:space-between;margin-top:8px;padding:0 10px;">
+  <div style="display:flex;gap:10px;">
+    <button id="btn-left" style="width:55px;height:55px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.4);color:white;font-size:20px;cursor:pointer;-webkit-tap-highlight-color:transparent;">◀</button>
+    <button id="btn-right" style="width:55px;height:55px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.4);color:white;font-size:20px;cursor:pointer;-webkit-tap-highlight-color:transparent;">▶</button>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <button id="btn-thrust" style="width:55px;height:55px;border-radius:50%;background:rgba(100,200,255,0.4);border:2px solid rgba(100,200,255,0.6);color:white;font-size:20px;cursor:pointer;-webkit-tap-highlight-color:transparent;">▲</button>
+    <button id="btn-fire" style="width:55px;height:55px;border-radius:50%;background:rgba(255,80,80,0.5);border:2px solid rgba(255,120,120,0.7);color:white;font-size:20px;cursor:pointer;-webkit-tap-highlight-color:transparent;">🔥</button>
+  </div>
+</div>
 {% endblock %}
 {% block game_script %}
 <script>
-const canvas=document.getElementById('gameCanvas');const ctx=canvas.getContext('2d');
-let ship,asteroids,bullets,score,lives,running=false,animFrame,keys={},frame=0;
+const canvas=document.getElementById('gameCanvas');
+const ctx=canvas.getContext('2d');
+const W=500,H=500;
+canvas.width=W; canvas.height=H;
+canvas.style.width='min(500px,100vw)'; canvas.style.height='auto';
+
+let ship,bullets,asteroids,score,lives,level,running=false,af,frame=0,particles=[];
+let keys={},invincible=0,stars=[];
+// 배경 별
+for(let i=0;i<120;i++) stars.push({x:Math.random()*W,y:Math.random()*H,size:Math.random()*1.8+0.3,twinkle:Math.random()*Math.PI*2});
+
 function startGame(){
   document.getElementById('result-overlay').classList.remove('show');
-  ship={x:275,y:400,angle:-Math.PI/2,vx:0,vy:0};
-  asteroids=[]; bullets=[]; score=0; lives=3; running=true; frame=0;
-  for(let i=0;i<5;i++) spawnAsteroid();
-  cancelAnimationFrame(animFrame); loop();
+  ship={x:W/2,y:H/2,angle:-Math.PI/2,vx:0,vy:0,r:14,thrusting:false,dead:false};
+  bullets=[]; particles=[]; score=0; lives=3; level=1; frame=0; invincible=0;
+  asteroids=spawnAsteroids(4+level);
+  running=true; cancelAnimationFrame(af); loop();
 }
-function spawnAsteroid(){
-  const side=Math.floor(Math.random()*4);
-  let x,y;
-  if(side===0){x=Math.random()*550;y=0;}else if(side===1){x=550;y=Math.random()*500;}else if(side===2){x=Math.random()*550;y=500;}else{x=0;y=Math.random()*500;}
-  asteroids.push({x,y,r:20+Math.random()*20,vx:(Math.random()-0.5)*3,vy:(Math.random()-0.5)*3});
+
+function spawnAsteroids(n){
+  let arr=[];
+  for(let i=0;i<n;i++){
+    let angle=Math.random()*Math.PI*2;
+    let dist=150+Math.random()*150;
+    let x=(W/2+Math.cos(angle)*dist+W)%W;
+    let y=(H/2+Math.sin(angle)*dist+H)%H;
+    arr.push(makeAsteroid(x,y,3));
+  }
+  return arr;
 }
-function loop(){
-  if(!running)return;
-  frame++;
-  ctx.fillStyle='rgba(13,27,42,0.3)';ctx.fillRect(0,0,550,500);
-  if(keys['ArrowLeft']||keys['a']) ship.angle-=0.07;
-  if(keys['ArrowRight']||keys['d']) ship.angle+=0.07;
-  if(keys['ArrowUp']||keys['w']){ ship.vx+=Math.cos(ship.angle)*0.3; ship.vy+=Math.sin(ship.angle)*0.3; }
-  ship.vx*=0.98; ship.vy*=0.98;
-  ship.x=(ship.x+ship.vx+550)%550; ship.y=(ship.y+ship.vy+500)%500;
-  // Ship
-  ctx.save();ctx.translate(ship.x,ship.y);ctx.rotate(ship.angle);
-  ctx.strokeStyle='#48cfad';ctx.lineWidth=2;
-  ctx.beginPath();ctx.moveTo(15,0);ctx.lineTo(-10,8);ctx.lineTo(-5,0);ctx.lineTo(-10,-8);ctx.closePath();ctx.stroke();
-  if(keys['ArrowUp']||keys['w']){ctx.fillStyle='#ffd200';ctx.beginPath();ctx.moveTo(-5,0);ctx.lineTo(-12,4);ctx.lineTo(-12,-4);ctx.fill();}
+
+function makeAsteroid(x,y,size){
+  let spd=1.2+Math.random()*1.5+(4-size)*0.4;
+  let angle=Math.random()*Math.PI*2;
+  let r=[0,18,30,48][size];
+  let pts=[];
+  let n=size===1?6:size===2?8:10;
+  for(let i=0;i<n;i++){
+    let a=(i/n)*Math.PI*2;
+    let vary=0.7+Math.random()*0.6;
+    pts.push({a,r:r*vary});
+  }
+  return {x,y,vx:Math.cos(angle)*spd,vy:Math.sin(angle)*spd,size,r,pts,rot:0,rotSpd:(Math.random()-0.5)*0.04};
+}
+
+function drawBG(){
+  let bg=ctx.createRadialGradient(W/2,H/2,50,W/2,H/2,W*0.8);
+  bg.addColorStop(0,'#0d1b3e'); bg.addColorStop(1,'#020612');
+  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+  // 별
+  stars.forEach(s=>{
+    s.twinkle+=0.04;
+    let alpha=0.4+Math.sin(s.twinkle)*0.4;
+    ctx.fillStyle=`rgba(255,255,255,${alpha})`;
+    ctx.beginPath(); ctx.arc(s.x,s.y,s.size,0,Math.PI*2); ctx.fill();
+  });
+  // 행성
+  ctx.save(); ctx.globalAlpha=0.15;
+  let pg=ctx.createRadialGradient(80,80,5,80,80,55);
+  pg.addColorStop(0,'#ff6b35'); pg.addColorStop(1,'#cc2200');
+  ctx.fillStyle=pg; ctx.beginPath(); ctx.arc(80,80,55,0,Math.PI*2); ctx.fill();
+  ctx.globalAlpha=0.08; ctx.strokeStyle='#ff8855'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.ellipse(80,80,85,20,Math.PI*0.15,0,Math.PI*2); ctx.stroke();
   ctx.restore();
-  // Asteroids
-  asteroids.forEach((a,i)=>{
-    a.x=(a.x+a.vx+550)%550; a.y=(a.y+a.vy+500)%500;
-    ctx.strokeStyle='#6c63ff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(a.x,a.y,a.r,0,Math.PI*2);ctx.stroke();
-    const dist=Math.hypot(ship.x-a.x,ship.y-a.y);
-    if(dist<a.r+10){ lives--; if(lives<=0){running=false;submitScore(score);return;} ship.x=275;ship.y=400;ship.vx=0;ship.vy=0; }
-  });
-  // Bullets
-  bullets.forEach((b,i)=>{
-    b.x+=b.vx;b.y+=b.vy;
-    ctx.fillStyle='#ffd200';ctx.beginPath();ctx.arc(b.x,b.y,3,0,Math.PI*2);ctx.fill();
-    if(b.x<0||b.x>550||b.y<0||b.y>500){ bullets.splice(i,1); return; }
-    asteroids.forEach((a,j)=>{
-      if(Math.hypot(b.x-a.x,b.y-a.y)<a.r){ bullets.splice(i,1); if(a.r>20){ asteroids.push({x:a.x+10,y:a.y,r:a.r/2,vx:a.vx+1,vy:a.vy}); asteroids.push({x:a.x,y:a.y+10,r:a.r/2,vx:a.vx-1,vy:a.vy}); } asteroids.splice(j,1); score+=10; document.getElementById('score-display').textContent=score; if(!asteroids.length) for(let k=0;k<6;k++) spawnAsteroid(); }
-    });
-  });
-  ctx.fillStyle='white';ctx.font='16px sans-serif';ctx.fillText('점수: '+score,10,25);ctx.fillText('❤️'.repeat(lives),10,50);
-  animFrame=requestAnimationFrame(loop);
 }
-document.addEventListener('keydown',e=>{ keys[e.key]=true; if(e.key===' '){e.preventDefault();if(running)bullets.push({x:ship.x+Math.cos(ship.angle)*15,y:ship.y+Math.sin(ship.angle)*15,vx:Math.cos(ship.angle)*10,vy:Math.sin(ship.angle)*10});} });
-document.addEventListener('keyup',e=>keys[e.key]=false);
-ctx.fillStyle='#0d1b2a';ctx.fillRect(0,0,550,500);
-ctx.fillStyle='#6c63ff';ctx.font='16px sans-serif';ctx.textAlign='center';
-ctx.fillText('← → 이동, ↑ 가속, 스페이스 발사! 시작 버튼을 눌러주세요.',275,250);ctx.textAlign='left';
+
+function drawAsteroid(a){
+  a.rot+=a.rotSpd;
+  ctx.save(); ctx.translate(a.x,a.y); ctx.rotate(a.rot);
+  // 그림자
+  ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.beginPath();
+  a.pts.forEach((p,i)=>{
+    let x=Math.cos(p.a)*p.r+3, y=Math.sin(p.a)*p.r+3;
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  }); ctx.closePath(); ctx.fill();
+  // 메인
+  let ag=ctx.createRadialGradient(-a.r*0.3,-a.r*0.3,a.r*0.1,0,0,a.r);
+  ag.addColorStop(0,'#888'); ag.addColorStop(0.4,'#666'); ag.addColorStop(1,'#333');
+  ctx.fillStyle=ag; ctx.beginPath();
+  a.pts.forEach((p,i)=>{
+    let x=Math.cos(p.a)*p.r, y=Math.sin(p.a)*p.r;
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  }); ctx.closePath(); ctx.fill();
+  // 표면 크레이터
+  ctx.fillStyle='rgba(0,0,0,0.2)';
+  let nc=a.size+1;
+  for(let i=0;i<nc;i++){
+    let ca=(i/nc)*Math.PI*2;
+    let cr=a.r*0.35;
+    ctx.beginPath(); ctx.arc(Math.cos(ca)*cr,Math.sin(ca)*cr,a.r*0.15,0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawShip(s){
+  if(s.dead) return;
+  if(invincible>0&&Math.floor(frame/4)%2===0) return;
+  ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(s.angle+Math.PI/2);
+  // 엔진 불꽃
+  if(s.thrusting&&Math.random()<0.8){
+    let flameG=ctx.createRadialGradient(0,s.r+8,1,0,s.r+8,12);
+    flameG.addColorStop(0,'#fff'); flameG.addColorStop(0.3,'#ff8800'); flameG.addColorStop(1,'transparent');
+    ctx.fillStyle=flameG;
+    ctx.beginPath(); ctx.arc(0,s.r+8+Math.random()*8,8+Math.random()*4,0,Math.PI*2); ctx.fill();
+  }
+  // 선체
+  let sg=ctx.createLinearGradient(-s.r,-s.r,s.r,s.r);
+  sg.addColorStop(0,'#aaaacc'); sg.addColorStop(0.5,'#6c63ff'); sg.addColorStop(1,'#334');
+  ctx.fillStyle=sg;
+  ctx.beginPath();
+  ctx.moveTo(0,-s.r*1.3);
+  ctx.lineTo(-s.r*0.9,s.r*0.9);
+  ctx.lineTo(-s.r*0.3,s.r*0.5);
+  ctx.lineTo(0,s.r*0.7);
+  ctx.lineTo(s.r*0.3,s.r*0.5);
+  ctx.lineTo(s.r*0.9,s.r*0.9);
+  ctx.closePath(); ctx.fill();
+  // 콕핏
+  let cg=ctx.createRadialGradient(0,-s.r*0.2,1,0,-s.r*0.2,s.r*0.4);
+  cg.addColorStop(0,'#aef'); cg.addColorStop(1,'#248');
+  ctx.fillStyle=cg; ctx.beginPath(); ctx.ellipse(0,-s.r*0.2,s.r*0.35,s.r*0.45,0,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function spawnParticles(x,y,color,n){
+  for(let i=0;i<n;i++)
+    particles.push({x,y,vx:(Math.random()-0.5)*10,vy:(Math.random()-0.5)*10,life:40,color,size:2+Math.random()*4});
+}
+
+function loop(){
+  if(!running) return;
+  frame++;
+  drawBG();
+  // 선박 이동
+  if(!ship.dead){
+    ship.thrusting=!!(keys['ArrowUp']||keys['KeyW']||keys['thrust']);
+    if(keys['ArrowLeft']||keys['KeyA']||keys['left']) ship.angle-=0.07;
+    if(keys['ArrowRight']||keys['KeyD']||keys['right']) ship.angle+=0.07;
+    if(ship.thrusting){ ship.vx+=Math.cos(ship.angle)*0.25; ship.vy+=Math.sin(ship.angle)*0.25; }
+    let maxSpd=8; let spd=Math.sqrt(ship.vx**2+ship.vy**2);
+    if(spd>maxSpd){ ship.vx=(ship.vx/spd)*maxSpd; ship.vy=(ship.vy/spd)*maxSpd; }
+    ship.vx*=0.98; ship.vy*=0.98;
+    ship.x=(ship.x+ship.vx+W)%W; ship.y=(ship.y+ship.vy+H)%H;
+  }
+  // 총알
+  for(let i=bullets.length-1;i>=0;i--){
+    let b=bullets[i]; b.x+=b.vx; b.y+=b.vy; b.life--;
+    b.x=(b.x+W)%W; b.y=(b.y+H)%H;
+    if(b.life<=0){bullets.splice(i,1);continue;}
+    // 그리기
+    ctx.shadowColor='#4fd'; ctx.shadowBlur=10;
+    let alpha=b.life/60;
+    ctx.fillStyle=`rgba(80,255,200,${alpha})`;
+    ctx.beginPath(); ctx.arc(b.x,b.y,3,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+    // 소행성 히트
+    for(let j=asteroids.length-1;j>=0;j--){
+      let a=asteroids[j];
+      let d=Math.hypot(b.x-a.x,b.y-a.y);
+      if(d<a.r){
+        bullets.splice(i,1);
+        spawnParticles(a.x,a.y,'#888',a.size*4);
+        let pts=[0,100,50,20][a.size];
+        score+=pts; document.getElementById('score-display').textContent=score;
+        if(a.size>1){
+          asteroids.push(makeAsteroid(a.x,a.y,a.size-1));
+          asteroids.push(makeAsteroid(a.x,a.y,a.size-1));
+        }
+        asteroids.splice(j,1);
+        break;
+      }
+    }
+  }
+  // 소행성
+  asteroids.forEach(a=>{
+    a.x=(a.x+a.vx+W)%W; a.y=(a.y+a.vy+H)%H;
+    drawAsteroid(a);
+    // 선박 충돌
+    if(!ship.dead&&invincible===0){
+      let d=Math.hypot(ship.x-a.x,ship.y-a.y);
+      if(d<ship.r+a.r-5){
+        lives--;
+        spawnParticles(ship.x,ship.y,'#6c63ff',20);
+        invincible=180;
+        if(lives<=0){ ship.dead=true; setTimeout(()=>{running=false;submitScore(score);},1200); }
+      }
+    }
+  });
+  if(invincible>0) invincible--;
+  // 다음 레벨
+  if(asteroids.length===0){ level++; asteroids=spawnAsteroids(4+level); score+=level*200; document.getElementById('score-display').textContent=score; }
+  drawShip(ship);
+  // 파티클
+  for(let i=particles.length-1;i>=0;i--){
+    let p=particles[i]; p.life--;
+    if(p.life<=0){particles.splice(i,1);continue;}
+    p.x+=p.vx*0.9; p.y+=p.vy*0.9;
+    ctx.globalAlpha=p.life/40;
+    ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+  // HUD
+  ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.roundRect(4,4,160,28,8); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.font='bold 14px Arial';
+  ctx.fillText('❤️'.repeat(lives)+'  Lv.'+level,10,23);
+  af=requestAnimationFrame(loop);
+}
+
+let fireCD=0;
+document.addEventListener('keydown',e=>{
+  keys[e.code]=true;
+  if(e.code==='Space'&&running&&!ship.dead&&fireCD<=0){
+    bullets.push({x:ship.x+Math.cos(ship.angle)*20,y:ship.y+Math.sin(ship.angle)*20,
+                  vx:Math.cos(ship.angle)*12+ship.vx,vy:Math.sin(ship.angle)*12+ship.vy,life:60});
+    fireCD=8;
+    e.preventDefault();
+  }
+  e.code.startsWith('Arrow')&&e.preventDefault();
+});
+document.addEventListener('keyup',e=>{ keys[e.code]=false; });
+setInterval(()=>{ if(fireCD>0) fireCD--; },16);
+
+// 모바일 버튼
+document.getElementById('btn-left').addEventListener('touchstart',e=>{e.preventDefault();keys['left']=true;},{passive:false});
+document.getElementById('btn-left').addEventListener('touchend',e=>{e.preventDefault();keys['left']=false;},{passive:false});
+document.getElementById('btn-right').addEventListener('touchstart',e=>{e.preventDefault();keys['right']=true;},{passive:false});
+document.getElementById('btn-right').addEventListener('touchend',e=>{e.preventDefault();keys['right']=false;},{passive:false});
+document.getElementById('btn-thrust').addEventListener('touchstart',e=>{e.preventDefault();keys['thrust']=true;},{passive:false});
+document.getElementById('btn-thrust').addEventListener('touchend',e=>{e.preventDefault();keys['thrust']=false;},{passive:false});
+document.getElementById('btn-fire').addEventListener('touchstart',e=>{
+  e.preventDefault();
+  if(running&&!ship.dead&&fireCD<=0){
+    bullets.push({x:ship.x+Math.cos(ship.angle)*20,y:ship.y+Math.sin(ship.angle)*20,
+                  vx:Math.cos(ship.angle)*12,vy:Math.sin(ship.angle)*12,life:60});
+    fireCD=8;
+  }
+},{passive:false});
+
+// 초기 화면
+drawBG();
+ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.roundRect(100,180,300,130,16); ctx.fill();
+ctx.fillStyle='#4fd'; ctx.font='bold 26px Arial'; ctx.textAlign='center';
+ctx.fillText('🚀 소행성 피하기',W/2,222);
+ctx.fillStyle='#aaa'; ctx.font='13px Arial';
+ctx.fillText('←→ 회전 | ↑ 가속 | Space 발사',W/2,254);
+ctx.fillText('시작 버튼을 눌러주세요!',W/2,280); ctx.textAlign='left';
 </script>
 {% endblock %}

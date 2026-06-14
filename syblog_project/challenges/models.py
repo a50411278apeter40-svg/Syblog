@@ -22,6 +22,7 @@ CHALLENGE_LIST = [
     ('arrows', '화살표 게임', 'arrows_game'),
     ('catch', '공 받기 게임', 'catch_game'),
     ('asteroid', '소행성 피하기', 'asteroid_game'),
+    ('mario', '슈퍼 마리오', 'mario_game'),
 ]
 
 def get_points_for_score(game_type, score):
@@ -45,6 +46,7 @@ def get_points_for_score(game_type, score):
         'ballshoot': [(50, 55), (30, 35), (10, 15), (0, 5)],
         'arrows': [(100, 60), (60, 38), (30, 18), (0, 6)],
         'catch': [(80, 55), (50, 33), (20, 16), (0, 5)],
+        'mario': [(15, 100), (10, 70), (5, 40), (0, 15)],
         'asteroid': [(100, 65), (50, 40), (20, 20), (0, 8)],
     }
     thresholds = tables.get(game_type, [(0, 5)])

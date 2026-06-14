@@ -1,67 +1,223 @@
 {% extends 'challenges/game_base.html' %}
 {% block game_area %}
-<canvas id="gameCanvas" width="750" height="200" style="background:#fff;border-radius:8px;"></canvas>
+<canvas id="gameCanvas" style="border-radius:14px;max-width:100%;touch-action:none;"></canvas>
 {% endblock %}
 {% block game_script %}
 <script>
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-let dino, obstacles, score, speed, gameLoop, running=false, animFrame;
+const canvas=document.getElementById('gameCanvas');
+const ctx=canvas.getContext('2d');
+const W=600,H=220;
+canvas.width=W; canvas.height=H;
+canvas.style.width='min(600px,100vw)'; canvas.style.height='auto';
 
-class Dino {
-  constructor(){ this.x=60;this.y=150;this.w=40;this.h=50;this.vy=0;this.onGround=true; }
-  jump(){ if(this.onGround){this.vy=-15;this.onGround=false;} }
-  update(){ this.vy+=0.8;this.y+=this.vy; if(this.y>=150){this.y=150;this.onGround=true;this.vy=0;} }
-  draw(){
-    ctx.fillStyle='#2d3436';
-    ctx.fillRect(this.x,this.y,this.w,this.h);
-    ctx.fillStyle='#6c63ff';
-    ctx.fillRect(this.x+5,this.y-15,30,20);
-    ctx.fillStyle='white';
-    ctx.fillRect(this.x+20,this.y-10,8,8);
-    ctx.fillStyle='black';
-    ctx.fillRect(this.x+23,this.y-8,4,4);
-  }
-  collides(o){ return this.x<o.x+o.w&&this.x+this.w>o.x&&this.y<o.y+o.h&&this.y+this.h>o.y; }
-}
+let dino,obstacles,score,speed,running=false,af,frame=0,clouds=[],stars=[];
+let bgPhase=0; // 0=낮, 1=저녁, 2=밤
+const GND=H-45;
 
-class Obstacle {
-  constructor(){ this.x=750;this.y=140;this.w=20+Math.random()*20;this.h=10+Math.random()*50; }
-  update(){ this.x-=speed; }
-  draw(){ ctx.fillStyle='#48cfad';ctx.fillRect(this.x,this.y,this.w,this.h); }
-}
+// 구름/별 초기화
+for(let i=0;i<5;i++) clouds.push({x:Math.random()*W,y:20+Math.random()*40,w:50+Math.random()*40,spd:0.6+Math.random()*0.4});
+for(let i=0;i<30;i++) stars.push({x:Math.random()*W,y:Math.random()*(H*0.6),size:Math.random()*1.5+0.5});
 
 function startGame(){
   document.getElementById('result-overlay').classList.remove('show');
-  dino=new Dino(); obstacles=[]; score=0; speed=5; running=true;
-  if(animFrame)cancelAnimationFrame(animFrame);
-  let frameCount=0;
-  function loop(){
-    if(!running)return;
-    ctx.clearRect(0,0,750,200);
-    ctx.fillStyle='#333'; ctx.fillRect(0,190,750,10);
-    dino.update(); dino.draw();
-    frameCount++;
-    if(frameCount%80===0){ obstacles.push(new Obstacle()); }
-    if(frameCount%200===0){ speed+=0.5; }
-    score=Math.floor(frameCount/5);
-    document.getElementById('score-display').textContent=score;
-    ctx.fillStyle='#333';ctx.font='16px monospace';ctx.fillText('점수: '+score,620,25);
-    for(let i=obstacles.length-1;i>=0;i--){
-      obstacles[i].update(); obstacles[i].draw();
-      if(dino.collides(obstacles[i])){ running=false; submitScore(score); return; }
-      if(obstacles[i].x+obstacles[i].w<0)obstacles.splice(i,1);
-    }
-    animFrame=requestAnimationFrame(loop);
-  }
-  loop();
+  dino={x:80,y:GND-50,w:44,h:50,vy:0,onGround:true,ducking:false,animFrame:0,animTimer:0,dead:false};
+  obstacles=[]; score=0; speed=5.5; frame=0; running=true;
+  cancelAnimationFrame(af); loop();
 }
-document.addEventListener('keydown',e=>{ if(e.code==='Space'||e.code==='ArrowUp'){ e.preventDefault(); dino&&dino.jump(); }});
-canvas.addEventListener('click',()=>dino&&dino.jump());
-// draw initial screen
-ctx.fillStyle='#f8f9fa';ctx.fillRect(0,0,750,200);
-ctx.fillStyle='#6c63ff';ctx.font='20px sans-serif';ctx.textAlign='center';
-ctx.fillText('스페이스 또는 화면 클릭으로 점프! 시작 버튼을 눌러주세요.',375,100);
-ctx.textAlign='left';
+
+function drawBG(){
+  let phase=Math.floor(score/300)%3;
+  let skyColors=[
+    ['#87CEEB','#B0E0F8'],
+    ['#FF7B5E','#FFB08C'],
+    ['#1a1a3e','#2a2a6e']
+  ];
+  let [c1,c2]=skyColors[phase];
+  let sky=ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,c1); sky.addColorStop(1,c2);
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
+  // 별 (밤)
+  if(phase===2){
+    stars.forEach(s=>{
+      ctx.fillStyle=`rgba(255,255,255,${0.4+Math.sin(frame*0.05+s.x)*0.4})`;
+      ctx.beginPath(); ctx.arc((s.x+frame*0.2)%W,s.y,s.size,0,Math.PI*2); ctx.fill();
+    });
+    // 달
+    ctx.fillStyle='#fffacd';
+    ctx.beginPath(); ctx.arc(W-60,35,22,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=sky.toString(); ctx.beginPath(); ctx.arc(W-52,30,18,0,Math.PI*2); ctx.fill();
+  }
+  // 구름
+  clouds.forEach(c=>{
+    c.x-=c.spd*(speed/5.5); if(c.x+c.w<0) c.x=W+c.w;
+    ctx.globalAlpha=phase===2?0.3:0.85;
+    ctx.fillStyle=phase===1?'#ffaa88':'#fff';
+    ctx.beginPath(); ctx.ellipse(c.x,c.y,c.w/2,c.w/3.5,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(c.x+c.w*0.28,c.y-c.w*0.12,c.w*0.3,c.w*0.2,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(c.x-c.w*0.25,c.y-c.w*0.08,c.w*0.25,c.w*0.17,0,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+  });
+  // 산 배경
+  let mtColor=phase===2?'#2a3a5a':phase===1?'#8B5E3C':'#6B8E5E';
+  let mtColor2=phase===2?'#1a2a4a':phase===1?'#7B4E2C':'#4a7a4e';
+  [[0,95,120],[120,80,90],[240,100,110],[360,75,100],[480,90,115]].forEach(([mx,my,mh])=>{
+    ctx.fillStyle=mtColor;
+    ctx.beginPath(); ctx.moveTo(mx,GND); ctx.lineTo(mx+60,GND-mh); ctx.lineTo(mx+120,GND); ctx.fill();
+    ctx.fillStyle=mtColor2;
+    ctx.beginPath(); ctx.moveTo(mx+20,GND); ctx.lineTo(mx+60,GND-mh+15); ctx.lineTo(mx+100,GND); ctx.fill();
+  });
+  // 지면
+  let grd=ctx.createLinearGradient(0,GND,0,H);
+  grd.addColorStop(0,phase===2?'#3a4a3a':'#8B7355');
+  grd.addColorStop(0.3,phase===2?'#2a3a2a':'#6B5335');
+  grd.addColorStop(1,phase===2?'#1a2a1a':'#4a3a25');
+  ctx.fillStyle=grd; ctx.fillRect(0,GND,W,H-GND);
+  // 지면선 (돌멩이)
+  ctx.fillStyle=phase===2?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.1)';
+  for(let i=(frame*speed)%30;i<W;i+=30){
+    let rx=(i+5+Math.floor(i/30)*7)%W;
+    ctx.beginPath(); ctx.ellipse(rx,GND+6,4+Math.random()*4,3,0,0,Math.PI*2); ctx.fill();
+  }
+}
+
+function drawDino(d){
+  let {x,y,w,h,animFrame,ducking}=d;
+  let dh=ducking?h*0.6:h, dy=ducking?y+h*0.4:y;
+  ctx.save(); ctx.translate(x+w/2,dy+dh/2);
+  // 몸통
+  let bodyG=ctx.createRadialGradient(0,0,5,0,0,dh*0.5);
+  bodyG.addColorStop(0,'#6bcc5a'); bodyG.addColorStop(0.5,'#4aa83c'); bodyG.addColorStop(1,'#2d7a28');
+  ctx.fillStyle=bodyG;
+  if(!ducking){
+    // 꼬리
+    ctx.beginPath(); ctx.moveTo(-w*0.3,dh*0.15); ctx.lineTo(-w*0.7,dh*0.05); ctx.lineTo(-w*0.55,-dh*0.05); ctx.lineTo(-w*0.2,dh*0.05); ctx.fill();
+  }
+  ctx.beginPath(); ctx.roundRect(-w*0.4,-dh*0.5,w*0.8,dh,8); ctx.fill();
+  if(!ducking){
+    // 머리
+    ctx.fillRect(w*0.05,-dh*0.7,w*0.38,dh*0.28);
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(w*0.28,-dh*0.65,5,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#1a1a1a'; ctx.beginPath(); ctx.arc(w*0.29,-dh*0.66,3,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.arc(w*0.28,-dh*0.68,1.2,0,Math.PI*2); ctx.fill();
+    // 입
+    ctx.strokeStyle='#1a7a15'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(w*0.3,-dh*0.58); ctx.lineTo(w*0.42,-dh*0.56); ctx.stroke();
+    // 팔
+    let armOff=d.onGround?Math.sin(frame*0.25)*8:0;
+    ctx.fillStyle='#4aa83c';
+    ctx.beginPath(); ctx.ellipse(-w*0.4,dh*0.05+armOff,5,10,Math.PI*0.2,0,Math.PI*2); ctx.fill();
+    // 다리
+    let leg1=d.onGround?Math.sin(frame*0.25)*15:0;
+    let leg2=d.onGround?Math.sin(frame*0.25+Math.PI)*15:0;
+    ctx.fillStyle='#3a8a30';
+    ctx.beginPath(); ctx.roundRect(-w*0.22,dh*0.45+leg1,12,dh*0.35-leg1,4); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(w*0.1,dh*0.45+leg2,12,dh*0.35-leg2,4); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawObstacle(o){
+  if(o.type==='cactus'){
+    // 선인장
+    let cg=ctx.createLinearGradient(o.x,o.y,o.x+o.w,o.y);
+    cg.addColorStop(0,'#2d5a1b'); cg.addColorStop(0.5,'#4a8a2a'); cg.addColorStop(1,'#2d5a1b');
+    ctx.fillStyle=cg;
+    ctx.beginPath(); ctx.roundRect(o.x+o.w*0.35,o.y,o.w*0.3,o.h,5); ctx.fill();
+    // 팔
+    ctx.beginPath(); ctx.roundRect(o.x,o.y+o.h*0.25,o.w*0.38,o.h*0.15,4); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(o.x,o.y+o.h*0.05,o.w*0.15,o.h*0.35,4); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(o.x+o.w*0.62,o.y+o.h*0.3,o.w*0.38,o.h*0.15,4); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(o.x+o.w*0.85,o.y+o.h*0.1,o.w*0.15,o.h*0.35,4); ctx.fill();
+    // 광택
+    ctx.fillStyle='rgba(255,255,255,0.15)';
+    ctx.beginPath(); ctx.roundRect(o.x+o.w*0.38,o.y+4,o.w*0.1,o.h-8,3); ctx.fill();
+  }else{
+    // 새
+    o.animT=(o.animT||0)+0.2;
+    let wingUp=Math.sin(o.animT)>0;
+    ctx.fillStyle='#555';
+    // 몸통
+    ctx.beginPath(); ctx.ellipse(o.x+o.w/2,o.y+o.h/2,o.w*0.4,o.h*0.25,0,0,Math.PI*2); ctx.fill();
+    // 날개
+    ctx.fillStyle='#444';
+    if(wingUp){
+      ctx.beginPath(); ctx.moveTo(o.x+o.w*0.3,o.y+o.h*0.5); ctx.quadraticCurveTo(o.x+o.w*0.1,o.y,o.x-o.w*0.1,o.y+o.h*0.4); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(o.x+o.w*0.7,o.y+o.h*0.5); ctx.quadraticCurveTo(o.x+o.w*0.9,o.y,o.x+o.w*1.1,o.y+o.h*0.4); ctx.closePath(); ctx.fill();
+    }else{
+      ctx.beginPath(); ctx.moveTo(o.x+o.w*0.3,o.y+o.h*0.5); ctx.quadraticCurveTo(o.x+o.w*0.1,o.y+o.h,o.x-o.w*0.1,o.y+o.h*0.8); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(o.x+o.w*0.7,o.y+o.h*0.5); ctx.quadraticCurveTo(o.x+o.w*0.9,o.y+o.h,o.x+o.w*1.1,o.y+o.h*0.8); ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle='#ff6600'; ctx.beginPath(); ctx.moveTo(o.x+o.w*0.9,o.y+o.h*0.45); ctx.lineTo(o.x+o.w*1.1,o.y+o.h*0.5); ctx.lineTo(o.x+o.w*0.9,o.y+o.h*0.6); ctx.fill();
+  }
+}
+
+function loop(){
+  if(!running) return;
+  frame++;
+  // 배경
+  drawBG();
+  // 공룡 물리
+  dino.vy+=0.7; dino.y+=dino.vy;
+  if(dino.y>=GND-dino.h){ dino.y=GND-dino.h; dino.vy=0; dino.onGround=true; }
+  else dino.onGround=false;
+  // 장애물 생성
+  let interval=Math.max(55,90-Math.floor(score/100)*3);
+  if(frame%interval===0){
+    let isBird=score>200&&Math.random()<0.35;
+    if(isBird){
+      let birdH=[GND-100,GND-65,GND-40][Math.floor(Math.random()*3)];
+      obstacles.push({x:W,y:birdH,w:50,h:30,type:'bird',animT:0});
+    }else{
+      let cH=40+Math.floor(Math.random()*40);
+      let multi=score>150&&Math.random()<0.4?1.7:1;
+      obstacles.push({x:W,y:GND-cH,w:30*multi,h:cH,type:'cactus'});
+    }
+  }
+  // 장애물 이동/충돌
+  for(let i=obstacles.length-1;i>=0;i--){
+    let o=obstacles[i]; o.x-=speed;
+    drawObstacle(o);
+    // AABB 충돌 (약간 관대하게)
+    if(dino.x+dino.w-8>o.x+6&&dino.x+8<o.x+o.w-6&&dino.y+dino.h-6>o.y+6&&dino.y+6<o.y+o.h-6){
+      running=false; cancelAnimationFrame(af);
+      dino.dead=true; drawDino(dino);
+      setTimeout(()=>submitScore(score),500); return;
+    }
+    if(o.x+o.w<0) obstacles.splice(i,1);
+  }
+  drawDino(dino);
+  score++;
+  if(frame%6===0) speed=Math.min(12,5.5+score/400);
+  document.getElementById('score-display').textContent=score;
+  // HUD
+  ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.roundRect(W-130,6,124,26,8); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.font='bold 14px Arial'; ctx.textAlign='right';
+  ctx.fillText('🦕 '+score,W-10,24); ctx.textAlign='left';
+  af=requestAnimationFrame(loop);
+}
+
+function jump(){
+  if(!running) return;
+  if(dino.onGround) dino.vy=-16;
+  else if(dino.vy>0) dino.vy-=5; // 더블 점프
+}
+function duck(on){ dino.ducking=on; if(on){dino.h=30;dino.y+=20;}else{dino.h=50;dino.y-=20;} }
+
+document.addEventListener('keydown',e=>{
+  if(e.code==='Space'||e.code==='ArrowUp'){e.preventDefault();jump();}
+  if(e.code==='ArrowDown'){e.preventDefault();if(!dino.ducking)duck(true);}
+});
+document.addEventListener('keyup',e=>{
+  if(e.code==='ArrowDown') duck(false);
+});
+canvas.addEventListener('touchstart',e=>{e.preventDefault();jump();},{passive:false});
+
+// 초기 화면
+drawBG();
+ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.roundRect(150,60,300,100,14); ctx.fill();
+ctx.fillStyle='#fff'; ctx.font='bold 22px Arial'; ctx.textAlign='center';
+ctx.fillText('🦕 공룡 점프게임',W/2,100);
+ctx.font='14px Arial';
+ctx.fillText('스페이스/클릭 점프 | ↓ 숙이기',W/2,130);
+ctx.fillText('시작 버튼을 눌러주세요!',W/2,155); ctx.textAlign='left';
 </script>
 {% endblock %}
