@@ -1,0 +1,98 @@
+{% extends 'challenges/game_base.html' %}
+{% block game_area %}
+<canvas id="gameCanvas" style="border-radius:12px;max-width:100%;touch-action:none;"></canvas>
+<div style="text-align:center; margin-top:10px; font-size:14px; color:#aaa;">모바일: 터치하여 이동 및 자동 사격</div>
+{% endblock %}
+{% block game_script %}
+<script>
+const canvas=document.getElementById('gameCanvas');
+const ctx=canvas.getContext('2d');
+const W=500,H=500;
+canvas.width=W; canvas.height=H;
+canvas.style.width='min(500px,100vw)'; canvas.style.height='auto';
+let player, bullets, enemies, score, running=false, af, frame=0;
+let mx=W/2, my=H/2, isMobile=false;
+
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  player={x:W/2, y:H/2, r:15}; bullets=[]; enemies=[]; score=0; frame=0; running=true;
+  cancelAnimationFrame(af); loop();
+}
+
+function loop(){
+  if(!running) return;
+  frame++;
+  ctx.fillStyle='#1e1e1e'; ctx.fillRect(0,0,W,H);
+  
+  // 플레이어 이동
+  let dx=mx-player.x, dy=my-player.y;
+  let dist=Math.hypot(dx,dy);
+  if(dist>5){ player.x+=dx*0.1; player.y+=dy*0.1; }
+  
+  // 사격
+  if(frame%10===0){
+    let tx=isMobile?0:(mx-player.x), ty=isMobile?-1:(my-player.y);
+    if(isMobile) { tx=0; ty=-1; } // 모바일은 위로 고정 사격
+    let a=Math.atan2(ty,tx);
+    bullets.push({x:player.x, y:player.y, vx:Math.cos(a)*10, vy:Math.sin(a)*10});
+  }
+  
+  // 적 생성
+  if(frame%40===0){
+    let side=Math.floor(Math.random()*4);
+    let ex, ey;
+    if(side===0) {ex=Math.random()*W; ey=-20;}
+    else if(side===1) {ex=W+20; ey=Math.random()*H;}
+    else if(side===2) {ex=Math.random()*W; ey=H+20;}
+    else {ex=-20; ey=Math.random()*H;}
+    enemies.push({x:ex, y:ey, r:12, speed:1.5+Math.random()});
+  }
+  
+  // 총알
+  ctx.fillStyle='#ffeb3b';
+  for(let i=bullets.length-1;i>=0;i--){
+    let b=bullets[i]; b.x+=b.vx; b.y+=b.vy;
+    ctx.beginPath(); ctx.arc(b.x,b.y,4,0,Math.PI*2); ctx.fill();
+    if(b.x<0||b.x>W||b.y<0||b.y>H) bullets.splice(i,1);
+  }
+  
+  // 적
+  ctx.fillStyle='#f44336';
+  for(let i=enemies.length-1;i>=0;i--){
+    let e=enemies[i];
+    let ea=Math.atan2(player.y-e.y, player.x-e.x);
+    e.x+=Math.cos(ea)*e.speed; e.y+=Math.sin(ea)*e.speed;
+    ctx.beginPath(); ctx.arc(e.x,e.y,e.r,0,Math.PI*2); ctx.fill();
+    
+    // 플레이어 충돌
+    if(Math.hypot(player.x-e.x, player.y-e.y) < player.r+e.r){
+      running=false; submitScore(score); return;
+    }
+    // 총알 충돌
+    for(let j=bullets.length-1;j>=0;j--){
+      let b=bullets[j];
+      if(Math.hypot(b.x-e.x, b.y-e.y) < e.r+4){
+        enemies.splice(i,1); bullets.splice(j,1); score+=10; break;
+      }
+    }
+  }
+  
+  // 플레이어 그리기
+  ctx.fillStyle='#4caf50'; ctx.beginPath(); ctx.arc(player.x,player.y,player.r,0,Math.PI*2); ctx.fill();
+  
+  ctx.fillStyle='#fff'; ctx.font='bold 20px Arial'; ctx.fillText('Score: '+score, 10, 30);
+  af=requestAnimationFrame(loop);
+}
+
+canvas.addEventListener('mousemove', e=>{
+  let r=canvas.getBoundingClientRect(); mx=(e.clientX-r.left)*(W/r.width); my=(e.clientY-r.top)*(H/r.height); isMobile=false;
+});
+canvas.addEventListener('touchmove', e=>{
+  e.preventDefault();
+  let r=canvas.getBoundingClientRect(); mx=(e.touches[0].clientX-r.left)*(W/r.width); my=(e.touches[0].clientY-r.top)*(H/r.height); isMobile=true;
+}, {passive:false});
+
+ctx.fillStyle='#222'; ctx.fillRect(0,0,W,H);
+ctx.fillStyle='#fff'; ctx.font='bold 24px Arial'; ctx.textAlign='center'; ctx.fillText('🔫 탑뷰 슈터', W/2, H/2); ctx.textAlign='left';
+</script>
+{% endblock %}

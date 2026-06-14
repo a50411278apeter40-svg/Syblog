@@ -1,0 +1,46 @@
+{% extends 'challenges/game_base.html' %}
+{% block game_area %}
+<canvas id="gameCanvas" style="border-radius:12px;max-width:100%;touch-action:none;"></canvas>
+<div style="text-align:center; margin-top:10px; font-size:14px; color:#aaa;">터치하여 점수를 올리세요 (미니게임)</div>
+{% endblock %}
+{% block game_script %}
+<script>
+const canvas=document.getElementById('gameCanvas');
+const ctx=canvas.getContext('2d');
+const W=400,H=400;
+canvas.width=W; canvas.height=H;
+canvas.style.width='min(400px,100vw)'; canvas.style.height='auto';
+let score=0, running=false, timeLeft=30, af;
+
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  score=0; timeLeft=30; running=true;
+  cancelAnimationFrame(af); loop();
+}
+
+function loop(){
+  if(!running) return;
+  if(frame%60===0) timeLeft--;
+  if(timeLeft<=0) { running=false; submitScore(score); return; }
+  frame++;
+  
+  let bg=ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#1a2a6c'); bg.addColorStop(1,'#b21f1f');
+  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+  
+  ctx.fillStyle='#fff'; ctx.font='bold 24px Arial'; ctx.textAlign='center';
+  ctx.fillText('화면을 마구 탭하세요!', W/2, H/2);
+  ctx.fillText('남은 시간: '+timeLeft, W/2, H/2+40);
+  ctx.fillText('Score: '+score, W/2, H/2+80);
+  ctx.textAlign='left';
+  
+  af=requestAnimationFrame(loop);
+}
+let frame=0;
+canvas.addEventListener('mousedown', ()=>{if(running) score+=10;});
+canvas.addEventListener('touchstart', e=>{e.preventDefault(); if(running) score+=10;}, {passive:false});
+
+ctx.fillStyle='#222'; ctx.fillRect(0,0,W,H);
+ctx.fillStyle='#fff'; ctx.font='bold 24px Arial'; ctx.textAlign='center'; ctx.fillText('🎮 준비 완료', W/2, H/2); ctx.textAlign='left';
+</script>
+{% endblock %}

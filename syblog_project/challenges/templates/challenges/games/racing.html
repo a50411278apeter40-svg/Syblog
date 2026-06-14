@@ -1,0 +1,104 @@
+{% extends 'challenges/game_base.html' %}
+{% block game_area %}
+<canvas id="gameCanvas" style="border-radius:12px;max-width:100%;touch-action:none;"></canvas>
+<div style="text-align:center; margin-top:10px;">
+  <button id="btn-left" style="padding:15px 30px; font-size:24px; border-radius:10px; border:none; background:rgba(255,255,255,0.2); color:white;">◀</button>
+  <button id="btn-right" style="padding:15px 30px; font-size:24px; border-radius:10px; border:none; background:rgba(255,255,255,0.2); color:white;">▶</button>
+</div>
+{% endblock %}
+{% block game_script %}
+<script>
+const canvas=document.getElementById('gameCanvas');
+const ctx=canvas.getContext('2d');
+const W=400,H=600;
+canvas.width=W; canvas.height=H;
+canvas.style.width='min(400px,100vw)'; canvas.style.height='auto';
+let car, enemies, score, speed, running=false, af, frame=0, roadOffset=0;
+let keys={};
+
+function drawCar(x,y, color, isPlayer){
+  ctx.save(); ctx.translate(x,y);
+  // 그림자
+  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.roundRect(2,2,40,70,8); ctx.fill();
+  // 타이어
+  ctx.fillStyle='#222';
+  ctx.beginPath(); ctx.roundRect(-4,10,8,15,3); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(36,10,8,15,3); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(-4,45,8,15,3); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(36,45,8,15,3); ctx.fill();
+  // 바디
+  let cg=ctx.createLinearGradient(0,0,40,0);
+  cg.addColorStop(0,color); cg.addColorStop(0.5,'#fff'); cg.addColorStop(1,color);
+  ctx.fillStyle=cg; ctx.beginPath(); ctx.roundRect(0,0,40,70,12); ctx.fill();
+  // 유리창
+  ctx.fillStyle='#111'; ctx.beginPath(); ctx.roundRect(5,15,30,15,4); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(5,40,30,12,4); ctx.fill();
+  ctx.restore();
+}
+
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  car={x:W/2-20, y:H-100, vx:0}; enemies=[]; score=0; speed=4; frame=0; running=true;
+  cancelAnimationFrame(af); loop();
+}
+
+function loop(){
+  if(!running) return;
+  frame++; roadOffset=(roadOffset+speed)%40;
+  // 배경
+  ctx.fillStyle='#4caf50'; ctx.fillRect(0,0,W,H); // 잔디
+  ctx.fillStyle='#555'; ctx.fillRect(40,0,W-80,H); // 도로
+  ctx.fillStyle='#333'; ctx.fillRect(30,0,10,H); ctx.fillRect(W-40,0,10,H); // 연석
+  // 차선
+  ctx.fillStyle='#fff';
+  for(let i=-40;i<H;i+=40){
+    if((i-roadOffset)%80 < 40) {
+      ctx.fillRect(W/2-5, i-roadOffset, 10, 40);
+    }
+  }
+  // 플레이어 이동
+  if(keys['ArrowLeft']||keys['left']) car.vx-=0.5;
+  if(keys['ArrowRight']||keys['right']) car.vx+=0.5;
+  car.vx*=0.85; car.x+=car.vx;
+  if(car.x<40) {car.x=40; car.vx=0;}
+  if(car.x>W-80) {car.x=W-80; car.vx=0;}
+  
+  // 적 생성
+  if(frame%(Math.max(30, 90-Math.floor(score/100)*10))===0){
+    let lanes=[60, 160, 260];
+    enemies.push({x:lanes[Math.floor(Math.random()*3)], y:-80, speed:speed*0.6+Math.random()*2, color:['#f44336','#2196f3','#ffeb3b'][Math.floor(Math.random()*3)]});
+  }
+  
+  // 적 이동 및 충돌
+  for(let i=enemies.length-1;i>=0;i--){
+    let e=enemies[i]; e.y+=speed-e.speed+2;
+    drawCar(e.x, e.y, e.color, false);
+    if(e.y>H){ enemies.splice(i,1); continue; }
+    if(car.x<e.x+40 && car.x+40>e.x && car.y<e.y+70 && car.y+70>e.y){
+      running=false; submitScore(score); return;
+    }
+  }
+  drawCar(car.x, car.y, '#9c27b0', true);
+  
+  score+=Math.floor(speed/2);
+  if(frame%120===0) speed=Math.min(15, speed+0.5);
+  
+  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.roundRect(10,10,120,30,8); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.font='bold 16px Arial'; ctx.fillText('🏎️ '+score, 20, 30);
+  af=requestAnimationFrame(loop);
+}
+
+document.addEventListener('keydown',e=>{keys[e.code]=true;});
+document.addEventListener('keyup',e=>{keys[e.code]=false;});
+document.getElementById('btn-left').addEventListener('touchstart',e=>{e.preventDefault();keys['left']=true;});
+document.getElementById('btn-left').addEventListener('touchend',e=>{e.preventDefault();keys['left']=false;});
+document.getElementById('btn-right').addEventListener('touchstart',e=>{e.preventDefault();keys['right']=true;});
+document.getElementById('btn-right').addEventListener('touchend',e=>{e.preventDefault();keys['right']=false;});
+
+ctx.fillStyle='#222'; ctx.fillRect(0,0,W,H);
+ctx.fillStyle='#fff'; ctx.font='bold 24px Arial'; ctx.textAlign='center';
+ctx.fillText('🏎️ 레이싱 게임', W/2, H/2);
+ctx.font='16px Arial'; ctx.fillText('좌우로 이동하여 피하세요!', W/2, H/2+30);
+ctx.textAlign='left';
+</script>
+{% endblock %}
