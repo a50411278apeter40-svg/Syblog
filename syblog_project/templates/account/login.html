@@ -8,148 +8,142 @@
   <link rel="stylesheet" href="{% static 'blog/bootstrap/bootstrap.min.css' %}">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
+    * { box-sizing: border-box; }
     body {
+      margin: 0;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       min-height: 100vh;
       display: flex;
-      flex-direction: column;
-    }
-    .login-wrap {
-      flex: 1;
-      display: flex;
       align-items: center;
       justify-content: center;
-      padding: 40px 16px;
+      font-family: 'Segoe UI', sans-serif;
+      padding: 24px 16px;
     }
-    .login-card {
+    .wrap { width: 100%; max-width: 420px; }
+    .brand { text-align: center; margin-bottom: 24px; }
+    .brand a { font-size: 1.5rem; font-weight: 800; color: #fff; text-decoration: none; }
+    .card {
       background: #fff;
       border-radius: 20px;
       box-shadow: 0 20px 60px rgba(0,0,0,0.25);
-      width: 100%;
-      max-width: 420px;
       overflow: hidden;
     }
-    .login-header {
+    .card-header {
       background: linear-gradient(135deg, #6c63ff, #48cfad);
-      padding: 32px 24px;
+      padding: 28px 28px 24px;
       text-align: center;
       color: #fff;
     }
-    .login-header h2 { font-weight: 800; margin: 0; font-size: 1.8rem; }
-    .login-header p { margin: 6px 0 0; opacity: .85; font-size: .9rem; }
-    .login-body { padding: 32px 28px; }
-    .form-label { font-weight: 600; color: #444; margin-bottom: 6px; font-size: .9rem; }
-    .form-control {
-      border-radius: 10px;
+    .card-header h2 { margin: 0; font-size: 1.7rem; font-weight: 800; }
+    .card-header p { margin: 6px 0 0; font-size: .88rem; opacity: .85; }
+    .card-body { padding: 28px; }
+    .form-group { margin-bottom: 18px; }
+    label { display: block; font-weight: 600; color: #444; font-size: .9rem; margin-bottom: 7px; }
+    input[type=text], input[type=password], input[type=email] {
+      width: 100%;
+      padding: 13px 14px;
       border: 2px solid #e9ecef;
-      padding: 12px 14px;
+      border-radius: 10px;
       font-size: 1rem;
-      transition: border-color .2s;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+      background: #fff;
     }
-    .form-control:focus {
-      border-color: #6c63ff;
-      box-shadow: 0 0 0 3px rgba(108,99,255,.15);
-    }
-    .btn-login {
+    input:focus { border-color: #6c63ff; box-shadow: 0 0 0 3px rgba(108,99,255,.12); }
+    .btn-submit {
+      width: 100%;
+      padding: 14px;
       background: linear-gradient(135deg, #6c63ff, #48cfad);
       border: none;
       border-radius: 10px;
       color: #fff;
-      font-weight: 700;
       font-size: 1rem;
-      padding: 13px;
-      width: 100%;
-      margin-top: 8px;
+      font-weight: 700;
       cursor: pointer;
+      margin-top: 6px;
       transition: opacity .2s;
     }
-    .btn-login:hover { opacity: .9; }
+    .btn-submit:hover { opacity: .88; }
     .btn-google {
       display: flex; align-items: center; justify-content: center; gap: 10px;
-      background: #fff;
-      border: 2px solid #e9ecef;
-      border-radius: 10px;
-      color: #444;
-      font-weight: 600;
-      font-size: .95rem;
-      padding: 11px;
-      width: 100%;
-      text-decoration: none;
-      margin-bottom: 20px;
-      transition: border-color .2s, box-shadow .2s;
+      width: 100%; padding: 12px;
+      background: #fff; border: 2px solid #e0e0e0; border-radius: 10px;
+      color: #444; font-weight: 600; font-size: .95rem;
+      text-decoration: none; margin-bottom: 20px;
+      transition: border-color .2s;
     }
-    .btn-google:hover { border-color: #6c63ff; box-shadow: 0 2px 10px rgba(108,99,255,.15); color: #333; text-decoration: none; }
-    .divider { display: flex; align-items: center; gap: 12px; color: #aaa; font-size: .85rem; margin: 4px 0 20px; }
-    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #e9ecef; }
-    .bottom-link { text-align: center; margin-top: 20px; font-size: .9rem; color: #666; }
-    .bottom-link a { color: #6c63ff; font-weight: 600; text-decoration: none; }
-    .bottom-link a:hover { text-decoration: underline; }
-    .brand { text-align: center; margin-bottom: 32px; }
-    .brand a { font-size: 1.4rem; font-weight: 800; color: #fff; text-decoration: none; letter-spacing: -0.5px; }
-    .alert-error { background: #fff5f5; border: 1px solid #fed7d7; color: #c53030; border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; font-size: .9rem; }
+    .btn-google:hover { border-color: #6c63ff; color: #333; text-decoration: none; }
+    .divider { display: flex; align-items: center; gap: 12px; color: #bbb; font-size: .82rem; margin-bottom: 20px; }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #eee; }
+    .error-box {
+      background: #fff5f5; border: 1.5px solid #fed7d7;
+      color: #c53030; border-radius: 10px;
+      padding: 11px 15px; margin-bottom: 16px; font-size: .88rem;
+    }
+    .check-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+    .check-row input { width: auto; }
+    .check-row label { margin: 0; font-weight: 400; color: #666; font-size: .88rem; }
+    .footer-links { text-align: center; margin-top: 20px; font-size: .88rem; color: #888; }
+    .footer-links a { color: #6c63ff; font-weight: 600; text-decoration: none; }
+    .footer-links a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
-  <div class="login-wrap">
-    <div style="width:100%; max-width:420px;">
-      <div class="brand">
-        <a href="/"><i class="fas fa-code"></i> SyBlog</a>
+  <div class="wrap">
+    <div class="brand">
+      <a href="/"><i class="fas fa-code"></i> SyBlog</a>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <h2><i class="fas fa-sign-in-alt"></i> 로그인</h2>
+        <p>SyBlog에 오신 것을 환영합니다</p>
       </div>
-      <div class="login-card">
-        <div class="login-header">
-          <h2><i class="fas fa-sign-in-alt"></i> 로그인</h2>
-          <p>SyBlog에 오신 것을 환영합니다</p>
+      <div class="card-body">
+
+        <!-- Google 로그인 -->
+        <a href="/accounts/google/login/?process=login" class="btn-google">
+          <img src="https://developers.google.com/identity/images/g-logo.png" width="20" alt="G">
+          Google 계정으로 로그인
+        </a>
+
+        <div class="divider">또는 아이디로 로그인</div>
+
+        {% if error %}
+        <div class="error-box"><i class="fas fa-exclamation-circle"></i> {{ error }}</div>
+        {% endif %}
+        {% if messages %}
+          {% for msg in messages %}
+          <div class="error-box">{{ msg }}</div>
+          {% endfor %}
+        {% endif %}
+
+        <form method="post" action="/accounts/login/">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ next }}">
+          <div class="form-group">
+            <label for="id_login"><i class="fas fa-user" style="color:#6c63ff;"></i> 아이디</label>
+            <input type="text" id="id_login" name="login"
+                   placeholder="사용자명을 입력하세요" required autofocus>
+          </div>
+          <div class="form-group">
+            <label for="id_password"><i class="fas fa-lock" style="color:#6c63ff;"></i> 비밀번호</label>
+            <input type="password" id="id_password" name="password"
+                   placeholder="비밀번호를 입력하세요" required>
+          </div>
+          <div class="check-row">
+            <input type="checkbox" id="id_remember" name="remember">
+            <label for="id_remember">로그인 상태 유지</label>
+          </div>
+          <button type="submit" class="btn-submit" style="margin-top:18px;">
+            <i class="fas fa-sign-in-alt"></i> 로그인
+          </button>
+        </form>
+
+        <div class="footer-links" style="margin-top:20px;">
+          계정이 없으신가요? <a href="/accounts/signup/">회원가입</a>
         </div>
-        <div class="login-body">
-
-          <!-- 구글 로그인 -->
-          <a href="/accounts/google/login/?process=login" class="btn-google">
-            <img src="https://developers.google.com/identity/images/g-logo.png" width="20" alt="Google">
-            Google 계정으로 로그인
-          </a>
-
-          <div class="divider">또는</div>
-
-          <!-- 일반 로그인 폼 -->
-          {% if form.errors %}
-          <div class="alert-error">
-            <i class="fas fa-exclamation-circle"></i> 아이디 또는 비밀번호가 올바르지 않습니다.
-          </div>
-          {% endif %}
-
-          {% if messages %}
-            {% for message in messages %}
-            <div class="alert-error">{{ message }}</div>
-            {% endfor %}
-          {% endif %}
-
-          <form method="post" action="{% url 'account_login' %}">
-            {% csrf_token %}
-            <div class="form-group">
-              <label class="form-label">아이디</label>
-              <input type="text" name="login" class="form-control"
-                     placeholder="사용자명을 입력하세요" required autofocus>
-            </div>
-            <div class="form-group mt-3">
-              <label class="form-label">비밀번호</label>
-              <input type="password" name="password" class="form-control"
-                     placeholder="비밀번호를 입력하세요" required>
-            </div>
-            <div class="form-check mt-3">
-              <input class="form-check-input" type="checkbox" name="remember" id="remember">
-              <label class="form-check-label text-muted" for="remember" style="font-size:.9rem;">로그인 상태 유지</label>
-            </div>
-            <button type="submit" class="btn-login mt-3">
-              <i class="fas fa-sign-in-alt"></i> 로그인
-            </button>
-          </form>
-
-          <div class="bottom-link">
-            계정이 없으신가요? <a href="/accounts/signup/">회원가입</a>
-          </div>
-          <div class="bottom-link mt-2">
-            <a href="/">← 홈으로</a>
-          </div>
+        <div class="footer-links" style="margin-top:10px;">
+          <a href="/">← 홈으로</a>
         </div>
       </div>
     </div>

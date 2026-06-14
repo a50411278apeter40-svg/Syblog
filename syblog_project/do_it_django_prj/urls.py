@@ -2,12 +2,17 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from accounts.views import custom_login, custom_signup
 
 urlpatterns = [
+    # ── 커스텀 로그인/회원가입 (allauth보다 먼저 위치해야 함) ──
+    path('accounts/login/', custom_login, name='account_login'),
+    path('accounts/signup/', custom_signup, name='account_signup'),
+
     path('blog/', include('blog.urls')),
     path('admin/', admin.site.urls),
     path('markdownx/', include('markdownx.urls')),
-    path('accounts/', include('allauth.urls')),
+    path('accounts/', include('allauth.urls')),   # 나머지 allauth URL (logout 등)
     path('user/', include('accounts.urls')),
     path('challenges/', include('challenges.urls')),
     path('mail/', include('mail_system.urls')),
