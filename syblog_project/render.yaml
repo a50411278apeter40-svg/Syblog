@@ -3,7 +3,7 @@ services:
     name: syblog
     env: python
     buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate"
-    startCommand: "gunicorn do_it_django_prj.wsgi:application"
+    startCommand: "python keepalive.py & gunicorn do_it_django_prj.wsgi:application"
     envVars:
       - key: SECRET_KEY
         generateValue: true
