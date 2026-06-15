@@ -2,6 +2,7 @@ services:
   - type: web
     name: syblog
     env: python
+    rootDir: syblog_project
     buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate"
     startCommand: "python keepalive.py & gunicorn do_it_django_prj.wsgi:application"
     envVars:
