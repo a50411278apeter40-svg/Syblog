@@ -10,7 +10,7 @@ const W=380,H=580;
 canvas.width=W; canvas.height=H;
 canvas.style.width='min(380px,95vw)'; canvas.style.height='auto';
 
-const GRAVITY=0.22, FLAP=-6.5, GAP=155, PW=58, BIRD_X=85, SPD=2.2;
+const GRAVITY=0.18, FLAP=-6.5, GAP=155, PW=58, BIRD_X=85, SPD=2.2;
 let bird,pipes,score,running=false,af,frame=0,clouds=[];
 for(let i=0;i<4;i++) clouds.push({x:Math.random()*W,y:25+Math.random()*100,w:55+Math.random()*50,spd:0.25+Math.random()*0.25});
 
@@ -87,7 +87,7 @@ function drawBird(y,vy){
 
 function startGame(){
   document.getElementById('result-overlay').classList.remove('show');
-  bird={y:H/2,vy:0}; pipes=[]; score=0; frame=0; running=true;
+  bird={y:H/2,vy:-3}; pipes=[]; score=0; frame=0; running=true;
   cancelAnimationFrame(af); loop();
 }
 function addPipe(){

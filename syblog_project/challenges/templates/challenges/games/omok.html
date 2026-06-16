@@ -1,0 +1,164 @@
+{% extends 'challenges/game_base.html' %}
+{% block game_area %}
+<canvas id="gameCanvas" style="border-radius:12px;max-width:100%;touch-action:none;cursor:pointer;"></canvas>
+<div style="text-align:center;margin-top:10px;font-size:14px;color:#aaa;">빈 칸을 탭하여 돌을 놓으세요! (5개 먼저 연결하면 승리)</div>
+{% endblock %}
+{% block game_script %}
+<script>
+const canvas=document.getElementById('gameCanvas');
+const ctx=canvas.getContext('2d');
+const COLS=15,ROWS=15,TS=28,GAP=20;
+const W=COLS*TS+GAP*2, H=ROWS*TS+GAP*2+60;
+canvas.width=W; canvas.height=H;
+canvas.style.width='min('+W+'px,100vw)'; canvas.style.height='auto';
+
+let board=[],turn=1,running=false,gameOver=false,score=0,particles=[],af,lastMove=null;
+// 1=흑(플레이어), 2=백(AI)
+
+function initGame(){
+  board=Array.from({length:ROWS},()=>Array(COLS).fill(0));
+  turn=1; running=true; gameOver=false; score=0; lastMove=null; particles=[];
+}
+
+function checkWin(r,c,p){
+  let dirs=[[1,0],[0,1],[1,1],[1,-1]];
+  for(let [dr,dc] of dirs){
+    let count=1;
+    for(let i=1;i<=4;i++){ let nr=r+dr*i,nc=c+dc*i; if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&board[nr][nc]===p) count++; else break; }
+    for(let i=1;i<=4;i++){ let nr=r-dr*i,nc=c-dc*i; if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&board[nr][nc]===p) count++; else break; }
+    if(count>=5) return true;
+  }
+  return false;
+}
+
+function evaluateLine(count, open, isAI){
+  if(count>=5) return isAI?100000:10000;
+  if(count===4){ if(open===2) return isAI?10000:5000; if(open===1) return isAI?500:200;}
+  if(count===3){ if(open===2) return isAI?1000:500; if(open===1) return isAI?100:50;}
+  if(count===2){ if(open===2) return isAI?100:50; }
+  return 0;
+}
+
+function aiMove(){
+  let bestScore=-1, moves=[];
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      if(board[r][c]!==0) continue;
+      // 인접한 돌이 있는 곳만 탐색
+      let hasNeighbor=false;
+      for(let dr=-2;dr<=2;dr++) for(let dc=-2;dc<=2;dc++){
+        let nr=r+dr,nc=c+dc;
+        if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&board[nr][nc]!==0){hasNeighbor=true;break;}
+      }
+      if(!hasNeighbor&&moves.length>0) continue; // 첫 수는 예외
+
+      let pointScore=0;
+      let dirs=[[1,0],[0,1],[1,1],[1,-1]];
+      for(let [dr,dc] of dirs){
+        // AI 공격 평가
+        let countAI=1, openAI=0;
+        for(let i=1;i<=4;i++){ let nr=r+dr*i,nc=c+dc*i; if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&board[nr][nc]===2) countAI++; else if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&board[nr][nc]===0){openAI++;break;} else break; }
+        for(let i=1;i<=4;i++){ let nr=r-dr*i,nc=c-dc*i; if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&board[nr][nc]===2) countAI++; else if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&board[nr][nc]===0){openAI++;break;} else break; }
+        pointScore+=evaluateLine(countAI,openAI,true);
+        // 플레이어 방어 평가
+        let countP=1, openP=0;
+        for(let i=1;i<=4;i++){ let nr=r+dr*i,nc=c+dc*i; if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&board[nr][nc]===1) countP++; else if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&board[nr][nc]===0){openP++;break;} else break; }
+        for(let i=1;i<=4;i++){ let nr=r-dr*i,nc=c-dc*i; if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&board[nr][nc]===1) countP++; else if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&board[nr][nc]===0){openP++;break;} else break; }
+        pointScore+=evaluateLine(countP,openP,false)*1.2; // 방어 우선
+      }
+      pointScore+=Math.random()*5; // 약간의 무작위성
+      if(pointScore>bestScore){ bestScore=pointScore; moves=[{r,c}]; }
+      else if(pointScore===bestScore){ moves.push({r,c}); }
+    }
+  }
+  if(moves.length===0) moves=[{r:Math.floor(ROWS/2),c:Math.floor(COLS/2)}];
+  let choice=moves[Math.floor(Math.random()*moves.length)];
+  board[choice.r][choice.c]=2; lastMove={r:choice.r,c:choice.c};
+  if(checkWin(choice.r,choice.c,2)){ score=10; gameOver=true; spawnParticle(choice.r,choice.c,'#fff'); setTimeout(()=>submitScore(score),1500); }
+  else turn=1;
+}
+
+function spawnParticle(r,c,color){
+  let x=GAP+c*TS,y=GAP+60+r*TS;
+  for(let i=0;i<30;i++) particles.push({x,y,vx:(Math.random()-0.5)*10,vy:(Math.random()-0.5)*10,life:40,maxLife:40,color,s:Math.random()*3+2});
+}
+
+function drawBoard(){
+  ctx.fillStyle='#e6b981'; ctx.fillRect(0,0,W,H);
+  // 우드 패턴
+  ctx.fillStyle='rgba(0,0,0,0.05)';
+  for(let i=0;i<W;i+=20){ ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i+20,H); ctx.stroke(); }
+  
+  // HUD
+  ctx.fillStyle='#2c1b18'; ctx.fillRect(0,0,W,60);
+  ctx.fillStyle='white'; ctx.font='bold 20px Arial'; ctx.textAlign='center';
+  ctx.fillText(gameOver?(score>=100?'승리! 🎉':'패배... 💀'):turn===1?'당신의 차례 (흑)':'AI 생각 중... (백)',W/2,38);
+
+  ctx.translate(GAP,GAP+60);
+  ctx.strokeStyle='#5d4037'; ctx.lineWidth=1;
+  for(let i=0;i<ROWS;i++){ ctx.beginPath(); ctx.moveTo(0,i*TS); ctx.lineTo((COLS-1)*TS,i*TS); ctx.stroke(); }
+  for(let j=0;j<COLS;j++){ ctx.beginPath(); ctx.moveTo(j*TS,0); ctx.lineTo(j*TS,(ROWS-1)*TS); ctx.stroke(); }
+  // 화점
+  ctx.fillStyle='#5d4037';
+  [[3,3],[3,11],[11,3],[11,11],[7,7]].forEach(([r,c])=>{ ctx.beginPath(); ctx.arc(c*TS,r*TS,4,0,Math.PI*2); ctx.fill(); });
+
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    if(board[r][c]!==0){
+      let isBlack=board[r][c]===1;
+      let grad=ctx.createRadialGradient(c*TS-4,r*TS-4,2,c*TS,r*TS,12);
+      grad.addColorStop(0,isBlack?'#555':'#fff'); grad.addColorStop(1,isBlack?'#111':'#ddd');
+      ctx.fillStyle=grad; ctx.beginPath(); ctx.arc(c*TS,r*TS,12,0,Math.PI*2); ctx.fill();
+      ctx.shadowBlur=4; ctx.shadowColor='rgba(0,0,0,0.4)'; ctx.fill(); ctx.shadowBlur=0;
+      if(lastMove&&lastMove.r===r&&lastMove.c===c){
+        ctx.strokeStyle=isBlack?'#e74c3c':'#3498db'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(c*TS,r*TS,6,0,Math.PI*2); ctx.stroke();
+      }
+    }
+  }
+  ctx.translate(-GAP,-GAP-60);
+
+  // 파티클
+  particles.forEach(p=>{
+    p.x+=p.vx; p.y+=p.vy; p.life--;
+    ctx.globalAlpha=p.life/p.maxLife; ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,p.s,0,Math.PI*2); ctx.fill();
+  });
+  ctx.globalAlpha=1; particles=particles.filter(p=>p.life>0);
+}
+
+function loop(){
+  if(!running) return;
+  drawBoard();
+  af=requestAnimationFrame(loop);
+}
+
+function handleClick(px,py){
+  if(!running||gameOver||turn!==1) return;
+  let c=Math.round((px-GAP)/TS), r=Math.round((py-GAP-60)/TS);
+  if(r>=0&&r<ROWS&&c>=0&&c<COLS&&board[r][c]===0){
+    board[r][c]=1; lastMove={r,c};
+    if(checkWin(r,c,1)){ score=200; gameOver=true; spawnParticle(r,c,'#333'); setTimeout(()=>submitScore(score),1500); return; }
+    turn=2; setTimeout(aiMove,500);
+  }
+}
+
+canvas.addEventListener('mousedown',e=>{
+  let r=canvas.getBoundingClientRect(),s=canvas.width/r.width;
+  handleClick((e.clientX-r.left)*s,(e.clientY-r.top)*s);
+});
+canvas.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  let r=canvas.getBoundingClientRect(),s=canvas.width/r.width,t=e.touches[0];
+  handleClick((t.clientX-r.left)*s,(t.clientY-r.top)*s);
+},{passive:false});
+
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  initGame(); cancelAnimationFrame(af); loop();
+}
+// 초기
+ctx.fillStyle='#e6b981'; ctx.fillRect(0,0,W,H);
+ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.beginPath(); ctx.roundRect(W/2-140,H/2-50,280,100,16); ctx.fill();
+ctx.fillStyle='white'; ctx.font='bold 24px Arial'; ctx.textAlign='center';
+ctx.fillText('⚫ 오목 (vs AI)',W/2,H/2-10);
+ctx.font='14px Arial'; ctx.fillText('당신이 먼저 시작합니다 (흑)',W/2,H/2+20);
+</script>
+{% endblock %}

@@ -20,7 +20,7 @@ class PostList(ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['categories'] = Category.objects.all()
+        # removed category query from view
         context['no_category_post_count'] = Post.objects.filter(category=None).count()
         context['recent_series'] = Series.objects.order_by('-created_at')[:5]
         return context
@@ -37,7 +37,7 @@ class PostDetail(DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['categories'] = Category.objects.all()
+        # removed category query from view
         context['no_category_post_count'] = Post.objects.filter(category=None).count()
         context['comment_form'] = CommentForm()
         context['comments'] = self.object.comments.filter(parent=None, is_deleted=False).order_by('created_at')

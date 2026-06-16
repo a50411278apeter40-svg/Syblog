@@ -1,46 +1,175 @@
 {% extends 'challenges/game_base.html' %}
 {% block game_area %}
-<canvas id="gameCanvas" style="border-radius:12px;max-width:100%;touch-action:none;"></canvas>
-<div style="text-align:center; margin-top:10px; font-size:14px; color:#aaa;">터치하여 점수를 올리세요 (미니게임)</div>
+<canvas id="gameCanvas" style="border-radius:12px;max-width:100%;touch-action:none;cursor:crosshair;"></canvas>
+<div style="text-align:center;margin-top:10px;color:#aaa;font-size:14px;">두더지가 나타나면 재빨리 탭하세요! (황금 두더지는 추가 점수, 폭탄은 감점)</div>
 {% endblock %}
 {% block game_script %}
 <script>
 const canvas=document.getElementById('gameCanvas');
 const ctx=canvas.getContext('2d');
-const W=400,H=400;
+const W=480,H=420;
 canvas.width=W; canvas.height=H;
-canvas.style.width='min(400px,100vw)'; canvas.style.height='auto';
-let score=0, running=false, timeLeft=30, af;
+canvas.style.width='min(480px,100vw)'; canvas.style.height='auto';
 
-function startGame(){
-  document.getElementById('result-overlay').classList.remove('show');
-  score=0; timeLeft=30; running=true;
-  cancelAnimationFrame(af); loop();
+const HOLES=[
+  {x:90,y:120},{x:240,y:120},{x:390,y:120},
+  {x:90,y:230},{x:240,y:230},{x:390,y:230},
+  {x:90,y:340},{x:240,y:340},{x:390,y:340}
+];
+
+let moles=[],score=0,timeLeft=30,running=false,af,frame=0,timerInt,particles=[];
+
+function spawnParticle(x,y,color,num){
+  for(let i=0;i<num;i++) particles.push({x,y,vx:(Math.random()-0.5)*8,vy:(Math.random()-0.5)*8-2,life:25,maxLife:25,color,r:Math.random()*4+2});
+}
+
+function spawnMole(){
+  let available=HOLES.filter((_,i)=>!moles.some(m=>m.idx===i));
+  if(available.length===0) return;
+  let hole=available[Math.floor(Math.random()*available.length)];
+  let idx=HOLES.indexOf(hole);
+  let rand=Math.random();
+  let type=rand>0.85?'gold':rand>0.7?'bomb':'normal';
+  moles.push({idx,x:hole.x,y:hole.y,type,state:'up',yOffset:50,maxWait:60+Math.random()*40,wait:0});
+}
+
+function drawHole(x,y){
+  ctx.fillStyle='#3e2723'; ctx.beginPath(); ctx.ellipse(x,y+10,45,15,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#2c1b18'; ctx.beginPath(); ctx.ellipse(x,y+10,40,12,0,0,Math.PI*2); ctx.fill();
+}
+
+function drawMole(m){
+  let y=m.y-25+m.yOffset;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(m.x-45,m.y-70,90,80); ctx.clip(); // 구멍 아래로 마스킹
+  
+  if(m.type==='bomb'){
+    // 폭탄
+    ctx.fillStyle='#333'; ctx.beginPath(); ctx.arc(m.x,y,30,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#111'; ctx.beginPath(); ctx.arc(m.x-10,y-10,8,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#7f8c8d'; ctx.fillRect(m.x-6,y-38,12,10);
+    ctx.strokeStyle='#e74c3c'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(m.x,y-38); ctx.quadraticCurveTo(m.x+10,y-50,m.x+20,y-40); ctx.stroke();
+    // 불꽃
+    if(frame%10<5){ ctx.fillStyle='#f1c40f'; ctx.beginPath(); ctx.arc(m.x+20,y-40,6,0,Math.PI*2); ctx.fill(); }
+  } else {
+    // 두더지
+    let color=m.type==='gold'?'#f1c40f':'#8d6e63';
+    ctx.fillStyle=color; ctx.beginPath(); ctx.ellipse(m.x,y,35,40,0,0,Math.PI*2); ctx.fill();
+    // 눈
+    ctx.fillStyle=m.state==='hit'?'#e74c3c':'#000';
+    if(m.state==='hit'){
+      ctx.font='16px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('x',m.x-12,y-10); ctx.fillText('x',m.x+12,y-10);
+    } else {
+      ctx.beginPath(); ctx.arc(m.x-12,y-10,4,0,Math.PI*2); ctx.arc(m.x+12,y-10,4,0,Math.PI*2); ctx.fill();
+    }
+    // 코
+    ctx.fillStyle='#d35400'; ctx.beginPath(); ctx.ellipse(m.x,y+2,10,6,0,0,Math.PI*2); ctx.fill();
+    // 반짝임 (골드)
+    if(m.type==='gold'&&frame%20<10){ ctx.fillStyle='white'; ctx.font='20px Arial'; ctx.fillText('✨',m.x-25,y-20); }
+  }
+  ctx.restore();
 }
 
 function loop(){
   if(!running) return;
-  if(frame%60===0) timeLeft--;
-  if(timeLeft<=0) { running=false; submitScore(score); return; }
   frame++;
-  
   let bg=ctx.createLinearGradient(0,0,0,H);
-  bg.addColorStop(0,'#1a2a6c'); bg.addColorStop(1,'#b21f1f');
+  bg.addColorStop(0,'#a8e6cf'); bg.addColorStop(0.3,'#dcedc1'); bg.addColorStop(0.3,'#689f38'); bg.addColorStop(1,'#33691e');
   ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
-  
-  ctx.fillStyle='#fff'; ctx.font='bold 24px Arial'; ctx.textAlign='center';
-  ctx.fillText('화면을 마구 탭하세요!', W/2, H/2);
-  ctx.fillText('남은 시간: '+timeLeft, W/2, H/2+40);
-  ctx.fillText('Score: '+score, W/2, H/2+80);
-  ctx.textAlign='left';
-  
+
+  // 구멍 배경
+  HOLES.forEach(h=>drawHole(h.x,h.y));
+
+  // 스폰
+  if(frame%45===0&&moles.length<4) spawnMole();
+
+  // 두더지 로직 & 그리기
+  moles.forEach((m,i)=>{
+    if(m.state==='up'){
+      m.yOffset-=4; if(m.yOffset<=0){ m.yOffset=0; m.state='wait'; }
+    } else if(m.state==='wait'){
+      m.wait++; if(m.wait>=m.maxWait) m.state='down';
+    } else if(m.state==='down'||m.state==='hit'){
+      m.yOffset+=5; if(m.yOffset>=55) moles.splice(i,1);
+    }
+    drawHole(m.x,m.y); // 뒷구멍
+    drawMole(m);
+    // 앞풀
+    ctx.fillStyle='#558b2f';
+    ctx.beginPath(); ctx.moveTo(m.x-50,m.y+15); ctx.lineTo(m.x-30,m.y+5); ctx.lineTo(m.x-10,m.y+15); ctx.lineTo(m.x+10,m.y+5); ctx.lineTo(m.x+30,m.y+15); ctx.lineTo(m.x+50,m.y+15); ctx.fill();
+  });
+
+  // 파티클
+  particles.forEach(p=>{
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.3; p.life--;
+    ctx.globalAlpha=p.life/p.maxLife; ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+  });
+  ctx.globalAlpha=1; particles=particles.filter(p=>p.life>0);
+
+  // HUD
+  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,W,44);
+  ctx.fillStyle='white'; ctx.font='bold 20px Arial'; ctx.textAlign='left';
+  ctx.fillText(`점수: ${score}`,16,28);
+  ctx.textAlign='right'; ctx.fillStyle=timeLeft<=5?'#e74c3c':'#ffd700';
+  ctx.fillText(`남은 시간: ${timeLeft}초`,W-16,28); ctx.textAlign='left';
+  document.getElementById('score-display').textContent=score;
+
   af=requestAnimationFrame(loop);
 }
-let frame=0;
-canvas.addEventListener('mousedown', ()=>{if(running) score+=10;});
-canvas.addEventListener('touchstart', e=>{e.preventDefault(); if(running) score+=10;}, {passive:false});
 
-ctx.fillStyle='#222'; ctx.fillRect(0,0,W,H);
-ctx.fillStyle='#fff'; ctx.font='bold 24px Arial'; ctx.textAlign='center'; ctx.fillText('🎮 준비 완료', W/2, H/2); ctx.textAlign='left';
+function handleHit(px,py){
+  if(!running) return;
+  let hit=false;
+  for(let i=moles.length-1;i>=0;i--){
+    let m=moles[i];
+    if(m.state!=='hit'&&m.state!=='down'&&Math.abs(px-m.x)<40&&Math.abs(py-(m.y-20))<40){
+      m.state='hit'; hit=true;
+      if(m.type==='bomb'){
+        score=Math.max(0,score-30); spawnParticle(m.x,m.y-20,'#e74c3c',30);
+        // 화면 흔들림 효과
+        canvas.style.transform='translate(5px,5px)'; setTimeout(()=>canvas.style.transform='translate(-5px,-5px)',50); setTimeout(()=>canvas.style.transform='translate(0,0)',100);
+      } else if(m.type==='gold'){
+        score+=50; spawnParticle(m.x,m.y-20,'#f1c40f',20);
+      } else {
+        score+=10; spawnParticle(m.x,m.y-20,'#fff',10);
+      }
+      break;
+    }
+  }
+  if(!hit) spawnParticle(px,py,'#aaa',5); // 빗나감
+}
+
+canvas.addEventListener('mousedown',e=>{
+  let r=canvas.getBoundingClientRect(),s=canvas.width/r.width;
+  handleHit((e.clientX-r.left)*s,(e.clientY-r.top)*s);
+});
+canvas.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  let r=canvas.getBoundingClientRect(),s=canvas.width/r.width,t=e.touches[0];
+  handleHit((t.clientX-r.left)*s,(t.clientY-r.top)*s);
+},{passive:false});
+
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  moles=[]; score=0; timeLeft=30; frame=0; particles=[]; running=true;
+  clearInterval(timerInt);
+  timerInt=setInterval(()=>{
+    if(!running) return clearInterval(timerInt);
+    timeLeft--; if(timeLeft<=0){ running=false; clearInterval(timerInt); setTimeout(()=>submitScore(score),1000); }
+  },1000);
+  cancelAnimationFrame(af); loop();
+}
+
+// 초기 화면
+let bg0=ctx.createLinearGradient(0,0,0,H); bg0.addColorStop(0,'#a8e6cf'); bg0.addColorStop(1,'#33691e'); ctx.fillStyle=bg0; ctx.fillRect(0,0,W,H);
+HOLES.forEach(h=>drawHole(h.x,h.y));
+ctx.fillStyle='rgba(0,0,0,0.65)'; ctx.beginPath(); ctx.roundRect(W/2-160,H/2-65,320,135,20); ctx.fill();
+ctx.fillStyle='#f1c40f'; ctx.font='bold 26px Arial'; ctx.textAlign='center';
+ctx.fillText('🔨 두더지 잡기',W/2,H/2-22);
+ctx.fillStyle='white'; ctx.font='14px Arial';
+ctx.fillText('갈색 두더지: +10점',W/2,H/2+10);
+ctx.fillText('황금 두더지: +50점',W/2,H/2+34);
+ctx.fillStyle='#e74c3c'; ctx.fillText('폭탄: -30점 (주의!)',W/2,H/2+58); ctx.textAlign='left';
 </script>
 {% endblock %}
