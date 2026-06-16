@@ -2,6 +2,8 @@
 {% block head_title %}관리자 대시보드 - SyBlog{% endblock %}
 {% block main_area %}
 <h2 class="mb-4"><i class="fas fa-tachometer-alt" style="color:#6c63ff;"></i> 관리자 대시보드</h2>
+
+<!-- 통계 카드 -->
 <div class="row mb-4">
     <div class="col-md-4 mb-3"><div class="card text-white" style="background:linear-gradient(135deg,#6c63ff,#48cfad);"><div class="card-body text-center"><h1>{{ stats.total_users }}</h1><p class="mb-0">전체 사용자</p></div></div></div>
     <div class="col-md-4 mb-3"><div class="card text-white" style="background:linear-gradient(135deg,#f7971e,#ffd200);"><div class="card-body text-center"><h1>{{ stats.total_posts }}</h1><p class="mb-0">전체 게시글</p></div></div></div>
@@ -10,24 +12,103 @@
     <div class="col-md-4 mb-3"><div class="card text-white" style="background:linear-gradient(135deg,#667eea,#764ba2);"><div class="card-body text-center"><h1>{{ stats.total_mails }}</h1><p class="mb-0">전체 메일</p></div></div></div>
     <div class="col-md-4 mb-3"><div class="card text-white" style="background:linear-gradient(135deg,#fc5c7d,#6a82fb);"><div class="card-body text-center"><h1>{{ stats.total_scores }}</h1><p class="mb-0">챌린지 기록</p></div></div></div>
 </div>
-<div class="card mb-4"><div class="card-header">빠른 관리</div><div class="card-body">
-    <a href="/user/admin/users/" class="btn btn-primary mr-2"><i class="fas fa-users-cog"></i> 사용자 관리</a>
-    <a href="/admin/" class="btn btn-dark mr-2"><i class="fas fa-cog"></i> Django Admin</a>
-    <a href="/blog/create_post/" class="btn btn-success mr-2"><i class="fas fa-pen"></i> 글 작성</a>
-    <a href="/user/leaderboard/" class="btn btn-warning mr-2"><i class="fas fa-trophy"></i> 리더보드</a>
-</div></div>
+
+<!-- 빠른 관리 -->
+<div class="card mb-4">
+    <div class="card-header font-weight-bold"><i class="fas fa-tools"></i> 빠른 관리</div>
+    <div class="card-body">
+        <a href="/user/admin/users/" class="btn btn-primary mr-2 mb-2"><i class="fas fa-users-cog"></i> 사용자 관리</a>
+        <a href="/admin/" class="btn btn-dark mr-2 mb-2"><i class="fas fa-cog"></i> Django Admin</a>
+        <a href="/blog/create_post/" class="btn btn-success mr-2 mb-2"><i class="fas fa-pen"></i> 글 작성</a>
+        <a href="/user/leaderboard/" class="btn btn-warning mr-2 mb-2"><i class="fas fa-trophy"></i> 리더보드</a>
+    </div>
+</div>
+
+<!-- GitHub 백업 / 복원 -->
+<div class="card mb-4" style="border: 2px solid #6c63ff;">
+    <div class="card-header font-weight-bold" style="background:linear-gradient(135deg,#6c63ff,#48cfad); color:white;">
+        <i class="fab fa-github"></i> GitHub 데이터 백업 / 복원
+    </div>
+    <div class="card-body">
+        <p class="text-muted mb-3">
+            <i class="fas fa-info-circle"></i>
+            <strong>백업</strong>: 게시글·댓글·카테고리·태그·시리즈·사용자·메일·챌린지기록 <b>전체</b>를 GitHub <code>backups/</code> 폴더에 JSON으로 저장합니다.<br>
+            <strong>복원</strong>: GitHub의 가장 최신 백업 파일에서 없는 데이터를 불러와 DB에 추가합니다.
+        </p>
+        <div class="d-flex flex-wrap gap-2">
+            <!-- 백업 버튼 -->
+            <form method="post" action="{% url 'blog:backup_to_github' %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-lg mr-3 mb-2"
+                    style="background:linear-gradient(135deg,#6c63ff,#48cfad); color:white; font-weight:bold;"
+                    onclick="return confirm('모든 블로그 데이터를 GitHub에 백업하시겠습니까?')">
+                    <i class="fab fa-github"></i> 📤 GitHub에 전체 백업
+                </button>
+            </form>
+            <!-- 복원 버튼 -->
+            <form method="post" action="{% url 'blog:restore_from_github' %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-lg mb-2"
+                    style="background:linear-gradient(135deg,#f7971e,#ffd200); color:white; font-weight:bold;"
+                    onclick="return confirm('GitHub 최신 백업에서 데이터를 복원하시겠습니까?\n(기존 데이터는 유지되고, 없는 데이터만 추가됩니다.)')">
+                    <i class="fab fa-github"></i> 📥 GitHub에서 복원
+                </button>
+            </form>
+        </div>
+        {% if messages %}
+        <div class="mt-3">
+            {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}success{% endif %} mb-1">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 최근 게시글 & 최근 사용자 -->
 <div class="row">
-    <div class="col-md-6"><div class="card"><div class="card-header">최근 게시글</div><ul class="list-group list-group-flush">
-    {% for post in recent_posts %}<li class="list-group-item d-flex justify-content-between align-items-center">
-        <div><a href="{{ post.get_absolute_url }}" class="text-dark">{{ post.title|truncatechars:30 }}</a><br><small class="text-muted">{{ post.author.username }} · {{ post.created_at|date:"m.d" }}</small></div>
-        <a href="/blog/admin-delete-post/{{ post.pk }}/" class="btn btn-sm btn-outline-danger" onclick="return confirm('삭제?')"><i class="fas fa-trash"></i></a>
-    </li>{% endfor %}
-    </ul></div></div>
-    <div class="col-md-6"><div class="card"><div class="card-header">최근 가입 사용자</div><ul class="list-group list-group-flush">
-    {% for u in recent_users %}<li class="list-group-item d-flex justify-content-between align-items-center">
-        <div><img src="https://ui-avatars.com/api/?name={{ u.username }}&size=25" class="rounded-circle mr-2" width="25">{{ u.username }}<br><small class="text-muted">{{ u.date_joined|date:"Y.m.d" }}</small></div>
-        <a href="/user/admin/users/{{ u.pk }}/toggle-block/" class="btn btn-sm btn-outline-warning"><i class="fas fa-ban"></i></a>
-    </li>{% endfor %}
-    </ul></div></div>
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header font-weight-bold"><i class="fas fa-file-alt"></i> 최근 게시글</div>
+            <ul class="list-group list-group-flush">
+            {% for post in recent_posts %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <a href="{{ post.get_absolute_url }}" class="text-dark font-weight-bold">{{ post.title|truncatechars:28 }}</a>
+                    <br><small class="text-muted">{{ post.author.username }} · {{ post.created_at|date:"m.d" }}</small>
+                </div>
+                <!-- POST 방식으로 삭제 (보안) -->
+                <form method="post" action="{% url 'blog:admin_delete_post' post.pk %}" style="display:inline;" onsubmit="return confirm('정말 삭제하시겠습니까?')">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </form>
+            </li>
+            {% endfor %}
+            </ul>
+        </div>
+    </div>
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header font-weight-bold"><i class="fas fa-users"></i> 최근 가입 사용자</div>
+            <ul class="list-group list-group-flush">
+            {% for u in recent_users %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <img src="https://ui-avatars.com/api/?name={{ u.username }}&size=25" class="rounded-circle mr-2" width="25">
+                    {{ u.username }}
+                    <br><small class="text-muted">{{ u.date_joined|date:"Y.m.d" }}</small>
+                </div>
+                <a href="/user/admin/users/{{ u.pk }}/toggle-block/" class="btn btn-sm btn-outline-warning">
+                    <i class="fas fa-ban"></i>
+                </a>
+            </li>
+            {% endfor %}
+            </ul>
+        </div>
+    </div>
 </div>
 {% endblock %}

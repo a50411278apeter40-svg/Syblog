@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 SyBlog Keep-Alive Script
-Render 무료 플랜 슬립 방지 — 10분마다 사이트에 핑을 보냅니다.
-Render의 별도 Cron Job 서비스로 실행됩니다.
+Render 무료 플랜 슬립 방지 — 3분마다 사이트에 핑을 보냅니다.
 """
 import urllib.request
 import urllib.error
@@ -11,7 +10,7 @@ import datetime
 import sys
 
 SITE_URL = "https://syblog.onrender.com"
-PING_INTERVAL = 600  # 10분 (초)
+PING_INTERVAL = 180  # 3분 (초)
 ENDPOINTS = [
     "/",
     "/blog/",
@@ -29,9 +28,11 @@ def ping(url):
             print(f"[{now}] ✅ {url} → HTTP {code}", flush=True)
             return True
     except urllib.error.HTTPError as e:
-        print(f"[ERROR] {url} → HTTP {e.code}", flush=True)
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"[{now}] ❌ {url} → HTTP {e.code}", flush=True)
     except Exception as e:
-        print(f"[ERROR] {url} → {e}", flush=True)
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"[{now}] ❌ {url} → {e}", flush=True)
     return False
 
 def main():
@@ -41,7 +42,7 @@ def main():
     while True:
         for endpoint in ENDPOINTS:
             ping(SITE_URL + endpoint)
-            time.sleep(2)
+            time.sleep(1)
 
         next_ping = datetime.datetime.now() + datetime.timedelta(seconds=PING_INTERVAL)
         print(f"   다음 핑: {next_ping.strftime('%H:%M:%S')}", flush=True)
