@@ -1,46 +1,144 @@
 {% extends 'challenges/game_base.html' %}
 {% block game_area %}
 <canvas id="gameCanvas" style="border-radius:12px;max-width:100%;touch-action:none;"></canvas>
-<div style="text-align:center; margin-top:10px; font-size:14px; color:#aaa;">터치하여 점수를 올리세요 (미니게임)</div>
+<div style="text-align:center;margin-top:10px;font-size:14px;color:#aaa;">인접한 보석을 스와이프하거나 클릭하여 3개 이상 맞추세요! 제한시간 60초</div>
 {% endblock %}
 {% block game_script %}
 <script>
 const canvas=document.getElementById('gameCanvas');
 const ctx=canvas.getContext('2d');
-const W=400,H=400;
+const COLS=8, ROWS=8, TS=40;
+const W=COLS*TS, H=ROWS*TS;
 canvas.width=W; canvas.height=H;
-canvas.style.width='min(400px,100vw)'; canvas.style.height='auto';
-let score=0, running=false, timeLeft=30, af;
+canvas.style.width='min(100%, 400px)'; canvas.style.height='auto';
 
-function startGame(){
-  document.getElementById('result-overlay').classList.remove('show');
-  score=0; timeLeft=30; running=true;
-  cancelAnimationFrame(af); loop();
+let board=[], score=0, timeLeft=60, running=false, af, sel=null;
+let colors=['#e74c3c','#3498db','#2ecc71','#f1c40f','#9b59b6'];
+
+function fillBoard(){
+  for(let r=0;r<ROWS;r++){
+    board[r]=[];
+    for(let c=0;c<COLS;c++) board[r][c]=Math.floor(Math.random()*colors.length);
+  }
+}
+
+function checkMatches(){
+  let matched=false;
+  let matchMap=Array(ROWS).fill().map(()=>Array(COLS).fill(false));
+  
+  // 가로
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS-2;c++){
+    let v=board[r][c]; if(v===-1) continue;
+    if(board[r][c+1]===v && board[r][c+2]===v){
+      matchMap[r][c]=matchMap[r][c+1]=matchMap[r][c+2]=true; matched=true;
+    }
+  }
+  // 세로
+  for(let r=0;r<ROWS-2;r++) for(let c=0;c<COLS;c++){
+    let v=board[r][c]; if(v===-1) continue;
+    if(board[r+1][c]===v && board[r+2][c]===v){
+      matchMap[r][c]=matchMap[r+1][c]=matchMap[r+2][c]=true; matched=true;
+    }
+  }
+  
+  if(matched){
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) if(matchMap[r][c]){ board[r][c]=-1; score+=10; }
+    setTimeout(dropGems, 300);
+  }
+  return matched;
+}
+
+function dropGems(){
+  for(let c=0;c<COLS;c++){
+    let col=[];
+    for(let r=0;r<ROWS;r++) if(board[r][c]!==-1) col.push(board[r][c]);
+    while(col.length<ROWS) col.unshift(Math.floor(Math.random()*colors.length));
+    for(let r=0;r<ROWS;r++) board[r][c]=col[r];
+  }
+  setTimeout(checkMatches, 300);
+}
+
+function draw(){
+  ctx.fillStyle='#34495e'; ctx.fillRect(0,0,W,H);
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    let v=board[r][c];
+    if(v!==-1){
+      ctx.fillStyle=colors[v];
+      ctx.fillRect(c*TS+2, r*TS+2, TS-4, TS-4);
+    }
+    if(sel && sel.r===r && sel.c===c){
+      ctx.strokeStyle='white'; ctx.lineWidth=3;
+      ctx.strokeRect(c*TS, r*TS, TS, TS);
+    }
+  }
+  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,W,24);
+  ctx.fillStyle='white'; ctx.font='16px Arial'; ctx.textAlign='left';
+  ctx.fillText('Time: '+timeLeft, 5, 18);
+  
+  document.getElementById('score-display').textContent=score;
 }
 
 function loop(){
   if(!running) return;
-  if(frame%60===0) timeLeft--;
-  if(timeLeft<=0) { running=false; submitScore(score); return; }
-  frame++;
-  
-  let bg=ctx.createLinearGradient(0,0,0,H);
-  bg.addColorStop(0,'#1a2a6c'); bg.addColorStop(1,'#b21f1f');
-  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
-  
-  ctx.fillStyle='#fff'; ctx.font='bold 24px Arial'; ctx.textAlign='center';
-  ctx.fillText('화면을 마구 탭하세요!', W/2, H/2);
-  ctx.fillText('남은 시간: '+timeLeft, W/2, H/2+40);
-  ctx.fillText('Score: '+score, W/2, H/2+80);
-  ctx.textAlign='left';
-  
+  draw();
   af=requestAnimationFrame(loop);
 }
-let frame=0;
-canvas.addEventListener('mousedown', ()=>{if(running) score+=10;});
-canvas.addEventListener('touchstart', e=>{e.preventDefault(); if(running) score+=10;}, {passive:false});
 
-ctx.fillStyle='#222'; ctx.fillRect(0,0,W,H);
-ctx.fillStyle='#fff'; ctx.font='bold 24px Arial'; ctx.textAlign='center'; ctx.fillText('🎮 준비 완료', W/2, H/2); ctx.textAlign='left';
+let timerInt;
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  fillBoard(); while(checkMatches()){} score=0; timeLeft=60; running=true; sel=null;
+  clearInterval(timerInt);
+  timerInt=setInterval(()=>{
+    if(!running) return clearInterval(timerInt);
+    timeLeft--;
+    if(timeLeft<=0) { running=false; clearInterval(timerInt); submitScore(score); }
+  }, 1000);
+  cancelAnimationFrame(af); loop();
+}
+
+let startX, startY;
+function handleInput(c, r){
+  if(!sel) { sel={r,c}; return; }
+  let dr=Math.abs(sel.r-r), dc=Math.abs(sel.c-c);
+  if((dr===1&&dc===0) || (dr===0&&dc===1)){
+    // Swap
+    let temp=board[sel.r][sel.c];
+    board[sel.r][sel.c]=board[r][c];
+    board[r][c]=temp;
+    if(!checkMatches()){
+      // Revert if no match
+      board[r][c]=board[sel.r][sel.c];
+      board[sel.r][sel.c]=temp;
+    }
+  }
+  sel=null;
+}
+
+canvas.addEventListener('mousedown', e=>{
+  let rect=canvas.getBoundingClientRect();
+  handleInput(Math.floor((e.clientX-rect.left)*W/rect.width/TS), Math.floor((e.clientY-rect.top)*H/rect.height/TS));
+});
+canvas.addEventListener('touchstart', e=>{
+  e.preventDefault();
+  let rect=canvas.getBoundingClientRect();
+  startX=e.touches[0].clientX; startY=e.touches[0].clientY;
+  sel={c:Math.floor((startX-rect.left)*W/rect.width/TS), r:Math.floor((startY-rect.top)*H/rect.height/TS)};
+},{passive:false});
+canvas.addEventListener('touchend', e=>{
+  let rect=canvas.getBoundingClientRect();
+  let endX=e.changedTouches[0].clientX, endY=e.changedTouches[0].clientY;
+  let dx=endX-startX, dy=endY-startY;
+  if(Math.abs(dx)>20 || Math.abs(dy)>20){
+    if(Math.abs(dx)>Math.abs(dy)) handleInput(sel.c+(dx>0?1:-1), sel.r);
+    else handleInput(sel.c, sel.r+(dy>0?1:-1));
+  } else {
+    handleInput(Math.floor((endX-rect.left)*W/rect.width/TS), Math.floor((endY-rect.top)*H/rect.height/TS));
+  }
+});
+
+ctx.fillStyle='#34495e'; ctx.fillRect(0,0,W,H);
+ctx.fillStyle='white'; ctx.textAlign='center'; ctx.font='bold 30px Arial';
+ctx.fillText('💎 보석 매칭', W/2, H/2);
 </script>
 {% endblock %}

@@ -1,46 +1,85 @@
 {% extends 'challenges/game_base.html' %}
 {% block game_area %}
 <canvas id="gameCanvas" style="border-radius:12px;max-width:100%;touch-action:none;"></canvas>
-<div style="text-align:center; margin-top:10px; font-size:14px; color:#aaa;">터치하여 점수를 올리세요 (미니게임)</div>
+<div style="text-align:center;margin-top:10px;font-size:14px;color:#aaa;">타이밍에 맞춰 화면을 탭하여 녹색 구간에 바늘을 멈추세요!</div>
 {% endblock %}
 {% block game_script %}
 <script>
 const canvas=document.getElementById('gameCanvas');
 const ctx=canvas.getContext('2d');
-const W=400,H=400;
+const W=500,H=300;
 canvas.width=W; canvas.height=H;
-canvas.style.width='min(400px,100vw)'; canvas.style.height='auto';
-let score=0, running=false, timeLeft=30, af;
+canvas.style.width='min(100%, 500px)'; canvas.style.height='auto';
+
+let pos=0, dir=1, speed=4, zoneW=60, zoneX=W/2-30, state='idle', score=0, af, fishes=0, maxFishes=15, msg={t:0, text:''};
+
+function loop(){
+  ctx.fillStyle='#3498db'; ctx.fillRect(0,0,W,H);
+  
+  // 물결
+  ctx.strokeStyle='rgba(255,255,255,0.3)'; ctx.lineWidth=2;
+  for(let i=0;i<5;i++){ ctx.beginPath();ctx.arc(W/2, H, 50+i*50+Math.sin(Date.now()/500)*20, Math.PI, 0);ctx.stroke(); }
+  
+  if(state==='play'){
+    pos += speed*dir;
+    if(pos<0){ pos=0; dir=1; }
+    if(pos>W){ pos=W; dir=-1; }
+  }
+
+  // 바(Bar)
+  ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fillRect(20, H/2-20, W-40, 40);
+  ctx.fillStyle='#2ecc71'; ctx.fillRect(zoneX, H/2-20, zoneW, 40);
+  
+  // 바늘
+  ctx.fillStyle='#e74c3c'; ctx.fillRect(pos-2, H/2-30, 4, 60);
+
+  // UI
+  ctx.fillStyle='white'; ctx.font='bold 20px Arial'; ctx.textAlign='left';
+  ctx.fillText('물고기: '+(maxFishes-fishes), 10, 30);
+  
+  if(msg.t>0){
+    msg.t--;
+    ctx.textAlign='center'; ctx.font='bold 30px Arial';
+    ctx.fillText(msg.text, W/2, H/4);
+  }
+  
+  document.getElementById('score-display').textContent=score;
+  if(fishes<maxFishes) af=requestAnimationFrame(loop);
+  else {
+    ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='white'; ctx.textAlign='center'; ctx.font='bold 30px Arial';
+    ctx.fillText('종료!', W/2, H/2);
+    setTimeout(()=>submitScore(score), 1000);
+  }
+}
+
+function handleTap(){
+  if(state==='idle'){
+    state='play';
+    zoneX = 40 + Math.random()*(W-80-zoneW);
+  } else if(state==='play'){
+    state='idle';
+    let hit = (pos >= zoneX && pos <= zoneX+zoneW);
+    if(hit){
+      score+=10; msg={text:'SUCCESS!', t:30}; speed+=0.5; zoneW=Math.max(20, zoneW-2);
+    } else {
+      msg={text:'MISS...', t:30};
+    }
+    fishes++;
+  }
+}
+
+canvas.addEventListener('mousedown', handleTap);
+canvas.addEventListener('touchstart', e=>{e.preventDefault(); handleTap();}, {passive:false});
 
 function startGame(){
   document.getElementById('result-overlay').classList.remove('show');
-  score=0; timeLeft=30; running=true;
+  pos=0; dir=1; speed=4; zoneW=60; state='idle'; score=0; fishes=0; msg={t:0, text:''};
   cancelAnimationFrame(af); loop();
 }
 
-function loop(){
-  if(!running) return;
-  if(frame%60===0) timeLeft--;
-  if(timeLeft<=0) { running=false; submitScore(score); return; }
-  frame++;
-  
-  let bg=ctx.createLinearGradient(0,0,0,H);
-  bg.addColorStop(0,'#1a2a6c'); bg.addColorStop(1,'#b21f1f');
-  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
-  
-  ctx.fillStyle='#fff'; ctx.font='bold 24px Arial'; ctx.textAlign='center';
-  ctx.fillText('화면을 마구 탭하세요!', W/2, H/2);
-  ctx.fillText('남은 시간: '+timeLeft, W/2, H/2+40);
-  ctx.fillText('Score: '+score, W/2, H/2+80);
-  ctx.textAlign='left';
-  
-  af=requestAnimationFrame(loop);
-}
-let frame=0;
-canvas.addEventListener('mousedown', ()=>{if(running) score+=10;});
-canvas.addEventListener('touchstart', e=>{e.preventDefault(); if(running) score+=10;}, {passive:false});
-
-ctx.fillStyle='#222'; ctx.fillRect(0,0,W,H);
-ctx.fillStyle='#fff'; ctx.font='bold 24px Arial'; ctx.textAlign='center'; ctx.fillText('🎮 준비 완료', W/2, H/2); ctx.textAlign='left';
+ctx.fillStyle='#3498db'; ctx.fillRect(0,0,W,H);
+ctx.fillStyle='white'; ctx.textAlign='center'; ctx.font='bold 30px Arial';
+ctx.fillText('🎣 낚시 게임', W/2, H/2);
 </script>
 {% endblock %}

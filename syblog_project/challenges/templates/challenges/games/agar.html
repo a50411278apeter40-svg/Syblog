@@ -1,46 +1,116 @@
 {% extends 'challenges/game_base.html' %}
 {% block game_area %}
-<canvas id="gameCanvas" style="border-radius:12px;max-width:100%;touch-action:none;"></canvas>
-<div style="text-align:center; margin-top:10px; font-size:14px; color:#aaa;">터치하여 점수를 올리세요 (미니게임)</div>
+<canvas id="gameCanvas" style="border-radius:12px;max-width:100%;touch-action:none;cursor:crosshair;"></canvas>
+<div style="text-align:center;margin-top:10px;font-size:14px;color:#aaa;">마우스나 터치로 이동하며 작은 세포를 먹고 크기를 키우세요! (큰 세포 주의)</div>
 {% endblock %}
 {% block game_script %}
 <script>
 const canvas=document.getElementById('gameCanvas');
 const ctx=canvas.getContext('2d');
-const W=400,H=400;
+const W=800,H=600;
 canvas.width=W; canvas.height=H;
-canvas.style.width='min(400px,100vw)'; canvas.style.height='auto';
-let score=0, running=false, timeLeft=30, af;
+canvas.style.width='min(100%, 800px)'; canvas.style.height='auto';
 
-function startGame(){
-  document.getElementById('result-overlay').classList.remove('show');
-  score=0; timeLeft=30; running=true;
-  cancelAnimationFrame(af); loop();
+let player, foods=[], enemies=[], score=0, running=false, af, target={x:W/2,y:H/2};
+
+function initGame(){
+  player={x:W/2, y:H/2, r:15, color:'#3498db'};
+  foods=[]; enemies=[]; score=0;
+  for(let i=0;i<100;i++) spawnFood();
+  for(let i=0;i<5;i++) spawnEnemy();
+  running=true;
+  target={x:W/2, y:H/2};
+}
+
+function spawnFood(){
+  foods.push({x:Math.random()*W, y:Math.random()*H, r:Math.random()*3+2, color:`hsl(${Math.random()*360},70%,60%)`});
+}
+
+function spawnEnemy(){
+  enemies.push({
+    x:Math.random()>0.5?-50:W+50, y:Math.random()*H,
+    r:player.r*Math.random()*2+10,
+    vx:(Math.random()-0.5)*2, vy:(Math.random()-0.5)*2,
+    color:`hsl(${Math.random()*360},80%,40%)`
+  });
 }
 
 function loop(){
   if(!running) return;
-  if(frame%60===0) timeLeft--;
-  if(timeLeft<=0) { running=false; submitScore(score); return; }
-  frame++;
+  ctx.fillStyle='#f0f3f4'; ctx.fillRect(0,0,W,H);
   
-  let bg=ctx.createLinearGradient(0,0,0,H);
-  bg.addColorStop(0,'#1a2a6c'); bg.addColorStop(1,'#b21f1f');
-  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+  // 그리드
+  ctx.strokeStyle='#e0e0e0'; ctx.lineWidth=1;
+  for(let i=0;i<W;i+=40){ ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,H);ctx.stroke(); }
+  for(let i=0;i<H;i+=40){ ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(W,i);ctx.stroke(); }
+
+  // 이동
+  let dx=target.x-player.x, dy=target.y-player.y, dist=Math.hypot(dx,dy);
+  if(dist>0){
+    let speed=Math.max(1, 5-player.r/20);
+    player.x+=dx/dist*speed; player.y+=dy/dist*speed;
+  }
+  player.x=Math.max(player.r,Math.min(W-player.r,player.x));
+  player.y=Math.max(player.r,Math.min(H-player.r,player.y));
+
+  // 음식
+  for(let i=foods.length-1;i>=0;i--){
+    let f=foods[i];
+    ctx.fillStyle=f.color; ctx.beginPath();ctx.arc(f.x,f.y,f.r,0,Math.PI*2);ctx.fill();
+    if(Math.hypot(player.x-f.x, player.y-f.y) < player.r){
+      player.r+=0.2; score+=1; foods.splice(i,1); spawnFood();
+    }
+  }
+
+  // 적
+  if(Math.random()<0.02 && enemies.length<10) spawnEnemy();
+  for(let i=enemies.length-1;i>=0;i--){
+    let e=enemies[i];
+    e.x+=e.vx; e.y+=e.vy;
+    ctx.fillStyle=e.color; ctx.beginPath();ctx.arc(e.x,e.y,e.r,0,Math.PI*2);ctx.fill();
+    
+    // 충돌 체크
+    let edist=Math.hypot(player.x-e.x, player.y-e.y);
+    if(edist < Math.abs(player.r-e.r)){
+      if(player.r > e.r){
+        player.r+=e.r/3; score+=Math.floor(e.r); enemies.splice(i,1);
+      } else {
+        running=false;
+        setTimeout(()=>submitScore(score), 1000);
+      }
+    }
+    if(e.x<-100 || e.x>W+100 || e.y<-100 || e.y>H+100) enemies.splice(i,1);
+  }
+
+  // 플레이어
+  if(running){
+    ctx.fillStyle=player.color; ctx.beginPath();ctx.arc(player.x,player.y,player.r,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#2980b9'; ctx.lineWidth=3; ctx.stroke();
+    ctx.fillStyle='white'; ctx.textAlign='center'; ctx.font='bold 16px Arial';
+    ctx.fillText(score, player.x, player.y+6);
+  }
   
-  ctx.fillStyle='#fff'; ctx.font='bold 24px Arial'; ctx.textAlign='center';
-  ctx.fillText('화면을 마구 탭하세요!', W/2, H/2);
-  ctx.fillText('남은 시간: '+timeLeft, W/2, H/2+40);
-  ctx.fillText('Score: '+score, W/2, H/2+80);
-  ctx.textAlign='left';
-  
+  document.getElementById('score-display').textContent=score;
   af=requestAnimationFrame(loop);
 }
-let frame=0;
-canvas.addEventListener('mousedown', ()=>{if(running) score+=10;});
-canvas.addEventListener('touchstart', e=>{e.preventDefault(); if(running) score+=10;}, {passive:false});
 
-ctx.fillStyle='#222'; ctx.fillRect(0,0,W,H);
-ctx.fillStyle='#fff'; ctx.font='bold 24px Arial'; ctx.textAlign='center'; ctx.fillText('🎮 준비 완료', W/2, H/2); ctx.textAlign='left';
+canvas.addEventListener('mousemove', e=>{
+  let r=canvas.getBoundingClientRect();
+  target.x=(e.clientX-r.left)*W/r.width; target.y=(e.clientY-r.top)*H/r.height;
+});
+canvas.addEventListener('touchmove', e=>{
+  e.preventDefault();
+  let r=canvas.getBoundingClientRect();
+  target.x=(e.touches[0].clientX-r.left)*W/r.width; target.y=(e.touches[0].clientY-r.top)*H/r.height;
+},{passive:false});
+
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  initGame(); cancelAnimationFrame(af); loop();
+}
+
+ctx.fillStyle='#2c3e50'; ctx.fillRect(0,0,W,H);
+ctx.fillStyle='white'; ctx.textAlign='center'; ctx.font='bold 30px Arial';
+ctx.fillText('🦠 세포 키우기', W/2, H/2);
 </script>
 {% endblock %}

@@ -1,46 +1,126 @@
 {% extends 'challenges/game_base.html' %}
 {% block game_area %}
 <canvas id="gameCanvas" style="border-radius:12px;max-width:100%;touch-action:none;"></canvas>
-<div style="text-align:center; margin-top:10px; font-size:14px; color:#aaa;">터치하여 점수를 올리세요 (미니게임)</div>
+<div style="text-align:center;margin-top:10px;font-size:14px;color:#aaa;">타이밍에 맞춰 키보드 D, F, J, K를 누르거나 화면의 판정선을 터치하세요!</div>
 {% endblock %}
 {% block game_script %}
 <script>
 const canvas=document.getElementById('gameCanvas');
 const ctx=canvas.getContext('2d');
-const W=400,H=400;
+const W=400,H=600;
 canvas.width=W; canvas.height=H;
-canvas.style.width='min(400px,100vw)'; canvas.style.height='auto';
-let score=0, running=false, timeLeft=30, af;
+canvas.style.width='min(100%, 400px)'; canvas.style.height='auto';
 
-function startGame(){
-  document.getElementById('result-overlay').classList.remove('show');
-  score=0; timeLeft=30; running=true;
-  cancelAnimationFrame(af); loop();
+const LANES=4, LANE_W=W/LANES, HIT_Y=H-80;
+let notes=[], score=0, combo=0, running=false, af, frame=0, speed=5;
+let activeKeys=[false,false,false,false];
+let hits=[];
+
+function spawnNote(){
+  let l=Math.floor(Math.random()*LANES);
+  notes.push({lane:l, y:-20, hit:false});
 }
 
 function loop(){
   if(!running) return;
-  if(frame%60===0) timeLeft--;
-  if(timeLeft<=0) { running=false; submitScore(score); return; }
   frame++;
+  ctx.fillStyle='#111'; ctx.fillRect(0,0,W,H);
   
-  let bg=ctx.createLinearGradient(0,0,0,H);
-  bg.addColorStop(0,'#1a2a6c'); bg.addColorStop(1,'#b21f1f');
-  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+  // 라인
+  ctx.strokeStyle='#333'; ctx.lineWidth=2;
+  for(let i=1;i<LANES;i++){ ctx.beginPath();ctx.moveTo(i*LANE_W,0);ctx.lineTo(i*LANE_W,H);ctx.stroke(); }
   
-  ctx.fillStyle='#fff'; ctx.font='bold 24px Arial'; ctx.textAlign='center';
-  ctx.fillText('화면을 마구 탭하세요!', W/2, H/2);
-  ctx.fillText('남은 시간: '+timeLeft, W/2, H/2+40);
-  ctx.fillText('Score: '+score, W/2, H/2+80);
-  ctx.textAlign='left';
+  // 판정선
+  ctx.strokeStyle='#6c63ff'; ctx.lineWidth=4;
+  ctx.beginPath();ctx.moveTo(0,HIT_Y);ctx.lineTo(W,HIT_Y);ctx.stroke();
   
+  let keyColors=['#e74c3c','#f1c40f','#2ecc71','#3498db'];
+  for(let i=0;i<LANES;i++){
+    ctx.fillStyle=activeKeys[i] ? keyColors[i] : 'transparent';
+    ctx.fillRect(i*LANE_W, HIT_Y-10, LANE_W, 20);
+  }
+
+  // 노트스폰
+  if(frame%30===0) spawnNote();
+  if(frame%600===0) speed+=0.5;
+
+  // 노트
+  for(let i=notes.length-1;i>=0;i--){
+    let n=notes[i];
+    n.y+=speed;
+    if(!n.hit){
+      ctx.fillStyle=keyColors[n.lane];
+      ctx.fillRect(n.lane*LANE_W+5, n.y-10, LANE_W-10, 20);
+    }
+    if(n.y > H){
+      if(!n.hit) { combo=0; hits.push({text:'MISS', t:30, c:'#e74c3c'}); }
+      notes.splice(i,1);
+    }
+  }
+
+  // 이펙트
+  for(let i=hits.length-1;i>=0;i--){
+    let h=hits[i]; h.t--;
+    ctx.fillStyle=h.c; ctx.font=`bold ${20+h.t/2}px Arial`; ctx.textAlign='center';
+    ctx.globalAlpha=h.t/30; ctx.fillText(h.text, W/2, H/2 - h.t); ctx.globalAlpha=1;
+    if(h.t<=0) hits.splice(i,1);
+  }
+
+  // UI
+  ctx.fillStyle='white'; ctx.font='bold 20px Arial'; ctx.textAlign='left';
+  ctx.fillText('Combo: '+combo, 10, 30);
+  
+  document.getElementById('score-display').textContent=score;
   af=requestAnimationFrame(loop);
 }
-let frame=0;
-canvas.addEventListener('mousedown', ()=>{if(running) score+=10;});
-canvas.addEventListener('touchstart', e=>{e.preventDefault(); if(running) score+=10;}, {passive:false});
 
-ctx.fillStyle='#222'; ctx.fillRect(0,0,W,H);
-ctx.fillStyle='#fff'; ctx.font='bold 24px Arial'; ctx.textAlign='center'; ctx.fillText('🎮 준비 완료', W/2, H/2); ctx.textAlign='left';
+function handleHit(lane){
+  if(!running) return;
+  activeKeys[lane]=true; setTimeout(()=>activeKeys[lane]=false, 100);
+  let hitNote = notes.find(n => n.lane===lane && !n.hit && n.y > HIT_Y-50 && n.y < HIT_Y+50);
+  if(hitNote){
+    hitNote.hit=true;
+    let dist=Math.abs(hitNote.y - HIT_Y);
+    if(dist<15){ score+=30; combo++; hits.push({text:'PERFECT', t:30, c:'#3498db'}); }
+    else if(dist<30){ score+=10; combo++; hits.push({text:'GOOD', t:30, c:'#2ecc71'}); }
+    else{ combo=0; hits.push({text:'BAD', t:30, c:'#f1c40f'}); }
+  }
+}
+
+document.addEventListener('keydown', e=>{
+  if(!running) return;
+  if(e.key.toLowerCase()==='d') handleHit(0);
+  if(e.key.toLowerCase()==='f') handleHit(1);
+  if(e.key.toLowerCase()==='j') handleHit(2);
+  if(e.key.toLowerCase()==='k') handleHit(3);
+});
+
+canvas.addEventListener('touchstart', e=>{
+  e.preventDefault();
+  let r=canvas.getBoundingClientRect();
+  for(let i=0;i<e.changedTouches.length;i++){
+    let x = (e.changedTouches[i].clientX-r.left)*W/r.width;
+    let lane = Math.floor(x/LANE_W);
+    handleHit(lane);
+  }
+},{passive:false});
+
+canvas.addEventListener('mousedown', e=>{
+  if(!running) return;
+  let r=canvas.getBoundingClientRect();
+  let x = (e.clientX-r.left)*W/r.width;
+  handleHit(Math.floor(x/LANE_W));
+});
+
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  notes=[]; score=0; combo=0; frame=0; speed=5; running=true;
+  cancelAnimationFrame(af); loop();
+  setTimeout(()=>{ running=false; submitScore(score); }, 45000); // 45초 겜
+}
+
+ctx.fillStyle='#111'; ctx.fillRect(0,0,W,H);
+ctx.fillStyle='white'; ctx.textAlign='center'; ctx.font='bold 30px Arial';
+ctx.fillText('🎵 리듬 게임', W/2, H/2);
 </script>
 {% endblock %}

@@ -1,46 +1,110 @@
 {% extends 'challenges/game_base.html' %}
 {% block game_area %}
 <canvas id="gameCanvas" style="border-radius:12px;max-width:100%;touch-action:none;"></canvas>
-<div style="text-align:center; margin-top:10px; font-size:14px; color:#aaa;">터치하여 점수를 올리세요 (미니게임)</div>
+<div style="text-align:center;margin-top:10px;font-size:14px;color:#aaa;">빈 곳을 탭하여 타워($50)를 건설하세요! 적들이 오른쪽 끝으로 가지 못하게 막으세요.</div>
 {% endblock %}
 {% block game_script %}
 <script>
 const canvas=document.getElementById('gameCanvas');
 const ctx=canvas.getContext('2d');
-const W=400,H=400;
+const W=600,H=400;
 canvas.width=W; canvas.height=H;
-canvas.style.width='min(400px,100vw)'; canvas.style.height='auto';
-let score=0, running=false, timeLeft=30, af;
+canvas.style.width='min(100%, 600px)'; canvas.style.height='auto';
 
-function startGame(){
-  document.getElementById('result-overlay').classList.remove('show');
-  score=0; timeLeft=30; running=true;
-  cancelAnimationFrame(af); loop();
+let enemies=[], towers=[], bullets=[], money=100, hp=10, score=0, frame=0, running=false, af;
+
+function spawnEnemy(){
+  enemies.push({x:-20, y:H/2-20+Math.random()*40, hp:3+Math.floor(frame/600), maxHp:3+Math.floor(frame/600), speed:1+frame/2000});
 }
 
 function loop(){
   if(!running) return;
-  if(frame%60===0) timeLeft--;
-  if(timeLeft<=0) { running=false; submitScore(score); return; }
   frame++;
+  ctx.fillStyle='#2ecc71'; ctx.fillRect(0,0,W,H);
   
-  let bg=ctx.createLinearGradient(0,0,0,H);
-  bg.addColorStop(0,'#1a2a6c'); bg.addColorStop(1,'#b21f1f');
-  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+  // 길
+  ctx.fillStyle='#e67e22'; ctx.fillRect(0,H/2-30,W,60);
+
+  // 스폰
+  if(frame%60===0) spawnEnemy();
+
+  // 타워
+  towers.forEach(t=>{
+    ctx.fillStyle='#34495e'; ctx.fillRect(t.x-15, t.y-15, 30, 30);
+    // 공격
+    if(frame%30===0){
+      let target = enemies.find(e=>Math.hypot(e.x-t.x, e.y-t.y)<100);
+      if(target) {
+        let angle=Math.atan2(target.y-t.y, target.x-t.x);
+        bullets.push({x:t.x, y:t.y, vx:Math.cos(angle)*5, vy:Math.sin(angle)*5});
+      }
+    }
+  });
+
+  // 총알
+  for(let i=bullets.length-1;i>=0;i--){
+    let b=bullets[i];
+    b.x+=b.vx; b.y+=b.vy;
+    ctx.fillStyle='#f1c40f'; ctx.beginPath();ctx.arc(b.x,b.y,4,0,Math.PI*2);ctx.fill();
+    let hit=false;
+    for(let j=enemies.length-1;j>=0;j--){
+      let e=enemies[j];
+      if(Math.hypot(e.x-b.x, e.y-b.y)<15){
+        e.hp--; hit=true;
+        if(e.hp<=0){ enemies.splice(j,1); money+=10; score+=10; }
+        break;
+      }
+    }
+    if(hit || b.x<0||b.x>W||b.y<0||b.y>H) bullets.splice(i,1);
+  }
+
+  // 적
+  for(let i=enemies.length-1;i>=0;i--){
+    let e=enemies[i];
+    e.x+=e.speed;
+    ctx.fillStyle='#e74c3c'; ctx.beginPath();ctx.arc(e.x,e.y,12,0,Math.PI*2);ctx.fill();
+    if(e.x>W){
+      enemies.splice(i,1); hp--;
+      if(hp<=0){ running=false; setTimeout(()=>submitScore(score),1000); }
+    }
+  }
+
+  // UI
+  ctx.fillStyle='white'; ctx.font='bold 16px Arial'; ctx.textAlign='left';
+  ctx.fillText('HP: '+hp, 10, 20);
+  ctx.fillText('Money: $'+money, 10, 40);
+  ctx.fillText('Score: '+score, 10, 60);
   
-  ctx.fillStyle='#fff'; ctx.font='bold 24px Arial'; ctx.textAlign='center';
-  ctx.fillText('화면을 마구 탭하세요!', W/2, H/2);
-  ctx.fillText('남은 시간: '+timeLeft, W/2, H/2+40);
-  ctx.fillText('Score: '+score, W/2, H/2+80);
-  ctx.textAlign='left';
-  
+  document.getElementById('score-display').textContent=score;
   af=requestAnimationFrame(loop);
 }
-let frame=0;
-canvas.addEventListener('mousedown', ()=>{if(running) score+=10;});
-canvas.addEventListener('touchstart', e=>{e.preventDefault(); if(running) score+=10;}, {passive:false});
 
-ctx.fillStyle='#222'; ctx.fillRect(0,0,W,H);
-ctx.fillStyle='#fff'; ctx.font='bold 24px Arial'; ctx.textAlign='center'; ctx.fillText('🎮 준비 완료', W/2, H/2); ctx.textAlign='left';
+function placeTower(x, y){
+  if(!running) return;
+  if(y>H/2-40 && y<H/2+40) return; // 길 위엔 설치 불가
+  if(money>=50){
+    money-=50; towers.push({x,y});
+  }
+}
+
+canvas.addEventListener('mousedown', e=>{
+  let r=canvas.getBoundingClientRect();
+  placeTower((e.clientX-r.left)*W/r.width, (e.clientY-r.top)*H/r.height);
+});
+canvas.addEventListener('touchstart', e=>{
+  e.preventDefault();
+  let r=canvas.getBoundingClientRect();
+  placeTower((e.touches[0].clientX-r.left)*W/r.width, (e.touches[0].clientY-r.top)*H/r.height);
+},{passive:false});
+
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  enemies=[]; towers=[]; bullets=[]; money=100; hp=10; score=0; frame=0; running=true;
+  cancelAnimationFrame(af); loop();
+}
+
+ctx.fillStyle='#2ecc71'; ctx.fillRect(0,0,W,H);
+ctx.fillStyle='white'; ctx.textAlign='center'; ctx.font='bold 30px Arial';
+ctx.fillText('🏰 타워 디펜스', W/2, H/2);
 </script>
 {% endblock %}
