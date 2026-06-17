@@ -319,6 +319,12 @@ def _github_api(method, path, token, data=None):
         err_body = e.read().decode('utf-8')
         return json.loads(err_body) if err_body else {}, e.code
 
+from django.core.management import call_command
+from io import StringIO
+import tempfile
+import base64
+import json
+
 @staff_member_required
 def backup_to_github(request):
     if request.method != 'POST':
@@ -330,146 +336,30 @@ def backup_to_github(request):
         messages.error(request, '❌ GITHUB_TOKEN 환경변수가 설정되지 않았습니다.')
         return redirect('blog:admin_dashboard')
 
-    # ── 모든 데이터 수집 ──
-    from accounts.models import UserProfile
-    from challenges.models import ChallengeScore
-    from mail_system.models import Mail
-
-    # Posts
-    posts_data = []
-    for p in Post.objects.select_related('author', 'category', 'series').prefetch_related('tags', 'likes').all():
-        posts_data.append({
-            'id': p.pk,
-            'title': p.title,
-            'hook_text': p.hook_text,
-            'content': p.content,
-            'author': p.author.username if p.author else None,
-            'category': p.category.name if p.category else None,
-            'tags': [t.name for t in p.tags.all()],
-            'series': p.series.title if p.series else None,
-            'series_order': p.series_order,
-            'view_count': p.view_count,
-            'like_count': p.like_count,
-            'likes': [u.username for u in p.likes.all()],
-            'created_at': p.created_at.isoformat(),
-            'updated_at': p.updated_at.isoformat(),
-        })
-
-    # Comments
-    comments_data = []
-    for c in Comment.objects.select_related('post', 'author', 'parent').all():
-        comments_data.append({
-            'id': c.pk,
-            'post_id': c.post.pk,
-            'author': c.author.username,
-            'content': c.content,
-            'parent_id': c.parent.pk if c.parent else None,
-            'is_deleted': c.is_deleted,
-            'created_at': c.created_at.isoformat(),
-        })
-
-    # Categories
-    categories_data = [{'id': c.pk, 'name': c.name, 'slug': c.slug} for c in Category.objects.all()]
-
-    # Tags
-    tags_data = [{'id': t.pk, 'name': t.name, 'slug': t.slug} for t in Tag.objects.all()]
-
-    # Series
-    series_data = []
-    for s in Series.objects.select_related('author').all():
-        series_data.append({
-            'id': s.pk,
-            'title': s.title,
-            'description': s.description,
-            'author': s.author.username,
-            'created_at': s.created_at.isoformat(),
-        })
-
-    # Users
-    users_data = []
-    for u in User.objects.all():
-        users_data.append({
-            'id': u.pk,
-            'username': u.username,
-            'email': u.email,
-            'is_staff': u.is_staff,
-            'is_superuser': u.is_superuser,
-            'date_joined': u.date_joined.isoformat(),
-        })
-
-    # UserProfiles
-    profiles_data = []
-    for p in UserProfile.objects.select_related('user').all():
-        profiles_data.append({
-            'user': p.user.username,
-            'bio': getattr(p, 'bio', ''),
-            'is_blocked': p.is_blocked,
-        })
-
-    # Mails
-    mails_data = []
-    for m in Mail.objects.select_related('sender', 'recipient').all():
-        mails_data.append({
-            'id': m.pk,
-            'sender': m.sender.username,
-            'recipient': m.recipient.username,
-            'subject': m.subject,
-            'body': m.body,
-            'is_read': m.is_read,
-            'sent_at': m.sent_at.isoformat(),
-        })
-
-    # ChallengeScores
-    scores_data = []
-    for s in ChallengeScore.objects.select_related('user').all():
-        scores_data.append({
-            'id': s.pk,
-            'user': s.user.username,
-            'game': s.game,
-            'score': s.score,
-            'created_at': s.created_at.isoformat(),
-        })
-
-    backup = {
-        'backup_time': datetime.datetime.now().isoformat(),
-        'posts': posts_data,
-        'comments': comments_data,
-        'categories': categories_data,
-        'tags': tags_data,
-        'series': series_data,
-        'users': users_data,
-        'user_profiles': profiles_data,
-        'mails': mails_data,
-        'challenge_scores': scores_data,
-    }
-
-    backup_json = json.dumps(backup, ensure_ascii=False, indent=2)
+    # Django dumpdata를 이용해 모든 데이터를 JSON 문자열로 추출
+    # 권한, 세션, 로그 기록 등 불필요한 모델 제외
+    out = StringIO()
+    call_command('dumpdata', natural_foreign=True, exclude=['auth.permission', 'contenttypes', 'admin.logentry', 'sessions'], stdout=out)
+    backup_json = out.getvalue()
+    
     backup_b64 = base64.b64encode(backup_json.encode('utf-8')).decode('utf-8')
 
     now_str = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
     file_path = f'backups/syblog_backup_{now_str}.json'
 
     # GitHub에 파일 업로드
-    commit_msg = f'🔒 자동 백업 {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
+    commit_msg = f'🔒 전체 데이터 자동 백업 {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
     result, status = _github_api('PUT', f'/repos/{repo}/contents/{file_path}', token, {
         'message': commit_msg,
         'content': backup_b64,
     })
 
     if status in (200, 201):
-        post_count = len(posts_data)
-        comment_count = len(comments_data)
-        messages.success(request,
-            f'✅ GitHub 백업 완료! '
-            f'게시글 {post_count}개, 댓글 {comment_count}개, '
-            f'사용자 {len(users_data)}명, 메일 {len(mails_data)}개, '
-            f'챌린지기록 {len(scores_data)}개 → {file_path}'
-        )
+        messages.success(request, f'✅ GitHub 전체 백업 완료! (모든 데이터 저장됨) → {file_path}')
     else:
         messages.error(request, f'❌ 백업 실패: {result.get("message", "알 수 없는 오류")}')
 
     return redirect('blog:admin_dashboard')
-
 
 @staff_member_required
 def restore_from_github(request):
@@ -505,68 +395,43 @@ def restore_from_github(request):
         return redirect('blog:admin_dashboard')
 
     content_b64 = file_result.get('content', '').replace('\n', '')
-    backup = json.loads(base64.b64decode(content_b64).decode('utf-8'))
+    
+    # 일부 구형 백업 파일은 직접 딕셔너리로 저장했을 수 있으므로 호환성을 확인
+    backup_text = base64.b64decode(content_b64).decode('utf-8')
+    try:
+        backup_data = json.loads(backup_text)
+        if isinstance(backup_data, dict):
+            messages.error(request, '❌ 선택된 백업 파일이 구버전(일부 데이터만 저장) 양식입니다. "전부 다 저장"된 새 백업 파일만 덮어쓰기 복원이 가능합니다.')
+            return redirect('blog:admin_dashboard')
+    except Exception:
+        messages.error(request, '❌ 백업 파일 파싱 오류')
+        return redirect('blog:admin_dashboard')
 
-    restored = {'posts': 0, 'comments': 0, 'categories': 0, 'tags': 0}
-
-    # 카테고리 복원
-    for c in backup.get('categories', []):
-        Category.objects.get_or_create(slug=c['slug'], defaults={'name': c['name']})
-        restored['categories'] += 1
-
-    # 태그 복원
-    for t in backup.get('tags', []):
-        Tag.objects.get_or_create(slug=t['slug'], defaults={'name': t['name']})
-        restored['tags'] += 1
-
-    # 게시글 복원 (없는 것만)
-    for p in backup.get('posts', []):
-        if not Post.objects.filter(pk=p['id']).exists():
-            try:
-                author = User.objects.filter(username=p['author']).first()
-                category = Category.objects.filter(name=p['category']).first() if p['category'] else None
-                post = Post.objects.create(
-                    pk=p['id'],
-                    title=p['title'],
-                    hook_text=p.get('hook_text', ''),
-                    content=p['content'],
-                    author=author,
-                    category=category,
-                    series_order=p.get('series_order', 0),
-                    view_count=p.get('view_count', 0),
-                    like_count=p.get('like_count', 0),
-                )
-                for tag_name in p.get('tags', []):
-                    tag, _ = Tag.objects.get_or_create(name=tag_name,
-                        defaults={'slug': slugify(tag_name, allow_unicode=True)})
-                    post.tags.add(tag)
-                restored['posts'] += 1
-            except Exception:
-                pass
-
-    # 댓글 복원
-    for c in backup.get('comments', []):
-        if not Comment.objects.filter(pk=c['id']).exists():
-            try:
-                post = Post.objects.filter(pk=c['post_id']).first()
-                author = User.objects.filter(username=c['author']).first()
-                if post and author:
-                    Comment.objects.create(
-                        pk=c['id'],
-                        post=post,
-                        author=author,
-                        content=c['content'],
-                        is_deleted=c.get('is_deleted', False),
-                    )
-                    restored['comments'] += 1
-            except Exception:
-                pass
-
-    messages.success(request,
-        f'✅ 복원 완료! ({latest["name"]}) — '
-        f'게시글 {restored["posts"]}개, 댓글 {restored["comments"]}개, '
-        f'카테고리 {restored["categories"]}개, 태그 {restored["tags"]}개 복원됨'
-    )
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as f:
+            f.write(backup_text)
+            f_name = f.name
+        
+        # 완전히 덮어쓰기 위해 기존 데이터를 모두 삭제
+        from django.contrib.auth.models import User
+        from blog.models import Post, Category, Tag, Series
+        
+        # User를 삭제하면 UserProfile, ChallengeScore, Mail, Comment, SocialAccount 등이 CASCADE로 함께 지워집니다.
+        # Session은 ForeignKey가 없어서 지워지지 않으므로, 복원 직후 로그인 상태가 그대로 유지됩니다!
+        User.objects.all().delete()
+        Post.objects.all().delete()
+        Category.objects.all().delete()
+        Tag.objects.all().delete()
+        Series.objects.all().delete()
+        
+        # 새 데이터(전체) 로드
+        call_command('loaddata', f_name)
+        os.remove(f_name)
+        
+        messages.success(request, f'✅ 완벽 복원 완료! 기존 데이터가 완전히 지워지고 {latest["name"]} 파일의 모든 정보로 덮어씌워졌습니다.')
+    except Exception as e:
+        messages.error(request, f'❌ 복원 중 오류 발생: {str(e)}')
+    
     return redirect('blog:admin_dashboard')
 
 
