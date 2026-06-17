@@ -1,39 +1,64 @@
 import sys
+import re
 
 with open('/app/syblog_project/blog/views.py', 'r') as f:
-    lines = f.readlines()
+    content = f.read()
 
-start_idx = -1
-end_idx = -1
+# 1. Add SeriesDelete and search_view
+append_code = """
+from django.views.generic import DeleteView
+from django.urls import reverse_lazy
 
-for i, line in enumerate(lines):
-    if line.startswith('@staff_member_required') and lines[i+1].startswith('def backup_to_github(request):'):
-        start_idx = i
-        break
+class SeriesDelete(LoginRequiredMixin, DeleteView):
+    model = Series
+    success_url = reverse_lazy('blog:series_list')
 
-for i in range(start_idx, len(lines)):
-    if line.startswith('# ── 카테고리 context processor'):
-        pass
-    if lines[i].startswith('# ── 카테고리 context processor'):
-        end_idx = i
-        break
+    def dispatch(self, request, *args, **kwargs):
+        obj = self.get_object()
+        if not (request.user == obj.author or request.user.is_superuser):
+            raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
 
-with open('/app/syblog_project/blog/backup_logic.py', 'r') as f:
-    new_logic = f.read()
+def search_view(request):
+    q = request.GET.get('q', '')
+    cat_slug = request.GET.get('category', '')
+    tag_slug = request.GET.get('tag', '')
+    sort = request.GET.get('sort', '-created_at')
 
-# Strip out the first 11 lines of backup_logic.py (imports and utils)
-new_lines = new_logic.split('\n')[12:]
-new_logic_str = '\n'.join(new_lines) + '\n\n'
+    post_list = Post.objects.all().distinct()
 
-imports = """from django.core.management import call_command
-from io import StringIO
-import tempfile
-import base64
-import json
+    if q:
+        post_list = post_list.filter(
+            Q(title__icontains=q) |
+            Q(content__icontains=q) |
+            Q(author__username__icontains=q)
+        )
+    if cat_slug:
+        post_list = post_list.filter(category__slug=cat_slug)
+    if tag_slug:
+        post_list = post_list.filter(tags__slug=tag_slug)
 
+    if sort == 'views':
+        post_list = post_list.order_by('-view_count', '-created_at')
+    elif sort == 'likes':
+        post_list = post_list.order_by('-like_count', '-created_at')
+    else:
+        post_list = post_list.order_by('-created_at')
+
+    context = {
+        'post_list': post_list,
+        'q': q,
+        'selected_cat': cat_slug,
+        'selected_tag': tag_slug,
+        'sort': sort,
+        'categories': Category.objects.all(),
+        'tags': Tag.objects.all(),
+        'no_category_post_count': Post.objects.filter(category=None).count()
+    }
+    return render(request, 'blog/search.html', context)
 """
 
-lines = lines[:start_idx] + [imports + new_logic_str] + lines[end_idx:]
+with open('/app/syblog_project/blog/views.py', 'a') as f:
+    f.write("\n" + append_code)
 
-with open('/app/syblog_project/blog/views.py', 'w') as f:
-    f.writelines(lines)
+print("Appended views successfully")
