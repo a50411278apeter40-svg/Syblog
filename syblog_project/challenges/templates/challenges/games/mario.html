@@ -1,557 +1,158 @@
 {% extends 'challenges/game_base.html' %}
 {% block game_area %}
-<canvas id="gameCanvas" style="border-radius:12px;max-width:100%;image-rendering:pixelated;touch-action:none;"></canvas>
-<div id="mobile-controls" style="display:flex;justify-content:space-between;align-items:center;padding:10px 20px;margin-top:8px;">
-  <div style="display:flex;gap:12px;">
-    <button id="btn-left" style="width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,0.25);border:2px solid rgba(255,255,255,0.5);color:white;font-size:24px;cursor:pointer;-webkit-tap-highlight-color:transparent;">◀</button>
-    <button id="btn-right" style="width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,0.25);border:2px solid rgba(255,255,255,0.5);color:white;font-size:24px;cursor:pointer;-webkit-tap-highlight-color:transparent;">▶</button>
+<div style="position:relative;width:100%;max-width:500px;margin:0 auto;">
+  <canvas id="gameCanvas" style="border-radius:12px;width:100%;background:#87CEEB;touch-action:none;box-shadow:0 10px 30px rgba(0,0,0,0.5);"></canvas>
+  <div id="hud" style="position:absolute;top:10px;left:15px;right:15px;display:flex;justify-content:space-between;color:white;font-family:sans-serif;font-weight:bold;text-shadow:0 2px 4px rgba(0,0,0,0.8);pointer-events:none;">
+    <div style="font-size:20px;">코인: <span id="s-score" style="color:#f1c40f;">0</span></div>
   </div>
-  <button id="btn-jump" style="width:70px;height:70px;border-radius:50%;background:rgba(255,80,80,0.7);border:2px solid rgba(255,150,150,0.8);color:white;font-size:28px;cursor:pointer;-webkit-tap-highlight-color:transparent;">🅰</button>
 </div>
 {% endblock %}
 {% block game_script %}
 <script>
 const canvas=document.getElementById('gameCanvas');
 const ctx=canvas.getContext('2d');
-const W=512,H=360;
+const W=500,H=400;
 canvas.width=W; canvas.height=H;
-canvas.style.width='min(512px,100vw)'; canvas.style.height='auto';
 
-// === 상수 ===
-const TILE=32, GRAVITY=0.55, JUMP_V=-13.5, WALK_SPD=3.5, RUN_SPD=5.5;
-const COLORS={
-  sky:'#5C94FC', ground:'#c84c0c', groundTop:'#00a800',
-  brick:'#c84c0c', brickDark:'#8c3400', questionBlock:'#e8a000',
-  pipe:'#00a800', pipeDark:'#006000',
-  mario:'#ff3333', marioOverall:'#0000ff', marioCap:'#ff3333',
-  coin:'#ffd700', mushroom:'#ff4444', star:'#ffff00',
-  goomba:'#c84c0c', koopa:'#00a800'
-};
-
-// === 레벨 맵 (1=ground, 2=brick, 3=question block, 4=pipe_bottom, 5=pipe_top, 0=air, 6=solid) ===
-const LEVEL_W=80;
-let mapData=[];
-let coins_data=[];
-let enemies_data=[];
-let items_data=[];
-
-function buildLevel(){
-  // 기본 바닥
-  mapData=[];
-  for(let row=0;row<12;row++){
-    mapData.push([]);
-    for(let col=0;col<LEVEL_W;col++) mapData[row].push(0);
-  }
-  // 바닥 2줄
-  for(let col=0;col<LEVEL_W;col++){
-    mapData[10][col]=1; mapData[11][col]=1;
-    if(col>=18&&col<=21) { mapData[10][col]=0; mapData[11][col]=0; } // 구덩이
-    if(col>=50&&col<=52) { mapData[10][col]=0; mapData[11][col]=0; }
-  }
-  // 벽돌/블록 배치
-  let bricks=[[2,3],[2,5],[2,7], [4,8],[4,9],[4,10],
-               [3,6], [5,3],[5,5],[5,7],[5,13],[5,14],[5,15],
-               [3,12],[3,15],[3,16],[3,17],
-               [6,22],[6,23],[6,24],[6,25],
-               [4,28],[4,30], [6,35],[6,36],
-               [3,40],[3,41],[3,42],[3,43],[3,44],
-               [5,48],[5,50],[5,52],
-               [3,55],[3,57],[3,59],
-               [4,62],[4,64],[4,66]];
-  bricks.forEach(([r,c])=>{ if(mapData[r])mapData[r][c]=2; });
-  let qblocks=[[3,4],[5,4],[3,9],[3,13],[3,16],[3,41],[3,57],[5,50]];
-  qblocks.forEach(([r,c])=>{ if(mapData[r])mapData[r][c]=3; });
-  // 파이프
-  [[10,26,4],[10,38,5],[10,60,6]].forEach(([row,col,h])=>{
-    for(let i=0;i<h;i++){
-      if(mapData[row-i]) mapData[row-i][col]=4;
-      if(mapData[row-i]) mapData[row-i][col+1]=4;
-    }
-    if(mapData[row-h]){mapData[row-h][col]=5;mapData[row-h][col+1]=5;}
-  });
-  // 높은 플랫폼
-  [[7,45],[7,46],[7,47],[7,67],[7,68],[7,69],[8,70],[8,71],[9,72]].forEach(([r,c])=>{
-    if(mapData[r]) mapData[r][c]=6;
-  });
-  // 코인
-  coins_data=[];
-  let coinPos=[[2,3],[2,5],[2,7],[2,9],[2,13],[2,14],[2,15],[2,22],[2,23],
-               [2,28],[2,30],[2,35],[2,40],[2,42],[2,44],[2,48],[2,52],[2,55],[2,57]];
-  coinPos.forEach(([r,c])=> coins_data.push({row:r,col:c,x:c*TILE+16,y:r*TILE+8,collected:false,anim:0}));
-  // 적
-  enemies_data=[];
-  [[10,8],[10,15],[10,25],[10,34],[10,43],[10,58],[10,67]].forEach(([r,c])=>{
-    enemies_data.push({x:c*TILE,y:(r-1)*TILE,w:TILE,h:TILE,vx:-1.2,vy:0,alive:true,type:'goomba',stomped:false,stompTimer:0});
-  });
-  [[10,20],[10,48],[10,63]].forEach(([r,c])=>{
-    enemies_data.push({x:c*TILE,y:(r-1)*TILE,w:TILE,h:TILE,vx:-1.5,vy:0,alive:true,type:'koopa',shell:false,shellVx:0});
-  });
-  // 아이템
-  items_data=[];
-  qblocks.forEach(([r,c],i)=>{
-    items_data.push({row:r,col:c,type:i%3===0?'mushroom':'coin',spawned:false,active:false,x:c*TILE,y:r*TILE,vy:-2});
-  });
-}
-
-// === 게임 상태 ===
-let mario,camX,score,lives,level,running=false,af,frame=0;
-let keys={},bigMario=false,invincible=0,starTimer=0,flagReached=false,levelComplete=false,levelCompleteTimer=0;
-let particles=[];
-
-function initMario(){
-  mario={x:48,y:H-TILE*3,w:bigMario?TILE:TILE*0.75,h:bigMario?TILE*2:TILE,
-         vx:0,vy:0,onGround:false,dir:1,running:false,
-         animFrame:0,animTimer:0,dead:false,deadVy:-12};
-}
-
-function startGame(){
-  document.getElementById('result-overlay').classList.remove('show');
-  score=0; lives=3; level=1; bigMario=false; invincible=0; starTimer=0;
-  flagReached=false; levelComplete=false; particles=[];
-  buildLevel(); initMario(); camX=0; running=true;
-  cancelAnimationFrame(af); loop();
-}
-
-// === 타일 체크 ===
-function getTile(col,row){ 
-  if(row<0||row>=12||col<0||col>=LEVEL_W) return 0;
-  return mapData[row][col]||0;
-}
-function isSolid(t){ return t>=1&&t<=6; }
-function tileAt(px,py){ return getTile(Math.floor(px/TILE),Math.floor(py/TILE)); }
-
-function collideMario(entity,dx,dy){
-  let {x,y,w,h}=entity;
-  // 아래
-  if(dy>0){
-    let r=Math.floor((y+h+dy)/TILE);
-    let c1=Math.floor((x+2)/TILE), c2=Math.floor((x+w-2)/TILE);
-    if(isSolid(getTile(c1,r))||isSolid(getTile(c2,r))){
-      entity.y=r*TILE-h; entity.vy=0; entity.onGround=true; return;
-    }
-  }
-  entity.y+=dy; entity.onGround=false;
-  // 위
-  if(dy<0){
-    let r=Math.floor((entity.y)/TILE);
-    let c1=Math.floor((x+2)/TILE),c2=Math.floor((x+w-2)/TILE);
-    let hit=false;
-    [c1,c2].forEach(c=>{
-      let t=getTile(c,r);
-      if(isSolid(t)){
-        entity.y=(r+1)*TILE; entity.vy=0;
-        // 물음표 블록 히트
-        if(t===3){ hitBlock(c,r,entity); }
-        hit=true;
-      }
-    });
-  }
-  entity.x+=dx;
-  // 좌우
-  let c,r1=Math.floor((entity.y+2)/TILE),r2=Math.floor((entity.y+entity.h-2)/TILE);
-  if(dx>0){ c=Math.floor((entity.x+entity.w)/TILE); if(isSolid(getTile(c,r1))||isSolid(getTile(c,r2))){ entity.x=c*TILE-entity.w; entity.vx=0; } }
-  if(dx<0){ c=Math.floor((entity.x)/TILE); if(isSolid(getTile(c,r1))||isSolid(getTile(c,r2))){ entity.x=(c+1)*TILE; entity.vx=0; } }
-}
-
-function hitBlock(col,row,entity){
-  let item=items_data.find(it=>it.col===col&&it.row===row&&!it.spawned);
-  if(item){ item.spawned=true; item.active=true; item.x=col*TILE; item.y=row*TILE-TILE; item.vy=-3; }
-  mapData[row][col]=2; // 물음표→벽돌
-  spawnParticles(col*TILE+TILE/2,row*TILE,'#e8a000',6);
-  if(!item){ score+=10; addCoinAnim(col*TILE+TILE/2,row*TILE); }
-}
-
-function addCoinAnim(x,y){
-  particles.push({x,y,vx:0,vy:-5,life:40,type:'coin'});
-}
-function spawnParticles(x,y,color,n){
-  for(let i=0;i<n;i++)
-    particles.push({x,y,vx:(Math.random()-0.5)*6,vy:-4-Math.random()*3,life:30,color,type:'spark'});
-}
-
-// === 그리기 ===
-function drawTile(t,cx,cy){
-  if(t===0) return;
-  if(t===1||t===6){
-    // 지면
-    ctx.fillStyle=COLORS.groundTop; ctx.fillRect(cx,cy,TILE,6);
-    ctx.fillStyle=COLORS.ground;
-    ctx.fillRect(cx,cy+6,TILE,TILE-6);
-    // 텍스처
-    ctx.fillStyle='rgba(0,0,0,0.15)';
-    ctx.fillRect(cx+2,cy+8,4,TILE-10); ctx.fillRect(cx+TILE-6,cy+8,4,TILE-10);
-  }else if(t===2){
-    // 벽돌
-    ctx.fillStyle=COLORS.brick;
-    ctx.fillRect(cx,cy,TILE,TILE);
-    ctx.fillStyle=COLORS.brickDark;
-    ctx.fillRect(cx,cy,TILE,3); ctx.fillRect(cx,cy,3,TILE);
-    ctx.fillRect(cx+TILE/2,cy+TILE/2,TILE/2,3);
-    ctx.fillRect(cx,cy+TILE/2,TILE/2,3);
-    ctx.fillRect(cx+TILE-3,cy,3,TILE);
-    ctx.fillRect(cx,cy+TILE-3,TILE,3);
-  }else if(t===3){
-    // 물음표 블록
-    let flash=Math.floor(frame/8)%2===0;
-    ctx.fillStyle=flash?'#e8a000':'#c87800';
-    ctx.fillRect(cx,cy,TILE,TILE);
-    ctx.fillStyle='rgba(255,255,255,0.3)';
-    ctx.fillRect(cx+2,cy+2,TILE-4,6);
-    ctx.fillStyle=flash?'#fff':'#e8c800';
-    ctx.font='bold 18px Arial'; ctx.textAlign='center';
-    ctx.fillText('?',cx+TILE/2,cy+TILE-8); ctx.textAlign='left';
-  }else if(t===4||t===5){
-    // 파이프
-    ctx.fillStyle=COLORS.pipe; ctx.fillRect(cx+2,cy,TILE-4,TILE);
-    if(t===5){
-      ctx.fillStyle=COLORS.pipe; ctx.fillRect(cx-2,cy,TILE+4,TILE);
-      ctx.fillStyle=COLORS.pipeDark; ctx.fillRect(cx-2,cy+TILE-6,TILE+4,6);
-    }
-    ctx.fillStyle='rgba(255,255,255,0.2)'; ctx.fillRect(cx+5,cy,8,TILE);
-    ctx.fillStyle=COLORS.pipeDark; ctx.fillRect(cx+2,cy,3,TILE); ctx.fillRect(cx+TILE-5,cy,3,TILE);
-  }
-}
-
-function drawMario(){
-  let mx=mario.x-camX, my=mario.y;
-  let bh=bigMario?TILE*2:TILE, bw=bigMario?TILE:TILE*0.75;
-  ctx.save(); ctx.translate(mx+bw/2,my+bh/2);
-  if(mario.dir<0) ctx.scale(-1,1);
-  if(invincible>0&&Math.floor(frame/3)%2===0){ ctx.globalAlpha=0.5; }
-  if(starTimer>0){ ctx.filter=`hue-rotate(${frame*20}deg)`; }
-  // 모자
-  ctx.fillStyle='#cc0000'; ctx.fillRect(-bw*0.4,-bh*0.5,bw*0.8,bh*0.22);
-  ctx.fillRect(-bw*0.5,-bh*0.38,bw,bh*0.14);
-  // 얼굴
-  ctx.fillStyle='#ffcc99'; ctx.fillRect(-bw*0.35,-bh*0.3,bw*0.7,bh*0.3);
-  // 콧수염
-  ctx.fillStyle='#8B4513'; ctx.fillRect(-bw*0.4,-bh*0.08,bw*0.8,bh*0.08);
-  // 눈
-  ctx.fillStyle='#000'; ctx.fillRect(-bw*0.22,-bh*0.22,bw*0.1,bh*0.09);
-  ctx.fillRect(bw*0.12,-bh*0.22,bw*0.1,bh*0.09);
-  // 몸 (점프)
-  ctx.fillStyle='#0000cc'; ctx.fillRect(-bw*0.5,0,bw,bh*0.5);
-  // 팔
-  ctx.fillStyle='#cc0000';
-  let armY=mario.onGround?Math.sin(frame*0.4)*0.08*bh:0;
-  ctx.fillRect(-bw*0.75,bh*0.05+armY,bw*0.3,bh*0.3);
-  ctx.fillRect(bw*0.45,bh*0.05-armY,bw*0.3,bh*0.3);
-  // 다리
-  ctx.fillStyle='#cc0000';
-  let legOff=mario.onGround?Math.abs(Math.sin(frame*0.3))*bh*0.1:0;
-  ctx.fillRect(-bw*0.4,bh*0.5-legOff,bw*0.35,bh*0.45+legOff);
-  ctx.fillRect(bw*0.05,bh*0.5+legOff,bw*0.35,bh*0.45-legOff);
-  ctx.restore();
-}
-
-function drawEnemy(e){
-  let ex=e.x-camX;
-  if(ex<-TILE||ex>W+TILE) return;
-  if(e.type==='goomba'){
-    if(e.stomped){
-      ctx.fillStyle='#c84c0c'; ctx.fillRect(ex,e.y+e.h-10,TILE,10);
-      return;
-    }
-    // 굼바
-    let wobble=Math.sin(frame*0.2)*3;
-    ctx.fillStyle='#c84c0c'; ctx.beginPath(); ctx.ellipse(ex+TILE/2,e.y+TILE*0.6,TILE/2,TILE*0.45,0,0,Math.PI*2); ctx.fill();
-    // 눈
-    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.ellipse(ex+TILE*0.3,e.y+TILE*0.4,6,7,0,0,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(ex+TILE*0.7,e.y+TILE*0.4,6,7,0,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='#000'; ctx.beginPath(); ctx.ellipse(ex+TILE*0.28+wobble,e.y+TILE*0.42,3,4,0.3,0,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(ex+TILE*0.72+wobble,e.y+TILE*0.42,-0.3,4,Math.PI*0.15,0,Math.PI*2); ctx.fill();
-    // 발
-    ctx.fillStyle='#8B3300';
-    ctx.beginPath(); ctx.ellipse(ex+TILE*0.25,e.y+TILE*0.9,9,6,0,0,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(ex+TILE*0.75,e.y+TILE*0.9,9,6,0,0,Math.PI*2); ctx.fill();
-  }else{
-    // 쿠파
-    if(e.shell){
-      ctx.fillStyle='#00a800'; ctx.beginPath(); ctx.ellipse(ex+TILE/2,e.y+TILE/2,TILE*0.5,TILE*0.35,0,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='#ffe000'; ctx.beginPath(); ctx.ellipse(ex+TILE/2,e.y+TILE/2,TILE*0.3,TILE*0.2,0,0,Math.PI*2); ctx.fill();
-    }else{
-      ctx.fillStyle='#00a800'; ctx.beginPath(); ctx.ellipse(ex+TILE/2,e.y+TILE*0.55,TILE*0.45,TILE*0.5,0,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='#ffe000'; ctx.fillRect(ex+TILE*0.2,e.y,TILE*0.6,TILE*0.4);
-      ctx.fillStyle='#fff'; ctx.beginPath(); ctx.ellipse(ex+TILE*0.35,e.y+TILE*0.18,5,6,0,0,Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(ex+TILE*0.65,e.y+TILE*0.18,5,6,0,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='#000'; ctx.beginPath(); ctx.ellipse(ex+TILE*0.35,e.y+TILE*0.19,2.5,3,0,0,Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(ex+TILE*0.65,e.y+TILE*0.19,2.5,3,0,0,Math.PI*2); ctx.fill();
-    }
-  }
-}
-
-function drawCoin(c){
-  if(c.collected) return;
-  let cx=c.x-camX;
-  if(cx<-TILE||cx>W+TILE) return;
-  c.anim=(c.anim||0)+0.12;
-  let scale=0.7+Math.abs(Math.sin(c.anim))*0.3;
-  ctx.save();
-  ctx.translate(cx,c.y);
-  ctx.scale(scale,1);
-  let cg=ctx.createRadialGradient(0,0,2,0,0,10);
-  cg.addColorStop(0,'#ffe066'); cg.addColorStop(1,'#ff8800');
-  ctx.fillStyle=cg;
-  ctx.beginPath(); ctx.ellipse(0,0,10,12,0,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.ellipse(-2,-3,3,5,0,0,Math.PI*2); ctx.fill();
-  ctx.restore();
-}
-
-function drawItem(item){
-  if(!item.active||item.spawned&&!item.active) return;
-  let ix=item.x-camX;
-  if(item.type==='mushroom'){
-    // 버섯
-    ctx.fillStyle='#cc0000'; ctx.beginPath(); ctx.ellipse(ix+TILE/2,item.y+TILE*0.4,TILE*0.5,TILE*0.45,0,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='#fff'; [[0.2,0.3],[0.7,0.25],[0.45,0.15]].forEach(([ox,oy])=>{
-      ctx.beginPath(); ctx.ellipse(ix+TILE*ox,item.y+TILE*oy,5,5,0,0,Math.PI*2); ctx.fill();
-    });
-    ctx.fillStyle='#ffcc99'; ctx.fillRect(ix+TILE*0.2,item.y+TILE*0.55,TILE*0.6,TILE*0.45);
-  }else{
-    // 코인 (아이템)
-    let cg=ctx.createRadialGradient(ix+TILE/2,item.y+TILE/2,2,ix+TILE/2,item.y+TILE/2,TILE/2);
-    cg.addColorStop(0,'#ffe066'); cg.addColorStop(1,'#ff8800');
-    ctx.fillStyle=cg; ctx.beginPath(); ctx.ellipse(ix+TILE/2,item.y+TILE/2,TILE*0.4,TILE*0.45,0,0,Math.PI*2); ctx.fill();
-  }
-}
-
-function drawHUD(){
-  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,W,36);
-  ctx.fillStyle='#fff'; ctx.font='bold 15px Arial';
-  ctx.fillText('🪙 '+score,10,24);
-  ctx.fillText('❤️ x'+lives,170,24);
-  ctx.fillText('🌍 1-'+level,W-80,24);
-  if(starTimer>0){
-    ctx.fillStyle='#ffd700'; ctx.font='bold 13px Arial';
-    ctx.fillText('⭐ STAR!',W/2-30,24);
-  }
-}
-
-function drawParticles(){
-  for(let i=particles.length-1;i>=0;i--){
-    let p=particles[i];
-    p.life--;
-    if(p.life<=0){ particles.splice(i,1); continue; }
-    if(p.type==='coin'){
-      p.vy+=0.3; p.y+=p.vy;
-      ctx.fillStyle='#ffd700'; ctx.font='bold 14px Arial'; ctx.textAlign='center';
-      ctx.globalAlpha=p.life/40;
-      ctx.fillText('+'+10,p.x-camX,p.y); ctx.textAlign='left';
-      ctx.globalAlpha=1;
-    }else{
-      p.x+=p.vx; p.y+=p.vy; p.vy+=0.2;
-      ctx.globalAlpha=p.life/30;
-      ctx.fillStyle=p.color||'#fff'; ctx.fillRect(p.x-camX-3,p.y-3,6,6);
-      ctx.globalAlpha=1;
-    }
-  }
-}
-
-function drawBG(){
-  // 하늘
-  let sky=ctx.createLinearGradient(0,0,0,H);
-  sky.addColorStop(0,'#5C94FC'); sky.addColorStop(0.7,'#80B0FF'); sky.addColorStop(1,'#c8e0f8');
-  ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
-  // 구름
-  let cloudPositions=[[80,60],[200,45],[340,70],[480,55],[620,65],[760,50],[900,60],[1040,48],[1200,70],[1400,55],[1600,65],[1800,50],[2000,60],[2200,45]];
-  cloudPositions.forEach(([cx,cy])=>{
-    let sx=(cx-camX*0.3)%W; if(sx<-150)sx+=W+150;
-    ctx.save(); ctx.globalAlpha=0.9; ctx.fillStyle='#fff';
-    ctx.beginPath(); ctx.ellipse(sx,cy,45,28,0,0,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(sx+32,cy-10,30,20,0,0,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(sx-30,cy-8,25,18,0,0,Math.PI*2); ctx.fill();
-    ctx.restore();
-  });
-  // 산
-  [[100,200],[300,150],[500,180],[700,160],[900,200],[1100,170],[1400,190],[1700,160],[2000,180]].forEach(([mx,mh])=>{
-    let sx=(mx-camX*0.5)%(LEVEL_W*TILE); if(sx<-200)sx+=LEVEL_W*TILE+200;
-    ctx.fillStyle='#4a7c59';
-    ctx.beginPath(); ctx.moveTo(sx-80,H-80); ctx.lineTo(sx,H-80-mh); ctx.lineTo(sx+80,H-80); ctx.fill();
-    ctx.fillStyle='#5a9c6a';
-    ctx.beginPath(); ctx.moveTo(sx-60,H-80); ctx.lineTo(sx,H-80-mh+20); ctx.lineTo(sx+60,H-80); ctx.fill();
-  });
-}
+let af, running=false, score=0, frame=0;
+let p={x:50,y:300,vx:0,vy:0,w:30,h:40,grounded:false,state:'idle'};
+let keys={};
+let platforms=[{x:0,y:350,w:W,h:50},{x:200,y:250,w:100,h:20},{x:350,y:150,w:100,h:20}];
+let coins=[{x:240,y:210,c:false},{x:390,y:110,c:false}];
+let enemies=[{x:300,y:310,w:30,h:40,vx:-1,alive:true}];
+let cameraX=0;
 
 function loop(){
   if(!running) return;
   frame++;
-  if(levelComplete){
-    levelCompleteTimer++;
-    drawBG();
-    drawMap();
-    drawMario();
-    ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,W,H);
-    ctx.fillStyle='#ffd700'; ctx.font='bold 36px Arial'; ctx.textAlign='center';
-    ctx.fillText('LEVEL CLEAR!',W/2,H/2-20);
-    ctx.fillStyle='#fff'; ctx.font='bold 22px Arial';
-    ctx.fillText('Score: '+score,W/2,H/2+20);
-    ctx.textAlign='left';
-    if(levelCompleteTimer>120) gameOver(true);
-    af=requestAnimationFrame(loop); return;
-  }
-  if(mario.dead){
-    mario.deadVy+=0.6; mario.y+=mario.deadVy;
-    drawBG(); drawMap();
-    drawMario();
-    drawHUD();
-    if(mario.y>H+100){
-      lives--;
-      if(lives<=0){ running=false; submitScore(score); return; }
-      bigMario=false; initMario(); camX=0;
+  ctx.fillStyle='#87CEEB'; ctx.fillRect(0,0,W,H);
+  
+  // Parallax clouds
+  ctx.font='60px Arial'; ctx.fillStyle='rgba(255,255,255,0.8)';
+  ctx.fillText('☁️', 100 - (cameraX*0.2)%W, 100);
+  ctx.fillText('☁️', 350 - (cameraX*0.2)%W, 150);
+  ctx.fillText('☁️', W+100 - (cameraX*0.2)%W, 100);
+
+  ctx.save(); ctx.translate(-cameraX, 0);
+
+  // Input
+  if(keys['ArrowLeft']){ p.vx=-4; p.state='run'; }
+  else if(keys['ArrowRight']){ p.vx=4; p.state='run'; }
+  else { p.vx*=0.8; p.state='idle'; }
+
+  if((keys['ArrowUp']||keys[' ']) && p.grounded){ p.vy=-12; p.grounded=false; }
+
+  // Physics
+  p.vy+=0.6; // Gravity
+  p.x+=p.vx;
+  p.y+=p.vy;
+
+  // Collision
+  p.grounded=false;
+  platforms.forEach(plat=>{
+    if(p.x<plat.x+plat.w && p.x+p.w>plat.x && p.y<plat.y+plat.h && p.y+p.h>plat.y){
+      if(p.vy>0 && p.y+p.h - p.vy <= plat.y+5){ p.y=plat.y-p.h; p.vy=0; p.grounded=true; }
+      else if(p.vy<0 && p.y - p.vy >= plat.y+plat.h-5){ p.y=plat.y+plat.h; p.vy=0; }
+      else if(p.vx>0){ p.x=plat.x-p.w; p.vx=0; }
+      else if(p.vx<0){ p.x=plat.x+plat.w; p.vx=0; }
     }
-    af=requestAnimationFrame(loop); return;
-  }
-  // 입력
-  let spd=(keys['ShiftLeft']||keys['ShiftRight'])?RUN_SPD:WALK_SPD;
-  let ax=0;
-  if(keys['ArrowLeft']||keys['KeyA']||keys['mobileLeft']){ ax=-spd; mario.dir=-1; }
-  if(keys['ArrowRight']||keys['KeyD']||keys['mobileRight']){ ax=spd; mario.dir=1; }
-  mario.vx+=(ax-mario.vx)*0.3;
-  if(Math.abs(mario.vx)<0.1) mario.vx=0;
-  mario.vy+=GRAVITY;
-  if(mario.vy>14) mario.vy=14;
-  collideMario(mario,mario.vx,mario.vy);
-  // 카메라
-  let targetCam=mario.x-W*0.35;
-  camX+=(targetCam-camX)*0.1;
-  if(camX<0) camX=0;
-  let maxCam=(LEVEL_W*TILE)-W;
-  if(camX>maxCam) camX=maxCam;
-  // 낙사
-  if(mario.y>H+100){ marioHit(); return; }
-  // 코인 수집
-  coins_data.forEach(c=>{
-    if(c.collected) return;
-    if(Math.abs(mario.x+mario.w/2-c.x)<20&&Math.abs(mario.y+mario.h/2-c.y)<20){
-      c.collected=true; score+=100;
-      document.getElementById('score-display').textContent=score;
-      addCoinAnim(c.x,c.y);
+    // Draw plat
+    ctx.fillStyle='#8B4513'; ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
+    ctx.fillStyle='#228B22'; ctx.fillRect(plat.x, plat.y, plat.w, 8);
+  });
+
+  // Camera
+  if(p.x > cameraX + W/2) cameraX = p.x - W/2;
+  if(cameraX < 0) cameraX = 0;
+
+  // Coins
+  ctx.font='24px Arial'; ctx.textAlign='center';
+  coins.forEach(c=>{
+    if(!c.c){
+      ctx.fillText('🪙', c.x+15, c.y+15 + Math.sin(frame*0.1)*5);
+      if(p.x<c.x+30 && p.x+p.w>c.x && p.y<c.y+30 && p.y+p.h>c.y){ c.c=true; score+=10; }
     }
   });
-  // 아이템
-  items_data.forEach(item=>{
-    if(!item.active) return;
-    item.y+=item.vy; item.vy+=0.15;
-    if(item.y>H){item.active=false;return;}
-    // 아이템 충돌
-    if(Math.abs(mario.x+mario.w/2-(item.x+TILE/2))<TILE&&Math.abs(mario.y+mario.h/2-(item.y+TILE/2))<TILE*1.5){
-      item.active=false;
-      if(item.type==='mushroom'){
-        bigMario=true; mario.y-=TILE; mario.h=TILE*2; mario.w=TILE;
-        score+=1000; spawnParticles(mario.x+mario.w/2,mario.y,'#cc0000',12);
-      }else{ score+=200; }
-      document.getElementById('score-display').textContent=score;
-    }
-  });
-  // 적
-  enemies_data.forEach(e=>{
+
+  // Enemies
+  enemies.forEach(e=>{
     if(!e.alive) return;
-    e.vy+=GRAVITY*0.8; e.y+=e.vy;
-    // 적 바닥 충돌
-    let er=Math.floor((e.y+e.h)/TILE), ec1=Math.floor((e.x+2)/TILE), ec2=Math.floor((e.x+e.w-2)/TILE);
-    if(isSolid(getTile(ec1,er))||isSolid(getTile(ec2,er))){ e.y=er*TILE-e.h; e.vy=0; }
-    // 쉘 이동
-    if(e.type==='koopa'&&e.shell&&e.shellVx!==0){
-      e.x+=e.shellVx;
-    }else{
-      e.x+=e.vx;
+    e.x+=e.vx;
+    if(e.x<200 || e.x>450) e.vx*=-1; // simple patrol
+    ctx.fillText('🍄', e.x+15, e.y+20);
+    
+    // Hit
+    if(p.x<e.x+e.w && p.x+p.w>e.x && p.y<e.y+e.h && p.y+p.h>e.y){
+      if(p.vy>0 && p.y+p.h - p.vy <= e.y+10){ e.alive=false; p.vy=-8; score+=20; }
+      else gameOver();
     }
-    // 방향 전환
-    let eCol=e.vx<0?Math.floor(e.x/TILE):Math.floor((e.x+e.w)/TILE);
-    if(isSolid(getTile(eCol,Math.floor((e.y+e.h/2)/TILE)))){ e.vx*=-1; if(e.shellVx!==0)e.shellVx*=-1; }
-    // 마리오 충돌
-    let mx1=mario.x,mx2=mario.x+mario.w,my1=mario.y,my2=mario.y+mario.h;
-    let ex1=e.x,ex2=e.x+e.w,ey1=e.y,ey2=e.y+e.h;
-    if(mx2>ex1+4&&mx1<ex2-4&&my2>ey1+4&&my1<ey2-4){
-      let stomped=my2-ey1<16&&mario.vy>0;
-      if(stomped){
-        if(e.type==='goomba'){ e.alive=false; e.stomped=true; score+=200; spawnParticles(e.x+TILE/2,e.y,'#c84c0c',8); }
-        else if(!e.shell){ e.shell=true; e.vx=0; }
-        else{ e.shellVx= mario.dir*8; }
-        mario.vy=-8;
-        document.getElementById('score-display').textContent=score;
-      }else if(starTimer>0){
-        e.alive=false; score+=500; spawnParticles(e.x+TILE/2,e.y,'#ffff00',10);
-        document.getElementById('score-display').textContent=score;
-      }else{ marioHit(); }
-    }
-    if(e.y>H) e.alive=false;
-    // 화면 밖 적은 건너뜀
-    if(e.x-camX>W+100||e.x-camX<-100) return;
   });
-  // 스타 타이머
-  if(starTimer>0){ starTimer--; invincible=starTimer; }
-  if(invincible>0) invincible--;
-  // 레벨 끝 (맵 끝 도달)
-  if(mario.x>(LEVEL_W-5)*TILE){ levelComplete=true; levelCompleteTimer=0; score+=level*500; }
-  // 그리기
-  drawBG();
-  drawMap();
-  coins_data.forEach(drawCoin);
-  items_data.forEach(drawItem);
-  enemies_data.forEach(drawEnemy);
-  drawMario();
-  drawParticles();
-  drawHUD();
+
+  // Draw Player
+  ctx.save(); ctx.translate(p.x+p.w/2, p.y+p.h/2);
+  if(p.vx<0) ctx.scale(-1,1);
+  ctx.font='40px Arial'; ctx.textBaseline='middle';
+  if(!p.grounded) ctx.fillText('🏃', 0, 0);
+  else if(Math.abs(p.vx)>0.5 && frame%10<5) ctx.fillText('🚶', 0, 0);
+  else ctx.fillText('🧍', 0, 0);
+  ctx.restore();
+
+  ctx.restore();
+
+  // Death by falling
+  if(p.y>H+100) gameOver();
+
+  document.getElementById('s-score').textContent=score;
+  document.getElementById('score-display').textContent=score;
+
+  // Level gen (infinite)
+  let lastPlat = platforms[platforms.length-1];
+  if(lastPlat.x < cameraX + W){
+    let nx = lastPlat.x + lastPlat.w + 50 + Math.random()*100;
+    let ny = Math.max(100, Math.min(300, lastPlat.y + (Math.random()-0.5)*100));
+    platforms.push({x:nx, y:ny, w:100+Math.random()*100, h:20});
+    if(Math.random()<0.5) coins.push({x:nx+40, y:ny-40, c:false});
+    if(Math.random()<0.3) enemies.push({x:nx+50, y:ny-40, w:30, h:40, vx:-1, alive:true});
+    // Add bottom ground sometimes
+    if(Math.random()<0.5) platforms.push({x:nx, y:350, w:300, h:50});
+  }
+
   af=requestAnimationFrame(loop);
 }
 
-function drawMap(){
-  let startCol=Math.max(0,Math.floor(camX/TILE)-1);
-  let endCol=Math.min(LEVEL_W,startCol+Math.ceil(W/TILE)+2);
-  for(let row=0;row<12;row++){
-    for(let col=startCol;col<endCol;col++){
-      let t=mapData[row][col];
-      if(t) drawTile(t,col*TILE-camX,row*TILE);
-    }
-  }
+function gameOver(){
+  running=false; cancelAnimationFrame(af);
+  setTimeout(()=>{submitScore(score);},1000);
 }
 
-function marioHit(){
-  if(invincible>0) return;
-  if(bigMario){ bigMario=false; mario.h=TILE; mario.w=TILE*0.75; mario.y+=TILE; invincible=120; return; }
-  mario.dead=true; mario.deadVy=-13; mario.vy=0;
-}
+document.addEventListener('keydown',e=>keys[e.key]=true);
+document.addEventListener('keyup',e=>keys[e.key]=false);
 
-function gameOver(win=false){
-  running=false;
-  submitScore(score);
-}
-
-// === 키보드 ===
-document.addEventListener('keydown',e=>{
-  keys[e.code]=true;
-  if((e.code==='Space'||e.code==='ArrowUp'||e.code==='KeyW')&&mario&&mario.onGround&&running&&!mario.dead){
-    mario.vy=JUMP_V+(Math.abs(mario.vx)>3?-1.5:0); mario.onGround=false;
-    e.preventDefault();
-  }
-  if(e.code==='ArrowLeft'||e.code==='ArrowRight'||e.code==='ArrowUp') e.preventDefault();
-});
-document.addEventListener('keyup',e=>{ keys[e.code]=false; });
-
-// === 모바일 ===
-let btnLeft=document.getElementById('btn-left');
-let btnRight=document.getElementById('btn-right');
-let btnJump=document.getElementById('btn-jump');
-btnLeft.addEventListener('touchstart',e=>{e.preventDefault();keys['mobileLeft']=true;},{passive:false});
-btnLeft.addEventListener('touchend',e=>{e.preventDefault();keys['mobileLeft']=false;},{passive:false});
-btnRight.addEventListener('touchstart',e=>{e.preventDefault();keys['mobileRight']=true;},{passive:false});
-btnRight.addEventListener('touchend',e=>{e.preventDefault();keys['mobileRight']=false;},{passive:false});
-btnJump.addEventListener('touchstart',e=>{
-  e.preventDefault();
-  if(mario&&mario.onGround&&running&&!mario.dead){ mario.vy=JUMP_V; mario.onGround=false; }
+let touchX=0, touchY=0;
+canvas.addEventListener('touchstart',e=>{
+  e.preventDefault(); let t=e.touches[0]; touchX=t.clientX; touchY=t.clientY;
+  if(t.clientX < window.innerWidth/2) keys['ArrowLeft']=true; else keys['ArrowRight']=true;
 },{passive:false});
+canvas.addEventListener('touchend',e=>{e.preventDefault();keys['ArrowLeft']=false; keys['ArrowRight']=false;},{passive:false});
 
-// 초기 화면
-let sky=ctx.createLinearGradient(0,0,0,H);
-sky.addColorStop(0,'#5C94FC'); sky.addColorStop(1,'#80B0FF');
-ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
-ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(80,120,350,160);
-ctx.fillStyle='#ffd700'; ctx.font='bold 30px Arial'; ctx.textAlign='center';
-ctx.fillText('🍄 슈퍼 마리오',W/2,168);
-ctx.fillStyle='#fff'; ctx.font='15px Arial';
-ctx.fillText('← → 이동  |  스페이스/↑ 점프',W/2,205);
-ctx.fillText('버섯: 파워업  |  동전: 100점',W/2,230);
-ctx.fillText('시작 버튼을 눌러주세요!',W/2,258); ctx.textAlign='left';
+// jump area
+document.getElementById('gameCanvas').addEventListener('click',()=>{if(p.grounded){p.vy=-12;p.grounded=false;}});
+
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  score=0; frame=0; cameraX=0; keys={};
+  p={x:50,y:200,vx:0,vy:0,w:30,h:40,grounded:false,state:'idle'};
+  platforms=[{x:0,y:350,w:800,h:50}]; coins=[]; enemies=[];
+  running=true; cancelAnimationFrame(af); loop();
+}
+
+// Preview
+ctx.fillStyle='#87CEEB'; ctx.fillRect(0,0,W,H);
+ctx.fillStyle='#8B4513'; ctx.fillRect(0,350,W,50); ctx.fillStyle='#228B22'; ctx.fillRect(0,350,W,10);
+ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,W,H);
+ctx.fillStyle='#e74c3c'; ctx.font='bold 34px sans-serif'; ctx.textAlign='center'; ctx.shadowBlur=15; ctx.shadowColor='#e74c3c';
+ctx.fillText('마리오 어드벤처',W/2,H/2-20); ctx.shadowBlur=0;
+ctx.fillStyle='#fff'; ctx.font='16px sans-serif';
+ctx.fillText('좌우 화면 터치로 이동, 클릭하여 점프',W/2,H/2+20);
 </script>
 {% endblock %}

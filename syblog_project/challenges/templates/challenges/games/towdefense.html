@@ -1,7 +1,13 @@
 {% extends 'challenges/game_base.html' %}
 {% block game_area %}
-<canvas id="gameCanvas" style="border-radius:12px;max-width:100%;touch-action:none;"></canvas>
-<div style="text-align:center;margin-top:10px;font-size:14px;color:#aaa;">빈 곳을 탭하여 타워($50)를 건설하세요! 적들이 오른쪽 끝으로 가지 못하게 막으세요.</div>
+<div style="position:relative;width:100%;max-width:600px;margin:0 auto;">
+  <canvas id="gameCanvas" style="border-radius:12px;width:100%;background:#4caf50;touch-action:none;cursor:crosshair;box-shadow:0 10px 30px rgba(0,0,0,0.5);"></canvas>
+  <div id="hud" style="position:absolute;top:10px;left:15px;right:15px;display:flex;justify-content:space-between;color:white;font-family:sans-serif;font-weight:bold;text-shadow:0 2px 4px rgba(0,0,0,0.8);pointer-events:none;">
+    <div style="font-size:20px;">💰 <span id="s-money" style="color:#f1c40f;">100</span></div>
+    <div style="font-size:20px;">❤️ <span id="s-lives" style="color:#e74c3c;">10</span></div>
+    <div style="font-size:20px;">웨이브: <span id="s-wave">1</span></div>
+  </div>
+</div>
 {% endblock %}
 {% block game_script %}
 <script>
@@ -9,102 +15,134 @@ const canvas=document.getElementById('gameCanvas');
 const ctx=canvas.getContext('2d');
 const W=600,H=400;
 canvas.width=W; canvas.height=H;
-canvas.style.width='min(100%, 600px)'; canvas.style.height='auto';
 
-let enemies=[], towers=[], bullets=[], money=100, hp=10, score=0, frame=0, running=false, af;
+const PATH=[{x:0,y:100},{x:200,y:100},{x:200,y:300},{x:450,y:300},{x:450,y:150},{x:600,y:150}];
+let af, running=false, money=100, lives=10, wave=1, frame=0;
+let towers=[], enemies=[], bullets=[], particles=[];
+
+function drawPath(){
+  ctx.strokeStyle='#795548'; ctx.lineWidth=40; ctx.lineCap='round'; ctx.lineJoin='round';
+  ctx.beginPath(); ctx.moveTo(PATH[0].x, PATH[0].y);
+  for(let i=1;i<PATH.length;i++) ctx.lineTo(PATH[i].x, PATH[i].y);
+  ctx.stroke();
+  ctx.strokeStyle='#5d4037'; ctx.lineWidth=36; ctx.stroke(); // inner path
+}
 
 function spawnEnemy(){
-  enemies.push({x:-20, y:H/2-20+Math.random()*40, hp:3+Math.floor(frame/600), maxHp:3+Math.floor(frame/600), speed:1+frame/2000});
+  let hp = 10 + wave*5;
+  let type = Math.random()>0.8?'🐺':'🐛';
+  let spd = type==='🐺'?2:1;
+  enemies.push({x:PATH[0].x, y:PATH[0].y, pathIdx:0, hp, maxHp:hp, type, spd});
 }
 
 function loop(){
   if(!running) return;
   frame++;
-  ctx.fillStyle='#2ecc71'; ctx.fillRect(0,0,W,H);
   
-  // 길
-  ctx.fillStyle='#e67e22'; ctx.fillRect(0,H/2-30,W,60);
+  // BG
+  let bg=ctx.createLinearGradient(0,0,W,H); bg.addColorStop(0,'#4caf50'); bg.addColorStop(1,'#388e3c');
+  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+  
+  // Grid
+  ctx.strokeStyle='rgba(0,0,0,0.1)'; ctx.lineWidth=1;
+  for(let i=0;i<W;i+=40){ ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,H); ctx.stroke(); }
+  for(let i=0;i<H;i+=40){ ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(W,i); ctx.stroke(); }
+  
+  drawPath();
 
-  // 스폰
-  if(frame%60===0) spawnEnemy();
+  // Wave Logic
+  if(frame%60===0 && enemies.length<wave*3 && Math.random()<0.5) spawnEnemy();
+  if(frame%600===0 && enemies.length===0) wave++;
 
-  // 타워
+  // Towers
+  ctx.font='30px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
   towers.forEach(t=>{
-    ctx.fillStyle='#34495e'; ctx.fillRect(t.x-15, t.y-15, 30, 30);
-    // 공격
-    if(frame%30===0){
-      let target = enemies.find(e=>Math.hypot(e.x-t.x, e.y-t.y)<100);
-      if(target) {
-        let angle=Math.atan2(target.y-t.y, target.x-t.x);
-        bullets.push({x:t.x, y:t.y, vx:Math.cos(angle)*5, vy:Math.sin(angle)*5});
+    ctx.fillText('🏰', t.x, t.y);
+    if(frame-t.lastShot > 30){
+      let target = enemies.find(e=>Math.hypot(e.x-t.x, e.y-t.y)<150);
+      if(target){
+        t.lastShot=frame;
+        let dx=target.x-t.x, dy=target.y-t.y, dist=Math.hypot(dx,dy);
+        bullets.push({x:t.x, y:t.y, vx:(dx/dist)*8, vy:(dy/dist)*8, dmg:5});
       }
     }
   });
 
-  // 총알
-  for(let i=bullets.length-1;i>=0;i--){
-    let b=bullets[i];
+  // Bullets
+  bullets.forEach(b=>{
     b.x+=b.vx; b.y+=b.vy;
-    ctx.fillStyle='#f1c40f'; ctx.beginPath();ctx.arc(b.x,b.y,4,0,Math.PI*2);ctx.fill();
-    let hit=false;
-    for(let j=enemies.length-1;j>=0;j--){
-      let e=enemies[j];
-      if(Math.hypot(e.x-b.x, e.y-b.y)<15){
-        e.hp--; hit=true;
-        if(e.hp<=0){ enemies.splice(j,1); money+=10; score+=10; }
-        break;
+    ctx.fillText('🏹', b.x, b.y);
+  });
+
+  // Enemies
+  for(let i=enemies.length-1;i>=0;i--){
+    let e = enemies[i];
+    let tx = PATH[e.pathIdx+1].x, ty = PATH[e.pathIdx+1].y;
+    let dx = tx-e.x, dy = ty-e.y, dist=Math.hypot(dx,dy);
+    if(dist < e.spd){
+      e.x=tx; e.y=ty; e.pathIdx++;
+      if(e.pathIdx >= PATH.length-1){
+        enemies.splice(i,1); lives--; if(lives<=0) gameOver();
+        continue;
+      }
+    } else { e.x+=(dx/dist)*e.spd; e.y+=(dy/dist)*e.spd; }
+    
+    ctx.fillText(e.type, e.x, e.y);
+    ctx.fillStyle='red'; ctx.fillRect(e.x-15, e.y-20, 30, 4);
+    ctx.fillStyle='#0f0'; ctx.fillRect(e.x-15, e.y-20, 30*(e.hp/e.maxHp), 4);
+
+    // Hit check
+    for(let j=bullets.length-1;j>=0;j--){
+      let b=bullets[j];
+      if(Math.hypot(b.x-e.x, b.y-e.y)<20){
+        e.hp-=b.dmg; bullets.splice(j,1);
+        for(let k=0;k<3;k++) particles.push({x:b.x,y:b.y,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4,life:10,c:'#fff'});
+        if(e.hp<=0){ enemies.splice(i,1); money+=10; break; }
       }
     }
-    if(hit || b.x<0||b.x>W||b.y<0||b.y>H) bullets.splice(i,1);
   }
 
-  // 적
-  for(let i=enemies.length-1;i>=0;i--){
-    let e=enemies[i];
-    e.x+=e.speed;
-    ctx.fillStyle='#e74c3c'; ctx.beginPath();ctx.arc(e.x,e.y,12,0,Math.PI*2);ctx.fill();
-    if(e.x>W){
-      enemies.splice(i,1); hp--;
-      if(hp<=0){ running=false; setTimeout(()=>submitScore(score),1000); }
-    }
-  }
+  // Particles
+  particles.forEach(p=>{ p.x+=p.vx; p.y+=p.vy; p.life--; ctx.fillStyle=p.c; ctx.beginPath(); ctx.arc(p.x,p.y,2,0,Math.PI*2); ctx.fill(); });
+  particles=particles.filter(p=>p.life>0);
 
-  // UI
-  ctx.fillStyle='white'; ctx.font='bold 16px Arial'; ctx.textAlign='left';
-  ctx.fillText('HP: '+hp, 10, 20);
-  ctx.fillText('Money: $'+money, 10, 40);
-  ctx.fillText('Score: '+score, 10, 60);
-  
-  document.getElementById('score-display').textContent=score;
+  document.getElementById('s-money').textContent=money;
+  document.getElementById('s-lives').textContent=lives;
+  document.getElementById('s-wave').textContent=wave;
+  document.getElementById('score-display').textContent=wave*100;
+
   af=requestAnimationFrame(loop);
 }
 
-function placeTower(x, y){
-  if(!running) return;
-  if(y>H/2-40 && y<H/2+40) return; // 길 위엔 설치 불가
-  if(money>=50){
-    money-=50; towers.push({x,y});
-  }
+function gameOver(){
+  running=false; cancelAnimationFrame(af);
+  setTimeout(()=>{submitScore(wave*100);},1000);
 }
 
-canvas.addEventListener('mousedown', e=>{
-  let r=canvas.getBoundingClientRect();
-  placeTower((e.clientX-r.left)*W/r.width, (e.clientY-r.top)*H/r.height);
+canvas.addEventListener('mousedown',e=>{
+  if(!running) return;
+  let r=canvas.getBoundingClientRect(); let x=e.clientX-r.left, y=e.clientY-r.top;
+  if(money>=50){ towers.push({x,y,lastShot:0}); money-=50; }
 });
-canvas.addEventListener('touchstart', e=>{
-  e.preventDefault();
-  let r=canvas.getBoundingClientRect();
-  placeTower((e.touches[0].clientX-r.left)*W/r.width, (e.touches[0].clientY-r.top)*H/r.height);
+canvas.addEventListener('touchstart',e=>{
+  e.preventDefault(); if(!running) return;
+  let r=canvas.getBoundingClientRect(); let x=e.touches[0].clientX-r.left, y=e.touches[0].clientY-r.top;
+  if(money>=50){ towers.push({x,y,lastShot:0}); money-=50; }
 },{passive:false});
 
 function startGame(){
   document.getElementById('result-overlay').classList.remove('show');
-  enemies=[]; towers=[]; bullets=[]; money=100; hp=10; score=0; frame=0; running=true;
-  cancelAnimationFrame(af); loop();
+  money=100; lives=10; wave=1; frame=0; towers=[]; enemies=[]; bullets=[]; particles=[];
+  running=true; cancelAnimationFrame(af); loop();
 }
 
-ctx.fillStyle='#2ecc71'; ctx.fillRect(0,0,W,H);
-ctx.fillStyle='white'; ctx.textAlign='center'; ctx.font='bold 30px Arial';
-ctx.fillText('🏰 타워 디펜스', W/2, H/2);
+// Preview
+ctx.fillStyle='#4caf50'; ctx.fillRect(0,0,W,H);
+drawPath();
+ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,W,H);
+ctx.fillStyle='#f1c40f'; ctx.font='bold 34px sans-serif'; ctx.textAlign='center'; ctx.shadowBlur=15; ctx.shadowColor='#f1c40f';
+ctx.fillText('타워 디펜스',W/2,H/2-20); ctx.shadowBlur=0;
+ctx.fillStyle='#fff'; ctx.font='16px sans-serif';
+ctx.fillText('클릭하여 타워(50💰)를 건설하고 적을 막으세요',W/2,H/2+20);
 </script>
 {% endblock %}

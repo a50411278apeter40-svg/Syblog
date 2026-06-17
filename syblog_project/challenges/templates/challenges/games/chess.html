@@ -1,109 +1,152 @@
 {% extends 'challenges/game_base.html' %}
 {% block game_area %}
-<canvas id="gameCanvas" style="border-radius:12px;max-width:100%;touch-action:none;cursor:pointer;"></canvas>
-<div style="text-align:center;margin-top:10px;font-size:14px;color:#aaa;">이동할 위치를 탭하세요! 나이트(♘)를 움직여 제한시간 60초 내에 폰(♙)을 최대한 많이 잡으세요.</div>
+<div style="position:relative;width:100%;max-width:400px;margin:0 auto;">
+  <canvas id="gameCanvas" style="border-radius:12px;width:100%;background:#1e1e1e;touch-action:none;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,0.8);"></canvas>
+  <div id="hud" style="position:absolute;top:10px;left:15px;right:15px;display:flex;justify-content:space-between;color:white;font-family:sans-serif;font-weight:bold;text-shadow:0 2px 4px rgba(0,0,0,0.8);pointer-events:none;">
+    <div style="font-size:20px;">점수: <span id="s-score" style="color:#f1c40f;">0</span></div>
+    <div style="font-size:20px;">시간: <span id="s-time" style="color:#e74c3c;">60</span></div>
+  </div>
+</div>
 {% endblock %}
 {% block game_script %}
 <script>
 const canvas=document.getElementById('gameCanvas');
 const ctx=canvas.getContext('2d');
-const W=400,H=400,TS=W/8;
+const W=400,H=460;
 canvas.width=W; canvas.height=H;
-canvas.style.width='min(100%, 400px)'; canvas.style.height='auto';
+const TS=W/8, OFF_Y=60;
 
-let player={r:7, c:1}, pawns=[], score=0, timeLeft=60, running=false, af, timerInt;
-let validMoves=[];
+let player={r:7, c:1, tr:7, tc:1}, pawns=[], score=0, timeLeft=60, running=false, af, frame=0;
+let validMoves=[], particles=[], hits=[];
 
 function spawnPawn(){
   let pr, pc;
   while(true){
     pr=Math.floor(Math.random()*8); pc=Math.floor(Math.random()*8);
-    if((pr!==player.r || pc!==player.c) && !pawns.some(p=>p.r===pr&&p.c===pc)) break;
+    if((pr!==player.tr || pc!==player.tc) && !pawns.some(p=>p.r===pr&&p.c===pc)) break;
   }
-  pawns.push({r:pr, c:pc});
+  pawns.push({r:pr, c:pc, scale:0});
 }
 
 function calcMoves(){
   validMoves=[];
   let dirs=[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
   for(let [dr,dc] of dirs){
-    let nr=player.r+dr, nc=player.c+dc;
+    let nr=player.tr+dr, nc=player.tc+dc;
     if(nr>=0&&nr<8&&nc>=0&&nc<8) validMoves.push({r:nr, c:nc});
+  }
+}
+
+function spawnParticle(x,y,c){
+  for(let i=0;i<15;i++){
+    let a=Math.random()*Math.PI*2, s=Math.random()*6+2;
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:25,maxLife:25,c,r:Math.random()*4+2});
   }
 }
 
 function loop(){
   if(!running) return;
-  // 보드
-  for(let r=0;r<8;r++) for(let c=0;c<8;c++){
-    ctx.fillStyle=(r+c)%2===0 ? '#f0d9b5' : '#b58863';
-    ctx.fillRect(c*TS, r*TS, TS, TS);
+  frame++;
+  if(frame%60===0 && timeLeft>0) timeLeft--;
+
+  // BG
+  ctx.fillStyle='#1e1e1e'; ctx.fillRect(0,0,W,H);
+
+  // Board
+  for(let r=0;r<8;r++){
+    for(let c=0;c<8;c++){
+      let isWhite = (r+c)%2===0;
+      ctx.fillStyle = isWhite ? '#f0d9b5' : '#b58863';
+      ctx.fillRect(c*TS, r*TS+OFF_Y, TS, TS);
+      // 나무 질감 효과(단순화)
+      ctx.fillStyle='rgba(0,0,0,0.05)';
+      if(isWhite) ctx.fillRect(c*TS+TS*0.1, r*TS+OFF_Y+TS*0.1, TS*0.8, TS*0.8);
+    }
   }
-  
-  // 갈 수 있는 곳 표시
+
+  // Valid moves
   validMoves.forEach(m=>{
-    ctx.fillStyle='rgba(46,204,113,0.5)';
-    ctx.beginPath();ctx.arc(m.c*TS+TS/2, m.r*TS+TS/2, 10, 0, Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(46,204,113,0.6)'; ctx.shadowBlur=10; ctx.shadowColor='#2ecc71';
+    ctx.beginPath(); ctx.arc(m.c*TS+TS/2, m.r*TS+OFF_Y+TS/2, 10, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
   });
 
-  // 폰
-  ctx.fillStyle='#333'; ctx.font=TS*0.7+'px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
-  pawns.forEach(p=>{ ctx.fillText('♙', p.c*TS+TS/2, p.r*TS+TS/2); });
-  
-  // 플레이어 (나이트)
-  ctx.fillStyle='#fff'; ctx.fillText('♘', player.c*TS+TS/2, player.r*TS+TS/2);
+  // Pawns
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  for(let i=pawns.length-1;i>=0;i--){
+    let p=pawns[i];
+    if(p.scale<1) p.scale+=0.1;
+    ctx.save(); ctx.translate(p.c*TS+TS/2, p.r*TS+OFF_Y+TS/2); ctx.scale(p.scale,p.scale);
+    ctx.font=TS*0.7+'px Arial'; ctx.fillStyle='#000'; ctx.shadowBlur=5; ctx.shadowColor='#000';
+    ctx.fillText('♙', 0, 0); ctx.restore();
 
-  // UI
-  ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,24);
-  ctx.fillStyle='white'; ctx.font='16px Arial'; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
-  ctx.fillText('Time: '+timeLeft, 5, 18);
+    // Catch
+    if(player.tr===p.r && player.tc===p.c && Math.hypot(player.r-player.tr, player.c-player.tc)<0.1){
+      score+=10; spawnParticle(p.c*TS+TS/2, p.r*TS+OFF_Y+TS/2, '#f1c40f');
+      hits.push({x:p.c*TS+TS/2, y:p.r*TS+OFF_Y+TS/2, life:30, txt:'+10'});
+      pawns.splice(i,1); spawnPawn();
+    }
+  }
+
+  // Player (Knight) animation
+  player.r+=(player.tr-player.r)*0.2; player.c+=(player.tc-player.c)*0.2;
   
+  ctx.save(); ctx.translate(player.c*TS+TS/2, player.r*TS+OFF_Y+TS/2);
+  let jumpY = Math.sin(Math.PI * (1 - Math.hypot(player.r-player.tr, player.c-player.tc))) * -20; // Jump arc
+  if(isNaN(jumpY)) jumpY=0;
+  ctx.font=TS*0.8+'px Arial'; ctx.fillStyle='#fff'; ctx.shadowBlur=10; ctx.shadowColor='#fff';
+  ctx.fillText('♘', 0, jumpY); ctx.restore();
+
+  // Particles
+  particles.forEach(p=>{
+    p.x+=p.vx; p.y+=p.vy; p.life--; p.vy+=0.3;
+    ctx.globalAlpha=Math.max(0,p.life/p.maxLife); ctx.fillStyle=p.c; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+  });
+  ctx.globalAlpha=1; particles=particles.filter(p=>p.life>0);
+
+  // Hits
+  hits.forEach(h=>{
+    h.life--; h.y-=1;
+    ctx.font=`bold 20px Arial`; ctx.fillStyle='#f1c40f'; ctx.textAlign='center'; ctx.fillText(h.txt, h.x, h.y);
+  });
+  hits=hits.filter(h=>h.life>0);
+
+  document.getElementById('s-score').textContent=score;
+  document.getElementById('s-time').textContent=timeLeft;
   document.getElementById('score-display').textContent=score;
+
+  if(timeLeft<=0){ running=false; setTimeout(()=>{submitScore(score);},1000); return; }
   af=requestAnimationFrame(loop);
 }
 
-function handleTap(r, c){
-  if(!running) return;
-  let move = validMoves.find(m=>m.r===r && m.c===c);
-  if(move){
-    player.r=r; player.c=c;
-    let pIdx = pawns.findIndex(p=>p.r===r && p.c===c);
-    if(pIdx!==-1){
-      pawns.splice(pIdx, 1); score+=10; spawnPawn();
-    }
+function handleInput(x,y){
+  if(!running || timeLeft<=0) return;
+  let c=Math.floor(x/TS), r=Math.floor((y-OFF_Y)/TS);
+  if(r<0||r>=8||c<0||c>=8) return;
+  
+  let m = validMoves.find(m=>m.r===r && m.c===c);
+  if(m){
+    player.tr=r; player.tc=c;
     calcMoves();
   }
 }
 
-canvas.addEventListener('mousedown', e=>{
-  let rect=canvas.getBoundingClientRect();
-  handleTap(Math.floor((e.clientY-rect.top)*H/rect.height/TS), Math.floor((e.clientX-rect.left)*W/rect.width/TS));
-});
-canvas.addEventListener('touchstart', e=>{
-  e.preventDefault();
-  let rect=canvas.getBoundingClientRect();
-  handleTap(Math.floor((e.touches[0].clientY-rect.top)*H/rect.height/TS), Math.floor((e.touches[0].clientX-rect.left)*W/rect.width/TS));
-},{passive:false});
+canvas.addEventListener('mousedown',e=>{let r=canvas.getBoundingClientRect(); handleInput(e.clientX-r.left, e.clientY-r.top);});
+canvas.addEventListener('touchstart',e=>{e.preventDefault();let r=canvas.getBoundingClientRect(); handleInput(e.touches[0].clientX-r.left, e.touches[0].clientY-r.top);},{passive:false});
 
 function startGame(){
   document.getElementById('result-overlay').classList.remove('show');
-  player={r:7, c:1}; pawns=[]; score=0; timeLeft=60; running=true;
+  player={r:7,c:1,tr:7,tc:1}; pawns=[]; particles=[]; hits=[]; score=0; timeLeft=60; frame=0;
   for(let i=0;i<3;i++) spawnPawn();
-  calcMoves();
-  clearInterval(timerInt);
-  timerInt=setInterval(()=>{
-    if(!running) return clearInterval(timerInt);
-    timeLeft--;
-    if(timeLeft<=0){ running=false; clearInterval(timerInt); setTimeout(()=>submitScore(score),1000); }
-  },1000);
-  cancelAnimationFrame(af); loop();
+  calcMoves(); running=true; cancelAnimationFrame(af); loop();
 }
 
-for(let r=0;r<8;r++) for(let c=0;c<8;c++){
-  ctx.fillStyle=(r+c)%2===0 ? '#f0d9b5' : '#b58863'; ctx.fillRect(c*TS, r*TS, TS, TS);
-}
+// Preview
+ctx.fillStyle='#1e1e1e'; ctx.fillRect(0,0,W,H);
+for(let r=0;r<8;r++) for(let c=0;c<8;c++){ ctx.fillStyle=(r+c)%2===0?'#f0d9b5':'#b58863'; ctx.fillRect(c*TS, r*TS+OFF_Y, TS, TS); }
 ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H);
-ctx.fillStyle='white'; ctx.textAlign='center'; ctx.font='bold 30px Arial';
-ctx.fillText('♟️ 나이트 체스 퍼즐', W/2, H/2);
+ctx.fillStyle='#fff'; ctx.font='bold 34px sans-serif'; ctx.textAlign='center'; ctx.shadowBlur=15; ctx.shadowColor='#fff';
+ctx.fillText('나이트 퍼즐',W/2,H/2-20); ctx.shadowBlur=0;
+ctx.font='16px sans-serif';
+ctx.fillText('나이트(♘)를 움직여 폰(♙)을 잡으세요',W/2,H/2+20);
 </script>
 {% endblock %}
