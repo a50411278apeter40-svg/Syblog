@@ -17,6 +17,12 @@ class PostForm(forms.ModelForm):
         model = Post
         fields = ['title', 'hook_text', 'content', 'head_image', 'file_upload', 'category', 'series', 'series_order']
 
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super(PostForm, self).__init__(*args, **kwargs)
+        if user:
+            self.fields['series'].queryset = Series.objects.filter(author=user).order_by('-created_at')
+
 class SeriesForm(forms.ModelForm):
     class Meta:
         model = Series

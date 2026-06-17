@@ -4,7 +4,8 @@ from . import views
 app_name = 'blog'
 
 urlpatterns = [
-    path('search/<str:q>/', views.PostSearch.as_view(), name='search'),
+    path('search/', views.search_view, name='search'),
+    path('search_old/<str:q>/', views.PostSearch.as_view(), name='search_old'),
     path('delete_comment/<int:pk>/', views.delete_comment, name='delete_comment'),
     path('update_comment/<int:pk>/', views.CommentUpdate.as_view(), name='update_comment'),
     path('update_post/<int:pk>/', views.PostUpdate.as_view(), name='update_post'),
@@ -19,6 +20,7 @@ urlpatterns = [
     path('series/my/', views.my_series, name='my_series'),
     path('series/<int:pk>/', views.series_detail, name='series_detail'),
     path('series/<int:pk>/edit/', views.series_edit, name='series_edit'),
+    path('series/<int:pk>/delete/', views.SeriesDelete.as_view(), name='series_delete'),
     path('admin-dashboard/', views.admin_dashboard, name='admin_dashboard'),
     path('admin-delete-post/<int:pk>/', views.admin_delete_post, name='admin_delete_post'),
     path('backup-to-github/', views.backup_to_github, name='backup_to_github'),

@@ -16,6 +16,10 @@
         </div>
         <div>
             <a href="/blog/series/{{ s.pk }}/edit/" class="btn btn-sm btn-outline-primary">수정</a>
+            <form action="{% url 'blog:series_delete' s.pk %}" method="post" class="d-inline" onsubmit="return confirm('정말 이 시리즈를 삭제하시겠습니까?');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
+            </form>
         </div>
     </div>
 </div>

@@ -14,8 +14,14 @@
             <img src="https://ui-avatars.com/api/?name={{ series.author.username }}&size=25" class="rounded-circle mr-1" width="25">
             {{ series.author.username }} · 총 {{ posts.count }}편
         </small>
-        {% if user == series.author %}
-        <a href="/blog/series/{{ series.pk }}/edit/" class="btn btn-sm btn-outline-primary float-right">수정</a>
+        {% if user == series.author or user.is_superuser %}
+        <div class="float-right">
+            <a href="{% url 'blog:series_edit' series.pk %}" class="btn btn-sm btn-outline-primary">수정</a>
+            <form action="{% url 'blog:series_delete' series.pk %}" method="post" class="d-inline" onsubmit="return confirm('정말 이 시리즈를 삭제하시겠습니까?\n(시리즈에 포함된 글은 삭제되지 않고 시리즈 지정만 해제됩니다.)');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
+            </form>
+        </div>
         {% endif %}
     </div>
 </div>
