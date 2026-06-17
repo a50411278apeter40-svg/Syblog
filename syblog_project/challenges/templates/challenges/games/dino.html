@@ -1,223 +1,219 @@
 {% extends 'challenges/game_base.html' %}
 {% block game_area %}
-<canvas id="gameCanvas" style="border-radius:14px;max-width:100%;touch-action:none;"></canvas>
+<div style="position:relative;width:100%;max-width:700px;margin:0 auto;">
+  <canvas id="gameCanvas" style="border-radius:12px;width:100%;display:block;touch-action:none;box-shadow:0 8px 32px rgba(0,0,0,0.6);"></canvas>
+</div>
 {% endblock %}
 {% block game_script %}
 <script>
 const canvas=document.getElementById('gameCanvas');
 const ctx=canvas.getContext('2d');
-const W=600,H=220;
-canvas.width=W; canvas.height=H;
-canvas.style.width='min(600px,100vw)'; canvas.style.height='auto';
+const W=700,H=280;
+canvas.width=W;canvas.height=H;
 
-let dino,obstacles,score,speed,running=false,af,frame=0,clouds=[],stars=[];
-let bgPhase=0; // 0=낮, 1=저녁, 2=밤
-const GND=H-45;
+// Load real assets
+const dinoImg=new Image();dinoImg.crossOrigin='anonymous';
+dinoImg.src='https://www.pngall.com/wp-content/uploads/13/Dino-PNG-File.png';
+const cactusImg=new Image();cactusImg.crossOrigin='anonymous';
+cactusImg.src='https://www.pngall.com/wp-content/uploads/12/Cactus-Transparent.png';
+const pteroImg=new Image();pteroImg.crossOrigin='anonymous';
+pteroImg.src='https://www.pngall.com/wp-content/uploads/12/Pterodactyl-PNG-File.png';
+const cloudImg=new Image();cloudImg.crossOrigin='anonymous';
+cloudImg.src='https://www.pngall.com/wp-content/uploads/12/Cloud-PNG.png';
 
-// 구름/별 초기화
-for(let i=0;i<5;i++) clouds.push({x:Math.random()*W,y:20+Math.random()*40,w:50+Math.random()*40,spd:0.6+Math.random()*0.4});
-for(let i=0;i<30;i++) stars.push({x:Math.random()*W,y:Math.random()*(H*0.6),size:Math.random()*1.5+0.5});
+let af,running=false,score=0,hiScore=0,frame=0;
+let dino,obstacles,clouds,groundX,speed,particles=[];
+let nightMode=false,nightAlpha=0;
 
-function startGame(){
-  document.getElementById('result-overlay').classList.remove('show');
-  dino={x:80,y:GND-50,w:44,h:50,vy:0,onGround:true,ducking:false,animFrame:0,animTimer:0,dead:false};
-  obstacles=[]; score=0; speed=5.5; frame=0; running=true;
-  cancelAnimationFrame(af); loop();
-}
+const GROUND=H-55;
 
-function drawBG(){
-  let phase=Math.floor(score/300)%3;
-  let skyColors=[
-    ['#87CEEB','#B0E0F8'],
-    ['#FF7B5E','#FFB08C'],
-    ['#1a1a3e','#2a2a6e']
-  ];
-  let [c1,c2]=skyColors[phase];
-  let sky=ctx.createLinearGradient(0,0,0,H);
-  sky.addColorStop(0,c1); sky.addColorStop(1,c2);
-  ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
-  // 별 (밤)
-  if(phase===2){
-    stars.forEach(s=>{
-      ctx.fillStyle=`rgba(255,255,255,${0.4+Math.sin(frame*0.05+s.x)*0.4})`;
-      ctx.beginPath(); ctx.arc((s.x+frame*0.2)%W,s.y,s.size,0,Math.PI*2); ctx.fill();
-    });
-    // 달
-    ctx.fillStyle='#fffacd';
-    ctx.beginPath(); ctx.arc(W-60,35,22,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle=sky.toString(); ctx.beginPath(); ctx.arc(W-52,30,18,0,Math.PI*2); ctx.fill();
-  }
-  // 구름
-  clouds.forEach(c=>{
-    c.x-=c.spd*(speed/5.5); if(c.x+c.w<0) c.x=W+c.w;
-    ctx.globalAlpha=phase===2?0.3:0.85;
-    ctx.fillStyle=phase===1?'#ffaa88':'#fff';
-    ctx.beginPath(); ctx.ellipse(c.x,c.y,c.w/2,c.w/3.5,0,0,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(c.x+c.w*0.28,c.y-c.w*0.12,c.w*0.3,c.w*0.2,0,0,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(c.x-c.w*0.25,c.y-c.w*0.08,c.w*0.25,c.w*0.17,0,0,Math.PI*2); ctx.fill();
-    ctx.globalAlpha=1;
-  });
-  // 산 배경
-  let mtColor=phase===2?'#2a3a5a':phase===1?'#8B5E3C':'#6B8E5E';
-  let mtColor2=phase===2?'#1a2a4a':phase===1?'#7B4E2C':'#4a7a4e';
-  [[0,95,120],[120,80,90],[240,100,110],[360,75,100],[480,90,115]].forEach(([mx,my,mh])=>{
-    ctx.fillStyle=mtColor;
-    ctx.beginPath(); ctx.moveTo(mx,GND); ctx.lineTo(mx+60,GND-mh); ctx.lineTo(mx+120,GND); ctx.fill();
-    ctx.fillStyle=mtColor2;
-    ctx.beginPath(); ctx.moveTo(mx+20,GND); ctx.lineTo(mx+60,GND-mh+15); ctx.lineTo(mx+100,GND); ctx.fill();
-  });
-  // 지면
-  let grd=ctx.createLinearGradient(0,GND,0,H);
-  grd.addColorStop(0,phase===2?'#3a4a3a':'#8B7355');
-  grd.addColorStop(0.3,phase===2?'#2a3a2a':'#6B5335');
-  grd.addColorStop(1,phase===2?'#1a2a1a':'#4a3a25');
-  ctx.fillStyle=grd; ctx.fillRect(0,GND,W,H-GND);
-  // 지면선 (돌멩이)
-  ctx.fillStyle=phase===2?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.1)';
-  for(let i=(frame*speed)%30;i<W;i+=30){
-    let rx=(i+5+Math.floor(i/30)*7)%W;
-    ctx.beginPath(); ctx.ellipse(rx,GND+6,4+Math.random()*4,3,0,0,Math.PI*2); ctx.fill();
-  }
-}
-
-function drawDino(d){
-  let {x,y,w,h,animFrame,ducking}=d;
-  let dh=ducking?h*0.6:h, dy=ducking?y+h*0.4:y;
-  ctx.save(); ctx.translate(x+w/2,dy+dh/2);
-  // 몸통
-  let bodyG=ctx.createRadialGradient(0,0,5,0,0,dh*0.5);
-  bodyG.addColorStop(0,'#6bcc5a'); bodyG.addColorStop(0.5,'#4aa83c'); bodyG.addColorStop(1,'#2d7a28');
-  ctx.fillStyle=bodyG;
-  if(!ducking){
-    // 꼬리
-    ctx.beginPath(); ctx.moveTo(-w*0.3,dh*0.15); ctx.lineTo(-w*0.7,dh*0.05); ctx.lineTo(-w*0.55,-dh*0.05); ctx.lineTo(-w*0.2,dh*0.05); ctx.fill();
-  }
-  ctx.beginPath(); ctx.roundRect(-w*0.4,-dh*0.5,w*0.8,dh,8); ctx.fill();
-  if(!ducking){
-    // 머리
-    ctx.fillRect(w*0.05,-dh*0.7,w*0.38,dh*0.28);
-    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(w*0.28,-dh*0.65,5,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='#1a1a1a'; ctx.beginPath(); ctx.arc(w*0.29,-dh*0.66,3,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.arc(w*0.28,-dh*0.68,1.2,0,Math.PI*2); ctx.fill();
-    // 입
-    ctx.strokeStyle='#1a7a15'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(w*0.3,-dh*0.58); ctx.lineTo(w*0.42,-dh*0.56); ctx.stroke();
-    // 팔
-    let armOff=d.onGround?Math.sin(frame*0.25)*8:0;
-    ctx.fillStyle='#4aa83c';
-    ctx.beginPath(); ctx.ellipse(-w*0.4,dh*0.05+armOff,5,10,Math.PI*0.2,0,Math.PI*2); ctx.fill();
-    // 다리
-    let leg1=d.onGround?Math.sin(frame*0.25)*15:0;
-    let leg2=d.onGround?Math.sin(frame*0.25+Math.PI)*15:0;
-    ctx.fillStyle='#3a8a30';
-    ctx.beginPath(); ctx.roundRect(-w*0.22,dh*0.45+leg1,12,dh*0.35-leg1,4); ctx.fill();
-    ctx.beginPath(); ctx.roundRect(w*0.1,dh*0.45+leg2,12,dh*0.35-leg2,4); ctx.fill();
-  }
-  ctx.restore();
-}
-
-function drawObstacle(o){
-  if(o.type==='cactus'){
-    // 선인장
-    let cg=ctx.createLinearGradient(o.x,o.y,o.x+o.w,o.y);
-    cg.addColorStop(0,'#2d5a1b'); cg.addColorStop(0.5,'#4a8a2a'); cg.addColorStop(1,'#2d5a1b');
-    ctx.fillStyle=cg;
-    ctx.beginPath(); ctx.roundRect(o.x+o.w*0.35,o.y,o.w*0.3,o.h,5); ctx.fill();
-    // 팔
-    ctx.beginPath(); ctx.roundRect(o.x,o.y+o.h*0.25,o.w*0.38,o.h*0.15,4); ctx.fill();
-    ctx.beginPath(); ctx.roundRect(o.x,o.y+o.h*0.05,o.w*0.15,o.h*0.35,4); ctx.fill();
-    ctx.beginPath(); ctx.roundRect(o.x+o.w*0.62,o.y+o.h*0.3,o.w*0.38,o.h*0.15,4); ctx.fill();
-    ctx.beginPath(); ctx.roundRect(o.x+o.w*0.85,o.y+o.h*0.1,o.w*0.15,o.h*0.35,4); ctx.fill();
-    // 광택
-    ctx.fillStyle='rgba(255,255,255,0.15)';
-    ctx.beginPath(); ctx.roundRect(o.x+o.w*0.38,o.y+4,o.w*0.1,o.h-8,3); ctx.fill();
-  }else{
-    // 새
-    o.animT=(o.animT||0)+0.2;
-    let wingUp=Math.sin(o.animT)>0;
-    ctx.fillStyle='#555';
-    // 몸통
-    ctx.beginPath(); ctx.ellipse(o.x+o.w/2,o.y+o.h/2,o.w*0.4,o.h*0.25,0,0,Math.PI*2); ctx.fill();
-    // 날개
-    ctx.fillStyle='#444';
-    if(wingUp){
-      ctx.beginPath(); ctx.moveTo(o.x+o.w*0.3,o.y+o.h*0.5); ctx.quadraticCurveTo(o.x+o.w*0.1,o.y,o.x-o.w*0.1,o.y+o.h*0.4); ctx.closePath(); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(o.x+o.w*0.7,o.y+o.h*0.5); ctx.quadraticCurveTo(o.x+o.w*0.9,o.y,o.x+o.w*1.1,o.y+o.h*0.4); ctx.closePath(); ctx.fill();
-    }else{
-      ctx.beginPath(); ctx.moveTo(o.x+o.w*0.3,o.y+o.h*0.5); ctx.quadraticCurveTo(o.x+o.w*0.1,o.y+o.h,o.x-o.w*0.1,o.y+o.h*0.8); ctx.closePath(); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(o.x+o.w*0.7,o.y+o.h*0.5); ctx.quadraticCurveTo(o.x+o.w*0.9,o.y+o.h,o.x+o.w*1.1,o.y+o.h*0.8); ctx.closePath(); ctx.fill();
-    }
-    ctx.fillStyle='#ff6600'; ctx.beginPath(); ctx.moveTo(o.x+o.w*0.9,o.y+o.h*0.45); ctx.lineTo(o.x+o.w*1.1,o.y+o.h*0.5); ctx.lineTo(o.x+o.w*0.9,o.y+o.h*0.6); ctx.fill();
-  }
-}
-
-function loop(){
-  if(!running) return;
-  frame++;
-  // 배경
-  drawBG();
-  // 공룡 물리
-  dino.vy+=0.7; dino.y+=dino.vy;
-  if(dino.y>=GND-dino.h){ dino.y=GND-dino.h; dino.vy=0; dino.onGround=true; }
-  else dino.onGround=false;
-  // 장애물 생성
-  let interval=Math.max(55,90-Math.floor(score/100)*3);
-  if(frame%interval===0){
-    let isBird=score>200&&Math.random()<0.35;
-    if(isBird){
-      let birdH=[GND-100,GND-65,GND-40][Math.floor(Math.random()*3)];
-      obstacles.push({x:W,y:birdH,w:50,h:30,type:'bird',animT:0});
-    }else{
-      let cH=40+Math.floor(Math.random()*40);
-      let multi=score>150&&Math.random()<0.4?1.7:1;
-      obstacles.push({x:W,y:GND-cH,w:30*multi,h:cH,type:'cactus'});
-    }
-  }
-  // 장애물 이동/충돌
-  for(let i=obstacles.length-1;i>=0;i--){
-    let o=obstacles[i]; o.x-=speed;
-    drawObstacle(o);
-    // AABB 충돌 (약간 관대하게)
-    if(dino.x+dino.w-8>o.x+6&&dino.x+8<o.x+o.w-6&&dino.y+dino.h-6>o.y+6&&dino.y+6<o.y+o.h-6){
-      running=false; cancelAnimationFrame(af);
-      dino.dead=true; drawDino(dino);
-      setTimeout(()=>submitScore(score),500); return;
-    }
-    if(o.x+o.w<0) obstacles.splice(i,1);
-  }
-  drawDino(dino);
-  score++;
-  if(frame%6===0) speed=Math.min(12,5.5+score/400);
-  document.getElementById('score-display').textContent=score;
-  // HUD
-  ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.roundRect(W-130,6,124,26,8); ctx.fill();
-  ctx.fillStyle='#fff'; ctx.font='bold 14px Arial'; ctx.textAlign='right';
-  ctx.fillText('🦕 '+score,W-10,24); ctx.textAlign='left';
-  af=requestAnimationFrame(loop);
+function initGame(){
+  score=0;frame=0;speed=7;particles=[];groundX=0;nightAlpha=0;nightMode=false;
+  dino={x:80,y:GROUND,vy:0,w:56,h:56,jumping:false,ducking:false,run:0,alive:true};
+  obstacles=[];clouds=[{x:200,y:40,w:100,h:36,speed:1.2},{x:500,y:65,w:80,h:28,speed:0.9}];
 }
 
 function jump(){
-  if(!running) return;
-  if(dino.onGround) dino.vy=-16;
-  else if(dino.vy>0) dino.vy-=5; // 더블 점프
+  if(!dino.jumping&&!dino.ducking){
+    dino.vy=-16;dino.jumping=true;
+    for(let i=0;i<8;i++) particles.push({x:dino.x+dino.w/2,y:GROUND+dino.h,vx:(Math.random()-0.5)*4,vy:Math.random()*-3,life:20,color:'#aaa'});
+  }
 }
-function duck(on){ dino.ducking=on; if(on){dino.h=30;dino.y+=20;}else{dino.h=50;dino.y-=20;} }
 
-document.addEventListener('keydown',e=>{
-  if(e.code==='Space'||e.code==='ArrowUp'){e.preventDefault();jump();}
-  if(e.code==='ArrowDown'){e.preventDefault();if(!dino.ducking)duck(true);}
-});
-document.addEventListener('keyup',e=>{
-  if(e.code==='ArrowDown') duck(false);
-});
+function duck(v){dino.ducking=v;}
+
+function drawDino(){
+  const d=dino;
+  const drawn=dinoImg.complete&&dinoImg.naturalWidth&&drawImage2(dinoImg,d.x,d.y,d.w,d.h);
+  if(!drawn){
+    // Pixel dino
+    ctx.fillStyle='#555';
+    if(d.ducking){
+      ctx.fillRect(d.x,d.y+20,70,30);// body
+      ctx.fillRect(d.x+50,d.y+10,25,25);// head
+    } else {
+      ctx.fillRect(d.x+10,d.y,28,46);// body
+      ctx.fillRect(d.x+20,d.y-22,28,26);// head
+      ctx.fillStyle='#888';ctx.fillRect(d.x+36,d.y-16,8,8);// eye
+      ctx.fillStyle='#555';
+      // Legs
+      const lOff=d.run<10?[0,12]:[8,4];
+      ctx.fillRect(d.x+12,d.y+38,10,lOff[0]+10);
+      ctx.fillRect(d.x+26,d.y+38,10,lOff[1]+10);
+    }
+  }
+}
+
+function drawImage2(img,x,y,w,h){
+  if(!img||!img.complete||!img.naturalWidth)return false;
+  ctx.drawImage(img,x,y,w,h);return true;
+}
+
+function loop(){
+  if(!running)return;
+  frame++;score=Math.floor(frame*speed/10);
+  speed=7+score/500;
+
+  // Night mode
+  if(score>0&&score%800<2){nightMode=!nightMode;}
+  nightAlpha=nightMode?Math.min(nightAlpha+0.01,0.85):Math.max(nightAlpha-0.01,0);
+
+  // BG sky
+  const sky=ctx.createLinearGradient(0,0,0,H-55);
+  sky.addColorStop(0,nightMode?'#001122':'#87CEEB');
+  sky.addColorStop(1,nightMode?'#002244':'#C8E6FA');
+  ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+
+  // Moon or Sun
+  if(nightMode){
+    ctx.fillStyle='rgba(255,255,200,0.9)';ctx.shadowBlur=30;ctx.shadowColor='#ffffaa';
+    ctx.beginPath();ctx.arc(W-60,50,28,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+    // Stars
+    for(let i=0;i<40;i++){ctx.fillStyle=`rgba(255,255,255,${0.3+Math.sin(frame*0.05+i)*0.3})`;ctx.beginPath();ctx.arc(i*18+Math.sin(i)*10,(i*13+5)%100,1.5,0,Math.PI*2);ctx.fill();}
+  } else {
+    ctx.fillStyle='#FFD700';ctx.shadowBlur=30;ctx.shadowColor='#FFAA00';
+    ctx.beginPath();ctx.arc(60,50,26,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+  }
+
+  // Mountains BG
+  ctx.fillStyle=nightMode?'#001a33':'rgba(130,180,120,0.35)';
+  ctx.beginPath();ctx.moveTo(0,GROUND);
+  [0,80,160,240,320,400,480,560,640,700].forEach((x,i)=>{
+    ctx.lineTo(x,GROUND-(i%2===0?80:50)-(i*7)%40);
+  });
+  ctx.lineTo(W,GROUND);ctx.fill();
+
+  // Clouds
+  clouds.forEach(c=>{
+    c.x-=c.speed;if(c.x<-150)c.x=W+100+Math.random()*200;
+    const drawn=drawImage2(cloudImg,c.x,c.y,c.w,c.h);
+    if(!drawn){
+      ctx.fillStyle='rgba(255,255,255,0.8)';
+      ctx.beginPath();ctx.arc(c.x+30,c.y+18,22,0,Math.PI*2);ctx.arc(c.x+55,c.y+12,28,0,Math.PI*2);ctx.arc(c.x+80,c.y+18,22,0,Math.PI*2);ctx.fill();
+    }
+  });
+
+  // Ground
+  groundX-=speed;if(groundX<=-64)groundX=0;
+  ctx.fillStyle=nightMode?'#2d5a1b':'#8B7355';
+  ctx.fillRect(0,GROUND+dino.h,W,H-GROUND-dino.h);
+  ctx.fillStyle=nightMode?'#3a7a25':'#6B8E23';
+  ctx.fillRect(0,GROUND+dino.h,W,8);
+  // Ground detail
+  ctx.strokeStyle=nightMode?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.1)';ctx.lineWidth=1.5;
+  for(let x=(groundX%64)+0;x<W;x+=64){ctx.beginPath();ctx.moveTo(x,GROUND+dino.h+4);ctx.lineTo(x+32,GROUND+dino.h+4);ctx.stroke();}
+  // Dust
+  for(let x=0;x<W;x+=110){ctx.fillStyle='rgba(150,120,80,0.4)';ctx.fillRect((x+frame*speed)%W,GROUND+dino.h+2,30,3);}
+
+  // Spawn obstacles
+  if(frame%Math.max(50,80-Math.floor(speed*3))===0){
+    const type=Math.random()<0.3?'ptero':'cactus';
+    const y=type==='ptero'?GROUND-Math.random()*70-20:GROUND;
+    obstacles.push({x:W+60,y,type,w:type==='ptero'?52:40,h:type==='ptero'?40:56,frame:0});
+  }
+
+  // Obstacles
+  obstacles=obstacles.filter(o=>o.x>-100);
+  obstacles.forEach(o=>{
+    o.x-=speed;o.frame++;
+    if(o.type==='cactus'){
+      const drawn=drawImage2(cactusImg,o.x,o.y,o.w,o.h);
+      if(!drawn){
+        ctx.fillStyle='#2ECC71';
+        ctx.fillRect(o.x+12,o.y,16,56);
+        ctx.fillRect(o.x,o.y+14,12,14);ctx.fillRect(o.x+28,o.y+20,12,14);
+      }
+    } else {
+      const flapY=Math.sin(o.frame*0.15)*8;
+      const drawn=drawImage2(pteroImg,o.x,o.y+flapY,o.w,o.h);
+      if(!drawn){
+        ctx.fillStyle='#8E44AD';
+        ctx.beginPath();ctx.moveTo(o.x+26,o.y+20+flapY);
+        ctx.lineTo(o.x,o.y+flapY);ctx.lineTo(o.x+10,o.y+30+flapY);
+        ctx.lineTo(o.x+52,o.y+flapY);ctx.closePath();ctx.fill();
+      }
+    }
+    // Collision (tighter hitbox)
+    const dx=dino.ducking?70:56,dh=dino.ducking?30:dino.h;
+    const dy=dino.ducking?20:0;
+    if(dino.x+10<o.x+o.w-10&&dino.x+dx-10>o.x+10&&dino.y+dy+10<o.y+o.h-10&&dino.y+dy+dh-10>o.y+10){
+      dino.alive=false;
+    }
+  });
+
+  // Physics
+  if(dino.jumping){
+    dino.vy+=0.7;dino.y+=dino.vy;
+    if(dino.y>=GROUND){dino.y=GROUND;dino.vy=0;dino.jumping=false;}
+  }
+  dino.run=(dino.run+1)%20;
+
+  drawDino();
+
+  // Particles
+  particles.forEach(pt=>{pt.x+=pt.vx;pt.y+=pt.vy;pt.vy+=0.2;pt.life--;});
+  particles=particles.filter(pt=>pt.life>0);
+  particles.forEach(pt=>{ctx.save();ctx.globalAlpha=pt.life/20;ctx.fillStyle=pt.color;ctx.beginPath();ctx.arc(pt.x,pt.y,3,0,Math.PI*2);ctx.fill();ctx.restore();});
+
+  // HUD
+  ctx.fillStyle=nightMode?'rgba(255,255,255,0.9)':'rgba(0,0,0,0.7)';
+  ctx.font='bold 18px monospace';ctx.textAlign='right';ctx.textBaseline='top';
+  ctx.fillText(`${String(score).padStart(5,'0')}`,W-14,12);
+  if(hiScore>0){ctx.font='12px monospace';ctx.fillText(`HI ${String(hiScore).padStart(5,'0')}`,W-14,34);}
+
+  if(!dino.alive){
+    running=false;cancelAnimationFrame(af);
+    if(score>hiScore)hiScore=score;
+    // Game over text
+    ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#E74C3C';ctx.font='bold 36px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('💀 GAME OVER',W/2,H/2-20);
+    ctx.fillStyle='#fff';ctx.font='16px monospace';ctx.fillText(`SCORE: ${score}`,W/2,H/2+20);
+    setTimeout(()=>submitScore(score),1500);
+  }
+  document.getElementById('score-display').textContent=score;
+  af=requestAnimationFrame(loop);
+}
+
+function startGame(){
+  document.getElementById('result-overlay').classList.remove('show');
+  initGame();running=true;cancelAnimationFrame(af);loop();
+}
+
+canvas.addEventListener('click',jump);
 canvas.addEventListener('touchstart',e=>{e.preventDefault();jump();},{passive:false});
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowUp'||e.key===' '||e.key==='w'){e.preventDefault();jump();}
+  if(e.key==='ArrowDown'||e.key==='s'){duck(true);}
+});
+document.addEventListener('keyup',e=>{if(e.key==='ArrowDown'||e.key==='s')duck(false);});
 
-// 초기 화면
-drawBG();
-ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.roundRect(150,60,300,100,14); ctx.fill();
-ctx.fillStyle='#fff'; ctx.font='bold 22px Arial'; ctx.textAlign='center';
-ctx.fillText('🦕 공룡 점프게임',W/2,100);
-ctx.font='14px Arial';
-ctx.fillText('스페이스/클릭 점프 | ↓ 숙이기',W/2,130);
-ctx.fillText('시작 버튼을 눌러주세요!',W/2,155); ctx.textAlign='left';
+// Preview
+const sky2=ctx.createLinearGradient(0,0,0,H);sky2.addColorStop(0,'#87CEEB');sky2.addColorStop(1,'#C8E6FA');
+ctx.fillStyle=sky2;ctx.fillRect(0,0,W,H);
+ctx.fillStyle='rgba(0,0,0,0.4)';ctx.fillRect(0,0,W,H);
+ctx.fillStyle='#2ECC71';ctx.font='bold 34px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+ctx.shadowBlur=15;ctx.shadowColor='#2ECC71';ctx.fillText('🦖 공룡 달리기',W/2,H/2-20);
+ctx.shadowBlur=0;ctx.fillStyle='#fff';ctx.font='15px sans-serif';ctx.fillText('클릭/스페이스 점프 | 아래 키 숙이기',W/2,H/2+20);
 </script>
 {% endblock %}
