@@ -1,149 +1,232 @@
 {% extends 'challenges/game_base.html' %}
 {% block game_area %}
 <div style="position:relative;width:100%;max-width:500px;margin:0 auto;">
-  <canvas id="gameCanvas" style="border-radius:12px;width:100%;background:#111;touch-action:none;cursor:crosshair;box-shadow:0 10px 30px rgba(0,0,0,0.8);"></canvas>
-  <div id="hud" style="position:absolute;top:10px;left:15px;right:15px;display:flex;justify-content:space-between;color:white;font-family:sans-serif;font-weight:bold;text-shadow:0 2px 4px rgba(0,0,0,0.8);pointer-events:none;">
-    <div style="font-size:18px;">질량: <span id="s-score" style="color:#f1c40f;">10</span></div>
-  </div>
+  <canvas id="gameCanvas" style="border-radius:16px;width:100%;display:block;touch-action:none;box-shadow:0 10px 40px rgba(0,0,0,0.7);"></canvas>
+  <div style="text-align:center;margin-top:6px;color:#aaa;font-size:13px;">마우스/터치로 세포를 이동 · 작은 세포 먹기 · 큰 세포 피하기</div>
 </div>
 {% endblock %}
 {% block game_script %}
 <script>
 const canvas=document.getElementById('gameCanvas');
 const ctx=canvas.getContext('2d');
-const W=500,H=500, MAP=2000;
-canvas.width=W; canvas.height=H;
-let af, running=false, score=10, cx=0, cy=0, targetX=W/2, targetY=H/2;
-let player={x:MAP/2,y:MAP/2,r:20,c:'#3498db'}, food=[], enemies=[];
-let isTouch=false;
+const W=500,H=500;
+canvas.width=W;canvas.height=H;
 
-function spawnFood(n){
-  for(let i=0;i<n;i++) food.push({x:Math.random()*MAP,y:Math.random()*MAP,c:`hsl(${Math.random()*360},80%,60%)`});
+const WORLD=1600;
+let af,running=false,score=0,frame=0;
+let player,foods,enemies,viruses,particles,cam;
+let mx=W/2,my=H/2;
+
+const CELL_COLORS=['#E74C3C','#E67E22','#F1C40F','#2ECC71','#3498DB','#9B59B6','#1ABC9C','#E91E63'];
+
+function rndColor(){return CELL_COLORS[Math.floor(Math.random()*CELL_COLORS.length)];}
+function rndInWorld(){return{x:Math.random()*WORLD,y:Math.random()*WORLD};}
+
+function initGame(){
+  score=0;frame=0;particles=[];
+  player={x:WORLD/2,y:WORLD/2,r:20,color:'#3498DB',name:'YOU',trail:[]};
+  cam={x:WORLD/2-W/2,y:WORLD/2-H/2};
+  foods=Array.from({length:350},()=>({...rndInWorld(),r:6+Math.random()*5,color:rndColor(),anim:Math.random()*Math.PI*2}));
+  viruses=Array.from({length:12},()=>({...rndInWorld(),r:55,color:'#2ECC71',spikes:12}));
+  enemies=Array.from({length:12},()=>({...rndInWorld(),r:15+Math.random()*30,color:rndColor(),vx:(Math.random()-0.5)*2.5,vy:(Math.random()-0.5)*2.5,name:randName(),targetX:Math.random()*WORLD,targetY:Math.random()*WORLD,split:false}));
 }
-function spawnEnemies(n){
-  for(let i=0;i<n;i++){
-    enemies.push({
-      x:Math.random()*MAP, y:Math.random()*MAP, r:Math.random()*30+15,
-      c:`hsl(${Math.random()*360},70%,50%)`, tx:Math.random()*MAP, ty:Math.random()*MAP, wait:0
-    });
+
+function randName(){const ns=['슬라임','세포','바이러스','플레이어','킹','미생물','거인','새싹'];return ns[Math.floor(Math.random()*ns.length)];}
+
+function worldToScreen(wx,wy){return{sx:(wx-cam.x),sy:(wy-cam.y)};}
+
+function drawCell(cx,cy,r,color,name,isPlayer=false,alpha=1){
+  ctx.save();ctx.globalAlpha=alpha;
+  // Shadow
+  ctx.shadowBlur=isPlayer?20:10;ctx.shadowColor=color;
+  // Main circle with gradient
+  const g=ctx.createRadialGradient(cx-r*0.3,cy-r*0.3,0,cx,cy,r);
+  g.addColorStop(0,lighten(color,35));g.addColorStop(0.6,color);g.addColorStop(1,darken(color,20));
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fill();
+  // Border
+  ctx.strokeStyle=darken(color,30);ctx.lineWidth=isPlayer?3:2;ctx.stroke();
+  // Shine
+  ctx.fillStyle='rgba(255,255,255,0.2)';ctx.beginPath();ctx.ellipse(cx-r*0.25,cy-r*0.3,r*0.35,r*0.22,Math.PI*-0.3,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+  // Name
+  if(r>15){
+    ctx.fillStyle='#fff';ctx.strokeStyle='rgba(0,0,0,0.5)';ctx.lineWidth=3;
+    ctx.font=`bold ${Math.min(18,r*0.55)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.strokeText(name,cx,cy);ctx.fillText(name,cx,cy);
   }
+  ctx.restore();
 }
 
-function drawCircle(x,y,r,color,glow=false){
-  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
-  let grad=ctx.createRadialGradient(x-r*0.3,y-r*0.3,r*0.1, x,y,r);
-  grad.addColorStop(0,'#fff'); grad.addColorStop(0.3,color); grad.addColorStop(1,'#111');
-  if(glow){ ctx.shadowBlur=15; ctx.shadowColor=color; }
-  ctx.fillStyle=grad; ctx.fill(); ctx.shadowBlur=0;
-}
-
-function drawGrid(){
-  ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=1;
-  let ox = -cx%50, oy = -cy%50;
+function drawVirus(vx,vy,r){
+  ctx.save();ctx.shadowBlur=15;ctx.shadowColor='#27AE60';
+  ctx.fillStyle='#2ECC71';ctx.strokeStyle='#27AE60';ctx.lineWidth=3;
   ctx.beginPath();
-  for(let x=ox;x<W;x+=50){ ctx.moveTo(x,0); ctx.lineTo(x,H); }
-  for(let y=oy;y<H;y+=50){ ctx.moveTo(0,y); ctx.lineTo(W,y); }
-  ctx.stroke();
-  // Map bounds
-  ctx.strokeStyle='rgba(255,0,0,0.3)'; ctx.lineWidth=5;
-  ctx.strokeRect(-cx,-cy,MAP,MAP);
+  for(let i=0;i<24;i++){
+    const a=(i/24)*Math.PI*2;
+    const sr=i%2===0?r:r*0.72;
+    i===0?ctx.moveTo(vx+Math.cos(a)*sr,vy+Math.sin(a)*sr):ctx.lineTo(vx+Math.cos(a)*sr,vy+Math.sin(a)*sr);
+  }
+  ctx.closePath();ctx.fill();ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,0.3)';ctx.beginPath();ctx.arc(vx-r*0.2,vy-r*0.25,r*0.28,0,Math.PI*2);ctx.fill();
+  ctx.restore();
 }
 
 function loop(){
-  if(!running) return;
-  ctx.fillStyle='#0b0f19'; ctx.fillRect(0,0,W,H);
-  
-  // Player move
-  let dx = targetX - W/2, dy = targetY - H/2;
-  let dist = Math.hypot(dx,dy);
-  let spd = Math.max(1, 6 - player.r/40);
-  if(dist>10){
-    player.x += (dx/dist)*spd; player.y += (dy/dist)*spd;
-  }
-  player.x = Math.max(player.r,Math.min(MAP-player.r,player.x));
-  player.y = Math.max(player.r,Math.min(MAP-player.r,player.y));
+  if(!running)return;
+  frame++;
 
-  cx = player.x - W/2; cy = player.y - H/2;
+  // BG grid
+  const bg=ctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#e8f4ff');bg.addColorStop(1,'#d0eaff');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(100,160,220,0.18)';ctx.lineWidth=1;
+  const gs=40,ox=(-cam.x)%gs,oy=(-cam.y)%gs;
+  for(let x=ox;x<W;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=oy;y<H;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
 
-  drawGrid();
+  // Camera follow player (smooth)
+  cam.x+=(player.x-W/2-cam.x)*0.08;
+  cam.y+=(player.y-H/2-cam.y)*0.08;
+  cam.x=Math.max(0,Math.min(WORLD-W,cam.x));
+  cam.y=Math.max(0,Math.min(WORLD-H,cam.y));
+
+  // Scale (zoom out as player grows)
+  const scale=Math.min(1.4,600/Math.max(player.r*6,100));
+  ctx.save();
+  ctx.translate(W/2,H/2);ctx.scale(scale,scale);ctx.translate(-player.x,-player.y);
+
+  // Player trail
+  player.trail.push({x:player.x,y:player.y});
+  if(player.trail.length>20)player.trail.shift();
+  player.trail.forEach((pt,i)=>{
+    ctx.save();ctx.globalAlpha=(i/player.trail.length)*0.2;
+    ctx.fillStyle=player.color;ctx.beginPath();ctx.arc(pt.x,pt.y,player.r*(i/player.trail.length)*0.7,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  });
+
+  // Viruses
+  viruses.forEach(v=>{
+    const{sx,sy}=worldToScreen(v.x,v.y);
+    drawVirus(v.x,v.y,v.r);
+    // Virus vs player
+    if(player.r>v.r*1.1&&Math.hypot(player.x-v.x,player.y-v.y)<player.r+v.r-10){
+      // Split player (just bounce here for simplicity)
+      const a=Math.atan2(player.y-v.y,player.x-v.x);
+      player.x=v.x+Math.cos(a)*(v.r+player.r+5);
+      player.y=v.y+Math.sin(a)*(v.r+player.r+5);
+      player.r=Math.max(20,player.r*0.85);
+    }
+  });
 
   // Food
-  food.forEach((f,i)=>{
-    ctx.fillStyle=f.c; ctx.beginPath(); ctx.arc(f.x-cx, f.y-cy, 4, 0, Math.PI*2); ctx.fill();
-    if(Math.hypot(player.x-f.x, player.y-f.y) < player.r){
-      food.splice(i,1); player.r+=0.5; score=Math.floor(player.r); spawnFood(1);
+  foods.forEach(f=>{
+    f.anim+=0.05;
+    const pulse=1+Math.sin(f.anim)*0.15;
+    ctx.save();ctx.shadowBlur=8;ctx.shadowColor=f.color;
+    ctx.fillStyle=f.color;ctx.beginPath();ctx.arc(f.x,f.y,f.r*pulse,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.35)';ctx.beginPath();ctx.arc(f.x-f.r*0.25,f.y-f.r*0.28,f.r*0.3,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+    // Eat
+    if(Math.hypot(player.x-f.x,player.y-f.y)<player.r){
+      player.r=Math.sqrt(player.r*player.r+f.r*f.r*0.3);
+      score+=Math.round(f.r);
+      for(let i=0;i<5;i++) particles.push({x:f.x,y:f.y,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4,life:20,color:f.color,r:f.r*0.6});
+      f.x=Math.random()*WORLD;f.y=Math.random()*WORLD;
     }
   });
 
   // Enemies
-  enemies.forEach((e,i)=>{
-    if(e.wait>0) e.wait--;
-    else {
-      let edx=e.tx-e.x, edy=e.ty-e.y, edist=Math.hypot(edx,edy);
-      let espd=Math.max(1, 5 - e.r/40);
-      if(edist>10){ e.x+=(edx/edist)*espd; e.y+=(edy/edist)*espd; }
-      else { e.tx=Math.random()*MAP; e.ty=Math.random()*MAP; e.wait=60; }
+  enemies.forEach(e=>{
+    // AI: chase food or player if bigger, flee if smaller
+    if(e.r>player.r*1.15){
+      const a=Math.atan2(player.y-e.y,player.x-e.x);
+      e.targetX=player.x;e.targetY=player.y;
+    } else if(frame%120===0){
+      e.targetX=Math.random()*WORLD;e.targetY=Math.random()*WORLD;
     }
-    e.x=Math.max(e.r,Math.min(MAP-e.r,e.x)); e.y=Math.max(e.r,Math.min(MAP-e.r,e.y));
+    const ea=Math.atan2(e.targetY-e.y,e.targetX-e.x);
+    const spd=(40/(e.r))+1;
+    e.x+=Math.cos(ea)*spd;e.y+=Math.sin(ea)*spd;
+    e.x=Math.max(e.r,Math.min(WORLD-e.r,e.x));
+    e.y=Math.max(e.r,Math.min(WORLD-e.r,e.y));
 
-    // Enemy eats food
-    food.forEach((f,fi)=>{
-      if(Math.hypot(e.x-f.x, e.y-f.y) < e.r){ food.splice(fi,1); e.r+=0.5; spawnFood(1); }
+    drawCell(e.x,e.y,e.r,e.color,e.name);
+
+    // Eat foods
+    foods.forEach(f=>{
+      if(Math.hypot(e.x-f.x,e.y-f.y)<e.r){
+        e.r=Math.sqrt(e.r*e.r+f.r*f.r*0.2);
+        f.x=Math.random()*WORLD;f.y=Math.random()*WORLD;
+      }
     });
-
-    drawCircle(e.x-cx, e.y-cy, e.r, e.c, false);
-
-    // Collision with player
-    let pDist = Math.hypot(player.x-e.x, player.y-e.y);
-    if(pDist < player.r && player.r > e.r*1.1){
-      player.r += e.r*0.5; score=Math.floor(player.r); enemies.splice(i,1); spawnEnemies(1);
-    } else if(pDist < e.r && e.r > player.r*1.1){
-      gameOver();
+    // Eat/be eaten by player
+    const dist=Math.hypot(player.x-e.x,player.y-e.y);
+    if(dist<player.r*0.85&&player.r>e.r*1.1){
+      player.r=Math.sqrt(player.r*player.r+e.r*e.r*0.5);
+      score+=Math.round(e.r*5);
+      for(let i=0;i<16;i++) particles.push({x:e.x,y:e.y,vx:(Math.random()-0.5)*8,vy:(Math.random()-0.5)*8,life:35,color:e.color,r:e.r*0.3});
+      e.x=Math.random()*WORLD;e.y=Math.random()*WORLD;e.r=15+Math.random()*30;
+    } else if(dist<e.r*0.85&&e.r>player.r*1.1){
+      // Player eaten → game over
+      running=false;cancelAnimationFrame(af);setTimeout(()=>submitScore(score),800);
     }
   });
 
-  // Player
-  drawCircle(player.x-cx, player.y-cy, player.r, player.c, true);
-  ctx.fillStyle='white'; ctx.font='bold 14px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText(score, player.x-cx, player.y-cy);
+  // Player move towards mouse
+  const wx=cam.x+mx/scale+(player.x-player.x),wy=cam.y+my/scale+(player.y-player.y);
+  const tdx=mx/scale+cam.x-player.x+(player.x-player.x);
+  // Use direct coordinate conversion
+  const targetX=cam.x+(mx-W/2)/scale+player.x;
+  const targetY=cam.y+(my-H/2)/scale+player.y;
+  const da=Math.atan2(targetY-player.y,targetX-player.x);
+  const pspd=Math.max(1.5,6-player.r*0.04);
+  const dist2=Math.hypot(targetX-player.x,targetY-player.y);
+  if(dist2>5){player.x+=Math.cos(da)*pspd;player.y+=Math.sin(da)*pspd;}
+  player.x=Math.max(player.r,Math.min(WORLD-player.r,player.x));
+  player.y=Math.max(player.r,Math.min(WORLD-player.r,player.y));
 
-  document.getElementById('s-score').textContent=score;
+  drawCell(player.x,player.y,player.r,player.color,'YOU',true);
+
+  // Particles
+  particles.forEach(pt=>{pt.x+=pt.vx;pt.y+=pt.vy;pt.vx*=0.9;pt.vy*=0.9;pt.life--;});
+  particles=particles.filter(pt=>pt.life>0);
+  particles.forEach(pt=>{ctx.save();ctx.globalAlpha=pt.life/35;ctx.fillStyle=pt.color;ctx.shadowBlur=6;ctx.shadowColor=pt.color;ctx.beginPath();ctx.arc(pt.x,pt.y,pt.r,0,Math.PI*2);ctx.fill();ctx.restore();});
+
+  ctx.restore();
+
+  // Minimap
+  ctx.fillStyle='rgba(0,0,0,0.5)';ctx.beginPath();ctx.roundRect(W-86,H-86,76,76,6);ctx.fill();
+  const mmScale=74/WORLD;
+  ctx.fillStyle='rgba(255,255,255,0.1)';ctx.fillRect(W-85,H-85,74,74);
+  foods.forEach(f=>{ctx.fillStyle=f.color;ctx.fillRect(W-85+f.x*mmScale-1,H-85+f.y*mmScale-1,2,2);});
+  enemies.forEach(e=>{ctx.fillStyle=e.color;ctx.beginPath();ctx.arc(W-85+e.x*mmScale,H-85+e.y*mmScale,3,0,Math.PI*2);ctx.fill();});
+  ctx.fillStyle=player.color;ctx.shadowBlur=6;ctx.shadowColor=player.color;ctx.beginPath();ctx.arc(W-85+player.x*mmScale,H-85+player.y*mmScale,4,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+
+  // HUD
+  ctx.fillStyle='rgba(0,0,0,0.5)';ctx.beginPath();ctx.roundRect(10,10,175,52,8);ctx.fill();
+  ctx.fillStyle='#fff';ctx.font='bold 15px monospace';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`SCORE: ${score}`,16,14);ctx.fillText(`크기: ${Math.round(player.r*2)} | Lv.${Math.floor(player.r/10)}`,16,34);
   document.getElementById('score-display').textContent=score;
-  
-  if(player.r>200){
-    player.r-=0.05; // mass decay
-  }
 
   af=requestAnimationFrame(loop);
 }
 
-function gameOver(){
-  running=false; cancelAnimationFrame(af);
-  setTimeout(()=>{submitScore(score);},1000);
-}
-
-canvas.addEventListener('mousemove',e=>{
-  let r=canvas.getBoundingClientRect(); targetX=e.clientX-r.left; targetY=e.clientY-r.top;
-});
-canvas.addEventListener('touchmove',e=>{
-  e.preventDefault(); let t=e.touches[0]; let r=canvas.getBoundingClientRect(); targetX=t.clientX-r.left; targetY=t.clientY-r.top;
-},{passive:false});
+function lighten(hex,pct){try{const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);const f=pct/100;return'#'+[r,g,b].map(v=>Math.min(255,Math.round(v+(255-v)*f)).toString(16).padStart(2,'0')).join('');}catch(e){return hex;}}
+function darken(hex,pct){try{const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);const f=1-pct/100;return'#'+[r,g,b].map(v=>Math.max(0,Math.round(v*f)).toString(16).padStart(2,'0')).join('');}catch(e){return hex;}}
 
 function startGame(){
   document.getElementById('result-overlay').classList.remove('show');
-  player={x:MAP/2,y:MAP/2,r:20,c:'#3498db'};
-  food=[]; enemies=[]; score=20;
-  spawnFood(300); spawnEnemies(15);
-  running=true; cancelAnimationFrame(af); loop();
+  initGame();running=true;cancelAnimationFrame(af);loop();
 }
 
+canvas.addEventListener('mousemove',e=>{const r=canvas.getBoundingClientRect();mx=(e.clientX-r.left)*(W/r.width);my=(e.clientY-r.top)*(H/r.height);});
+canvas.addEventListener('touchmove',e=>{e.preventDefault();const r=canvas.getBoundingClientRect(),t=e.touches[0];mx=(t.clientX-r.left)*(W/r.width);my=(t.clientY-r.top)*(H/r.height);},{passive:false});
+
 // Preview
-ctx.fillStyle='#0b0f19'; ctx.fillRect(0,0,W,H);
-drawCircle(W/2, H/2, 40, '#3498db', true);
-ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,W,H);
-ctx.fillStyle='#3498db'; ctx.font='bold 34px sans-serif'; ctx.textAlign='center'; ctx.shadowBlur=10; ctx.shadowColor='#3498db';
-ctx.fillText('세포 키우기 3D',W/2,H/2-20); ctx.shadowBlur=0;
-ctx.fillStyle='#fff'; ctx.font='16px sans-serif';
-ctx.fillText('마우스/터치로 이동하여 작은 세포를 먹으세요',W/2,H/2+20);
+const pbg=ctx.createLinearGradient(0,0,0,H);pbg.addColorStop(0,'#e8f4ff');pbg.addColorStop(1,'#d0eaff');
+ctx.fillStyle=pbg;ctx.fillRect(0,0,W,H);ctx.fillStyle='rgba(0,0,0,0.4)';ctx.fillRect(0,0,W,H);
+ctx.fillStyle='#2ECC71';ctx.font='bold 32px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+ctx.shadowBlur=20;ctx.shadowColor='#2ECC71';ctx.fillText('🦠 세포 키우기',W/2,H/2-24);
+ctx.shadowBlur=0;ctx.fillStyle='#fff';ctx.font='14px sans-serif';
+ctx.fillText('마우스/터치로 이동',W/2,H/2+16);ctx.fillText('작은 세포 먹고 성장! 큰 세포 피하기',W/2,H/2+42);
 </script>
 {% endblock %}
