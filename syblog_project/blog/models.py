@@ -87,8 +87,14 @@ class Post(models.Model):
     def get_content_markdown(self):
         return markdown(self.content)
 
-    def get_avatar_url(self):
-        return f'https://ui-avatars.com/api/?name={self.author.username}&background=random&size=60'
+    def get_avatar_url(self, size=60):
+        try:
+            profile = self.author.profile
+            if profile.avatar and profile.avatar.name:
+                return profile.avatar.url
+        except Exception:
+            pass
+        return f'https://ui-avatars.com/api/?name={self.author.username}&background=6c63ff&color=fff&size={size}'
 
 class Comment(models.Model):
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='comments')
@@ -105,8 +111,14 @@ class Comment(models.Model):
     def get_absolute_url(self):
         return f'{self.post.get_absolute_url()}#comment-{self.pk}'
 
-    def get_avatar_url(self):
-        return f'https://ui-avatars.com/api/?name={self.author.username}&background=random&size=60'
+    def get_avatar_url(self, size=60):
+        try:
+            profile = self.author.profile
+            if profile.avatar and profile.avatar.name:
+                return profile.avatar.url
+        except Exception:
+            pass
+        return f'https://ui-avatars.com/api/?name={self.author.username}&background=6c63ff&color=fff&size={size}'
     
     @property
     def top_level_replies(self):

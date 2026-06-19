@@ -98,7 +98,7 @@
             {% for u in recent_users %}
             <li class="list-group-item d-flex justify-content-between align-items-center">
                 <div>
-                    <img src="https://ui-avatars.com/api/?name={{ u.username }}&size=25" class="rounded-circle mr-2" width="25">
+                    {% if u.profile and u.profile.avatar %}<img src="{{ u.profile.avatar.url }}" class="rounded-circle mr-2" width="25" height="25" style="object-fit:cover;">{% else %}<img src="https://ui-avatars.com/api/?name={{ u.username }}&background=6c63ff&color=fff&size=25" class="rounded-circle mr-2" width="25">{% endif %}
                     {{ u.username }}
                     <br><small class="text-muted">{{ u.date_joined|date:"Y.m.d" }}</small>
                 </div>

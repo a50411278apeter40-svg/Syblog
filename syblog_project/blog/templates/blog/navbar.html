@@ -31,7 +31,7 @@
                     </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-toggle="dropdown">
-                            <img src="https://ui-avatars.com/api/?name={{ user.username }}&background=random&size=25" class="rounded-circle" width="25"> {{ user.username }}
+                            {% if user.profile and user.profile.avatar %}<img src="{{ user.profile.avatar.url }}" class="rounded-circle" width="25" height="25" style="object-fit:cover;">{% else %}<img src="https://ui-avatars.com/api/?name={{ user.username }}&background=6c63ff&color=fff&size=25" class="rounded-circle" width="25">{% endif %} {{ user.username }}
                             {% if user.profile %}
                             <span class="badge" style="background:rgba(255,255,255,0.2); font-size:0.65rem;">Lv.{{ user.profile.level }}</span>
                             {% endif %}

@@ -25,7 +25,7 @@
             <h5><a href="{{ s.get_absolute_url }}" class="text-dark text-decoration-none">{{ s.title }}</a></h5>
             <p class="text-muted small">{{ s.description|truncatechars:80 }}</p>
             <small class="text-muted">
-                <img src="https://ui-avatars.com/api/?name={{ s.author.username }}&size=20" class="rounded-circle mr-1" width="20">
+                {% if s.author.profile and s.author.profile.avatar %}<img src="{{ s.author.profile.avatar.url }}" class="rounded-circle mr-1" width="20" height="20" style="object-fit:cover;">{% else %}<img src="https://ui-avatars.com/api/?name={{ s.author.username }}&background=6c63ff&color=fff&size=20" class="rounded-circle mr-1" width="20">{% endif %}
                 {{ s.author.username }} · {{ s.posts.count }}편
             </small>
         </div>

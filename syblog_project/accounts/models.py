@@ -123,6 +123,15 @@ class UserProfile(models.Model):
     def has_badge(self, badge_id):
         return self.badges.filter(badge_id=badge_id).exists()
 
+    def get_avatar_url(self, size=60):
+        """실제 업로드된 아바타 or ui-avatars 폴백"""
+        try:
+            if self.avatar and self.avatar.name:
+                return self.avatar.url
+        except Exception:
+            pass
+        return f'https://ui-avatars.com/api/?name={self.user.username}&size={size}&background=6c63ff&color=fff'
+
     def award_badge(self, badge_id):
         """배지 부여 (없을 때만). 반환값: 새로 부여됐으면 badge info, 아니면 None"""
         if badge_id in BADGE_IDS and not self.has_badge(badge_id):

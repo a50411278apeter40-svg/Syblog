@@ -12,7 +12,7 @@
         {% for u in users %}
         <tr>
           <td>
-            <img src="https://ui-avatars.com/api/?name={{ u.username }}&size=30" class="rounded-circle mr-2" width="30">
+            {% if u.profile and u.profile.avatar %}<img src="{{ u.profile.avatar.url }}" class="rounded-circle mr-2" width="30" height="30" style="object-fit:cover;">{% else %}<img src="https://ui-avatars.com/api/?name={{ u.username }}&background=6c63ff&color=fff&size=30" class="rounded-circle mr-2" width="30">{% endif %}
             <a href="/user/profile/{{ u.username }}/">{{ u.username }}</a>
             {% if u.is_staff %}<span class="badge badge-warning ml-1">Staff</span>{% endif %}
           </td>

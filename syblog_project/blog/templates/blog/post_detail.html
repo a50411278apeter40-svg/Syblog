@@ -33,7 +33,7 @@
         <h1 class="card-title">{{ post.title }}</h1>
         {% if post.hook_text %}<h5 class="text-muted">{{ post.hook_text }}</h5>{% endif %}
         <div class="d-flex align-items-center mb-3">
-            <img src="https://ui-avatars.com/api/?name={{ post.author.username }}&size=40&background=random" class="rounded-circle mr-2" width="40">
+            <img src="{{ post.get_avatar_url }}" class="rounded-circle mr-2" width="40" height="40" style="object-fit:cover;">
             <div>
                 <a href="/user/profile/{{ post.author.username }}/" class="font-weight-bold text-dark">{{ post.author.username }}</a>
                 {% if post.author.profile %}
