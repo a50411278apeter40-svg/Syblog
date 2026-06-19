@@ -25,5 +25,6 @@ urlpatterns = [
     path('admin-delete-post/<int:pk>/', views.admin_delete_post, name='admin_delete_post'),
     path('backup-to-github/', views.backup_to_github, name='backup_to_github'),
     path('restore-from-github/', views.restore_from_github, name='restore_from_github'),
+    path('spellcheck/', views.spellcheck_proxy, name='spellcheck'),
     path('', views.PostList.as_view(), name='index'),
 ]
