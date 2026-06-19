@@ -19,6 +19,12 @@ def profile_view(request, username=None):
     series_list = Series.objects.filter(author=user)
     earned_badge_ids = profile.get_badges()
     earned_badges = [BADGE_IDS[bid] for bid in earned_badge_ids if bid in BADGE_IDS]
+    from .models import Follow
+    is_following = False
+    if request.user.is_authenticated and request.user != user:
+        is_following = Follow.objects.filter(follower=request.user, following=user).exists()
+    follower_count = user.followers.count()
+    following_count = user.following.count()
     return render(request, 'accounts/profile.html', {
         'profile_user': user,
         'profile': profile,
@@ -27,6 +33,9 @@ def profile_view(request, username=None):
         'level_thresholds': LEVEL_THRESHOLDS,
         'earned_badges': earned_badges,
         'earned_badge_ids': earned_badge_ids,
+        'is_following': is_following,
+        'follower_count': follower_count,
+        'following_count': following_count,
     })
 
 @login_required
