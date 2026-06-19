@@ -76,6 +76,72 @@ def leaderboard(request):
         'level_thresholds': LEVEL_THRESHOLDS,
     })
 
+@staff_member_required
+def admin_badge_manage(request):
+    """관리자 - 배지 관리 페이지 (유저별 배지 부여/회수)"""
+    from .models import UserBadge
+    users = User.objects.filter(is_superuser=False).select_related('profile').order_by('username')
+
+    # 검색
+    q = request.GET.get('q', '').strip()
+    if q:
+        users = users.filter(username__icontains=q)
+
+    user_data = []
+    for u in users:
+        profile, _ = UserProfile.objects.get_or_create(user=u)
+        earned = set(profile.get_badges())
+        user_data.append({
+            'user': u,
+            'profile': profile,
+            'earned_count': len(earned),
+            'earned_ids': list(earned),
+        })
+
+    return render(request, 'accounts/admin_badge_manage.html', {
+        'user_data': user_data,
+        'badge_list': BADGE_LIST,
+        'badge_ids': BADGE_IDS,
+        'q': q,
+    })
+
+
+@staff_member_required
+def admin_badge_award(request):
+    """배지 부여 / 회수 AJAX"""
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'POST only'})
+    import json as _json
+    body = _json.loads(request.body)
+    user_id = body.get('user_id')
+    badge_id = body.get('badge_id')
+    action = body.get('action')  # 'award' or 'revoke'
+
+    target_user = get_object_or_404(User, pk=user_id)
+    profile, _ = UserProfile.objects.get_or_create(user=target_user)
+
+    from .models import UserBadge
+    if action == 'award':
+        result = profile.award_badge(badge_id)
+        if result:
+            return JsonResponse({'ok': True, 'action': 'awarded', 'badge': badge_id})
+        return JsonResponse({'ok': True, 'action': 'already_exists'})
+    elif action == 'revoke':
+        deleted, _ = UserBadge.objects.filter(profile=profile, badge_id=badge_id).delete()
+        return JsonResponse({'ok': True, 'action': 'revoked', 'deleted': deleted})
+    elif action == 'award_all':
+        count = 0
+        for b in BADGE_LIST:
+            if profile.award_badge(b['id']):
+                count += 1
+        return JsonResponse({'ok': True, 'action': 'award_all', 'count': count})
+    elif action == 'revoke_all':
+        deleted, _ = UserBadge.objects.filter(profile=profile).delete()
+        return JsonResponse({'ok': True, 'action': 'revoke_all', 'deleted': deleted})
+
+    return JsonResponse({'ok': False, 'error': 'unknown action'})
+
+
 
 # ── 커스텀 로그인 / 회원가입 뷰 (allauth 우회) ──────────────────────
 from django.contrib.auth import authenticate, login as auth_login

@@ -1,0 +1,235 @@
+{% extends 'blog/base.html' %}
+{% block head_title %}배지 관리 - SyBlog Admin{% endblock %}
+{% block main_area %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3><i class="fas fa-medal" style="color:#F1C40F;"></i> 배지 관리</h3>
+  <a href="{% url 'blog:admin_dashboard' %}" class="btn btn-sm btn-outline-secondary">
+    <i class="fas fa-arrow-left"></i> 대시보드
+  </a>
+</div>
+
+<!-- 배지 범례 -->
+<div class="card mb-4">
+  <div class="card-header font-weight-bold" style="background:#fffde7;">
+    <i class="fas fa-list"></i> 전체 배지 목록 ({{ badge_list|length }}개)
+  </div>
+  <div class="card-body p-3">
+    <div class="d-flex flex-wrap" style="gap:8px;">
+      {% for b in badge_list %}
+      <span class="badge-legend-item" title="{{ b.desc }}"
+            style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;
+                   border-radius:20px;background:#f5f5f5;border:1px solid #e0e0e0;
+                   font-size:0.78rem;cursor:default;">
+        {{ b.icon }} {{ b.name }}
+      </span>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- 유저 검색 -->
+<div class="card mb-4">
+  <div class="card-body py-2">
+    <form method="get" class="form-inline">
+      <input type="text" name="q" value="{{ q }}" placeholder="유저명 검색..."
+             class="form-control form-control-sm mr-2" style="width:220px;">
+      <button type="submit" class="btn btn-sm btn-primary mr-2">
+        <i class="fas fa-search"></i> 검색
+      </button>
+      {% if q %}<a href="{% url 'accounts:admin_badge_manage' %}" class="btn btn-sm btn-outline-secondary">전체 보기</a>{% endif %}
+    </form>
+  </div>
+</div>
+
+<!-- 알림 -->
+<div id="toast" style="display:none;position:fixed;top:20px;right:20px;z-index:9999;
+     min-width:240px;padding:14px 20px;border-radius:10px;font-weight:600;
+     background:#333;color:#fff;box-shadow:0 4px 16px rgba(0,0,0,0.2);">
+</div>
+
+<!-- 유저별 배지 테이블 -->
+<div class="card">
+  <div class="card-header font-weight-bold">
+    <i class="fas fa-users"></i> 유저별 배지 현황
+    <span class="text-muted font-weight-normal" style="font-size:0.85rem;"> ({{ user_data|length }}명)</span>
+  </div>
+  <div class="card-body p-0">
+    {% for item in user_data %}
+    <div class="user-badge-row border-bottom" style="padding:16px 20px;">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+        <!-- 유저 정보 -->
+        <div class="d-flex align-items-center" style="gap:10px;min-width:180px;">
+          {% if item.profile.avatar %}
+          <img src="{{ item.profile.avatar.url }}" class="rounded-circle" width="38" height="38" style="object-fit:cover;">
+          {% else %}
+          <img src="https://ui-avatars.com/api/?name={{ item.user.username }}&background=6c63ff&color=fff&size=38" class="rounded-circle" width="38">
+          {% endif %}
+          <div>
+            <strong>{{ item.user.username }}</strong>
+            <br>
+            <small class="text-muted">
+              Lv.{{ item.profile.level }} {{ item.profile.level_title }} &nbsp;·&nbsp;
+              <span style="color:#F1C40F;">🏅 {{ item.earned_count }}/{{ badge_list|length }}</span>
+            </small>
+          </div>
+        </div>
+        <!-- 전체 부여/회수 버튼 -->
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-xs btn-success"
+                  onclick="awardAll({{ item.user.pk }}, this)"
+                  style="font-size:0.75rem;padding:3px 10px;">
+            ✅ 전체 부여
+          </button>
+          <button class="btn btn-xs btn-danger"
+                  onclick="revokeAll({{ item.user.pk }}, this)"
+                  style="font-size:0.75rem;padding:3px 10px;">
+            🗑️ 전체 회수
+          </button>
+        </div>
+      </div>
+
+      <!-- 배지 그리드 -->
+      <div class="badge-grid mt-3" style="display:flex;flex-wrap:wrap;gap:6px;"
+           id="badges-{{ item.user.pk }}">
+        {% for b in badge_list %}
+        <button class="badge-btn {% if b.id in item.earned_ids %}earned{% endif %}"
+                data-user="{{ item.user.pk }}"
+                data-badge="{{ b.id }}"
+                title="{{ b.name }}: {{ b.desc }}"
+                onclick="toggleBadge(this)"
+                style="width:44px;height:44px;border-radius:10px;border:2px solid
+                       {% if b.id in item.earned_ids %}#F1C40F{% else %}#e0e0e0{% endif %};
+                       background:{% if b.id in item.earned_ids %}linear-gradient(135deg,#fffde7,#fff8c0){% else %}#f5f5f5{% endif %};
+                       font-size:1.3rem;cursor:pointer;transition:all 0.15s;
+                       {% if b.id not in item.earned_ids %}opacity:0.45;{% endif %}
+                       display:flex;align-items:center;justify-content:center;">
+          {{ b.icon }}
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+    {% empty %}
+    <div class="text-center text-muted py-5">
+      <i class="fas fa-user-slash" style="font-size:2rem;"></i>
+      <p class="mt-2">유저가 없습니다.</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+const BADGE_NAMES = {
+  {% for b in badge_list %}"{{ b.id }}": "{{ b.icon }} {{ b.name }}"{% if not forloop.last %},{% endif %}{% endfor %}
+};
+
+function showToast(msg, ok=true) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = ok ? '#2ecc71' : '#e74c3c';
+  t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 2500);
+}
+
+async function callAPI(user_id, badge_id, action) {
+  const resp = await fetch("{% url 'accounts:admin_badge_award' %}", {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': '{{ csrf_token }}'
+    },
+    body: JSON.stringify({ user_id, badge_id, action })
+  });
+  return resp.json();
+}
+
+async function toggleBadge(btn) {
+  const userId = parseInt(btn.dataset.user);
+  const badgeId = btn.dataset.badge;
+  const isEarned = btn.classList.contains('earned');
+  const action = isEarned ? 'revoke' : 'award';
+
+  btn.style.opacity = '0.5';
+  btn.disabled = true;
+
+  const data = await callAPI(userId, badgeId, action);
+  btn.disabled = false;
+
+  if (data.ok) {
+    if (action === 'award') {
+      btn.classList.add('earned');
+      btn.style.border = '2px solid #F1C40F';
+      btn.style.background = 'linear-gradient(135deg,#fffde7,#fff8c0)';
+      btn.style.opacity = '1';
+      showToast('✅ ' + BADGE_NAMES[badgeId] + ' 부여 완료!');
+    } else {
+      btn.classList.remove('earned');
+      btn.style.border = '2px solid #e0e0e0';
+      btn.style.background = '#f5f5f5';
+      btn.style.opacity = '0.45';
+      showToast('🗑️ ' + BADGE_NAMES[badgeId] + ' 회수 완료', false);
+    }
+    // 배지 카운트 업데이트
+    updateBadgeCount(userId);
+  }
+}
+
+async function awardAll(userId, btn) {
+  if (!confirm('이 유저에게 모든 배지를 부여하시겠습니까?')) return;
+  btn.disabled = true;
+  const data = await callAPI(userId, null, 'award_all');
+  btn.disabled = false;
+  if (data.ok) {
+    // 모든 버튼 earned 상태로
+    document.querySelectorAll(`#badges-${userId} .badge-btn`).forEach(b => {
+      b.classList.add('earned');
+      b.style.border = '2px solid #F1C40F';
+      b.style.background = 'linear-gradient(135deg,#fffde7,#fff8c0)';
+      b.style.opacity = '1';
+    });
+    updateBadgeCount(userId);
+    showToast('🏅 모든 배지 부여 완료! (' + data.count + '개 신규)');
+  }
+}
+
+async function revokeAll(userId, btn) {
+  if (!confirm('이 유저의 모든 배지를 회수하시겠습니까?')) return;
+  btn.disabled = true;
+  const data = await callAPI(userId, null, 'revoke_all');
+  btn.disabled = false;
+  if (data.ok) {
+    document.querySelectorAll(`#badges-${userId} .badge-btn`).forEach(b => {
+      b.classList.remove('earned');
+      b.style.border = '2px solid #e0e0e0';
+      b.style.background = '#f5f5f5';
+      b.style.opacity = '0.45';
+    });
+    updateBadgeCount(userId);
+    showToast('🗑️ 모든 배지 회수 완료', false);
+  }
+}
+
+function updateBadgeCount(userId) {
+  const grid = document.getElementById('badges-' + userId);
+  if (!grid) return;
+  const earned = grid.querySelectorAll('.badge-btn.earned').length;
+  const total = grid.querySelectorAll('.badge-btn').length;
+  const row = grid.closest('.user-badge-row');
+  if (row) {
+    const badge_count_el = row.querySelector('small .badge-count');
+    if (badge_count_el) badge_count_el.textContent = earned;
+    // small 전체를 다시 그리기
+    const small = row.querySelector('small');
+    if (small) {
+      const txt = small.textContent;
+      small.innerHTML = small.innerHTML.replace(/🏅 \d+\/\d+/, `🏅 ${earned}/${total}`);
+    }
+  }
+}
+</script>
+
+<style>
+.badge-btn:hover { transform: scale(1.15); opacity: 1 !important; }
+.btn-xs { font-size: .75rem; padding: 2px 8px; }
+</style>
+{% endblock %}
