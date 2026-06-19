@@ -1,0 +1,66 @@
+{% extends 'blog/base.html' %}
+{% block head_title %}공지사항 {{ action }} - SyBlog{% endblock %}
+
+{% block main_area %}
+<div class="card shadow-sm" style="max-width:680px;margin:0 auto;">
+  <div class="card-header font-weight-bold"
+       style="background:linear-gradient(135deg,#f39c12,#e67e22);color:#fff;">
+    <i class="fas fa-bullhorn"></i> 공지사항 {{ action }}
+  </div>
+  <div class="card-body">
+    <form method="POST">
+      {% csrf_token %}
+
+      <div class="form-group">
+        <label class="font-weight-bold">제목 <span class="text-danger">*</span></label>
+        <input type="text" name="title" class="form-control"
+               value="{{ notice.title|default:'' }}" required
+               placeholder="공지사항 제목을 입력하세요">
+      </div>
+
+      <div class="form-group">
+        <label class="font-weight-bold">상세 내용 <small class="text-muted">(선택)</small></label>
+        <textarea name="content" class="form-control" rows="4"
+                  placeholder="자세한 내용을 입력하세요 (선택 사항)">{{ notice.content|default:'' }}</textarea>
+      </div>
+
+      <div class="row">
+        <div class="col-md-6">
+          <div class="form-group">
+            <label class="font-weight-bold">종류</label>
+            <select name="level" class="form-control">
+              <option value="info"    {% if notice.level == 'info'    %}selected{% endif %}>🔵 일반</option>
+              <option value="warning" {% if notice.level == 'warning' %}selected{% endif %}>🟡 주의</option>
+              <option value="danger"  {% if notice.level == 'danger'  %}selected{% endif %}>🔴 긴급</option>
+              <option value="success" {% if notice.level == 'success' %}selected{% endif %}>🟢 성공/완료</option>
+            </select>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="form-group">
+            <label class="font-weight-bold">만료 일시 <small class="text-muted">(비워두면 무기한)</small></label>
+            <input type="datetime-local" name="expires_at" class="form-control"
+                   value="{% if notice.expires_at %}{{ notice.expires_at|date:'Y-m-d' }}T{{ notice.expires_at|date:'H:i' }}{% endif %}">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <div class="custom-control custom-switch">
+          <input type="checkbox" class="custom-control-input" id="is_active" name="is_active"
+                 {% if not notice or notice.is_active %}checked{% endif %}>
+          <label class="custom-control-label font-weight-bold" for="is_active">
+            즉시 표시 (활성화)
+          </label>
+        </div>
+      </div>
+
+      <hr>
+      <button type="submit" class="btn btn-warning btn-lg">
+        <i class="fas fa-save"></i> {{ action }}하기
+      </button>
+      <a href="{% url 'blog:notice_admin' %}" class="btn btn-secondary btn-lg ml-2">취소</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

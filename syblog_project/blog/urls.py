@@ -26,5 +26,9 @@ urlpatterns = [
     path('backup-to-github/', views.backup_to_github, name='backup_to_github'),
     path('restore-from-github/', views.restore_from_github, name='restore_from_github'),
     path('spellcheck/', views.spellcheck_proxy, name='spellcheck'),
+    path('notices/', views.notice_list_admin, name='notice_admin'),
+    path('notices/create/', views.notice_create, name='notice_create'),
+    path('notices/<int:pk>/edit/', views.notice_edit, name='notice_edit'),
+    path('notices/<int:pk>/delete/', views.notice_delete, name='notice_delete'),
     path('', views.PostList.as_view(), name='index'),
 ]

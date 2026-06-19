@@ -18,6 +18,9 @@
                 {% if user.is_authenticated %}
                     {% if user.is_staff or user.is_superuser %}
                     <li class="nav-item">
+                        <a class="nav-link" href="/blog/notices/"><i class="fas fa-bullhorn text-warning"></i> 공지관리</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="/blog/admin-dashboard/"><i class="fas fa-cog"></i> 관리자</a>
                     </li>
                     {% endif %}

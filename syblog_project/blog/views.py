@@ -747,3 +747,60 @@ def _ko_spellcheck(text):
     # 위치순 정렬
     matches.sort(key=lambda x: x['offset'])
     return matches
+
+
+# ── 공지사항 관리 (관리자 전용) ──────────────────────────────────────
+from .models import Notice
+from django.views.generic import CreateView, UpdateView, DeleteView
+from django.contrib.admin.views.decorators import staff_member_required
+from django.utils.decorators import method_decorator
+
+
+@staff_member_required
+def notice_list_admin(request):
+    from django.utils import timezone
+    from django.db.models import Q
+    notices = Notice.objects.all().order_by('-created_at')
+    return render(request, 'blog/notice_admin.html', {'notices': notices})
+
+
+@staff_member_required
+def notice_create(request):
+    if request.method == 'POST':
+        title      = request.POST.get('title', '').strip()
+        content    = request.POST.get('content', '').strip()
+        level      = request.POST.get('level', 'info')
+        is_active  = request.POST.get('is_active') == 'on'
+        expires_at = request.POST.get('expires_at') or None
+        if title:
+            from django.utils.dateparse import parse_datetime
+            exp = parse_datetime(expires_at) if expires_at else None
+            Notice.objects.create(
+                title=title, content=content, level=level,
+                is_active=is_active, expires_at=exp, created_by=request.user
+            )
+        return redirect('blog:notice_admin')
+    return render(request, 'blog/notice_form.html', {'action': '등록', 'notice': None})
+
+
+@staff_member_required
+def notice_edit(request, pk):
+    notice = get_object_or_404(Notice, pk=pk)
+    if request.method == 'POST':
+        notice.title     = request.POST.get('title', '').strip()
+        notice.content   = request.POST.get('content', '').strip()
+        notice.level     = request.POST.get('level', 'info')
+        notice.is_active = request.POST.get('is_active') == 'on'
+        exp_str          = request.POST.get('expires_at') or None
+        from django.utils.dateparse import parse_datetime
+        notice.expires_at = parse_datetime(exp_str) if exp_str else None
+        notice.save()
+        return redirect('blog:notice_admin')
+    return render(request, 'blog/notice_form.html', {'action': '수정', 'notice': notice})
+
+
+@staff_member_required
+def notice_delete(request, pk):
+    notice = get_object_or_404(Notice, pk=pk)
+    notice.delete()
+    return redirect('blog:notice_admin')

@@ -124,3 +124,38 @@ class Comment(models.Model):
     @property
     def top_level_replies(self):
         return self.replies.filter(is_deleted=False)
+
+
+class Notice(models.Model):
+    LEVEL_CHOICES = [
+        ('info',    '일반 (파란색)'),
+        ('warning', '주의 (노란색)'),
+        ('danger',  '긴급 (빨간색)'),
+        ('success', '성공 (초록색)'),
+    ]
+    title      = models.CharField(max_length=200, verbose_name='제목')
+    content    = models.TextField(blank=True, verbose_name='상세 내용')
+    level      = models.CharField(max_length=10, choices=LEVEL_CHOICES, default='info', verbose_name='종류')
+    is_active  = models.BooleanField(default=True, verbose_name='표시 여부')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        verbose_name='작성자'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(null=True, blank=True, verbose_name='만료일시 (비워두면 무기한)')
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = '공지사항'
+        verbose_name_plural = '공지사항'
+
+    def __str__(self):
+        return self.title
+
+    def is_visible(self):
+        from django.utils import timezone
+        if not self.is_active:
+            return False
+        if self.expires_at and timezone.now() > self.expires_at:
+            return False
+        return True

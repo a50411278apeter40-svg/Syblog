@@ -1,0 +1,80 @@
+{% extends 'blog/base.html' %}
+{% block head_title %}공지사항 관리 - SyBlog{% endblock %}
+
+{% block main_area %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h4 class="mb-0"><i class="fas fa-bullhorn text-warning"></i> 공지사항 관리</h4>
+  <a href="{% url 'blog:notice_create' %}" class="btn btn-warning btn-sm">
+    <i class="fas fa-plus"></i> 새 공지 등록
+  </a>
+</div>
+
+{% if notices %}
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead style="background:#f8f9fa;">
+        <tr>
+          <th style="width:50px;">#</th>
+          <th>제목</th>
+          <th style="width:90px;">종류</th>
+          <th style="width:80px;">표시</th>
+          <th style="width:160px;">만료일시</th>
+          <th style="width:160px;">작성일</th>
+          <th style="width:110px;">관리</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for n in notices %}
+        <tr>
+          <td class="text-muted">{{ n.pk }}</td>
+          <td>
+            <span class="badge badge-{{ n.level }} mr-1">●</span>
+            <strong>{{ n.title }}</strong>
+            {% if n.content %}<small class="text-muted ml-1">— {{ n.content|truncatechars:40 }}</small>{% endif %}
+          </td>
+          <td>
+            {% if n.level == 'info' %}<span class="badge badge-info">일반</span>
+            {% elif n.level == 'warning' %}<span class="badge badge-warning">주의</span>
+            {% elif n.level == 'danger' %}<span class="badge badge-danger">긴급</span>
+            {% elif n.level == 'success' %}<span class="badge badge-success">성공</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if n.is_active %}
+              <span class="badge badge-success"><i class="fas fa-eye"></i> 표시</span>
+            {% else %}
+              <span class="badge badge-secondary"><i class="fas fa-eye-slash"></i> 숨김</span>
+            {% endif %}
+          </td>
+          <td class="text-muted" style="font-size:.82rem;">
+            {% if n.expires_at %}{{ n.expires_at|date:"Y.m.d H:i" }}{% else %}—{% endif %}
+          </td>
+          <td class="text-muted" style="font-size:.82rem;">{{ n.created_at|date:"Y.m.d H:i" }}</td>
+          <td>
+            <a href="{% url 'blog:notice_edit' n.pk %}" class="btn btn-xs btn-outline-primary mr-1">
+              <i class="fas fa-edit"></i>
+            </a>
+            <a href="{% url 'blog:notice_delete' n.pk %}"
+               class="btn btn-xs btn-outline-danger"
+               onclick="return confirm('이 공지를 삭제할까요?')">
+              <i class="fas fa-trash"></i>
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="text-center text-muted py-5">
+  <i class="fas fa-bullhorn fa-3x mb-3" style="opacity:.3;"></i>
+  <p>등록된 공지사항이 없습니다.</p>
+</div>
+{% endif %}
+
+<style>
+.btn-xs { font-size:.75rem; padding:2px 7px; }
+</style>
+{% endblock %}

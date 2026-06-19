@@ -40,6 +40,30 @@
 </head>
 <body>
 {% include 'blog/navbar.html' %}
+{% if active_notices %}
+<div id="notice-area" style="position:sticky;top:0;z-index:1040;">
+  {% for n in active_notices %}
+  <div class="alert alert-{{ n.level }} notice-banner alert-dismissible mb-0 rounded-0 border-0 py-2 px-4"
+       id="notice-{{ n.pk }}" style="font-size:.9rem;">
+    <div class="container d-flex align-items-center" style="gap:10px;">
+      <span class="notice-icon">
+        {% if n.level == 'danger' %}🚨{% elif n.level == 'warning' %}⚠️{% elif n.level == 'success' %}✅{% else %}📢{% endif %}
+      </span>
+      <span>
+        <strong>{{ n.title }}</strong>
+        {% if n.content %}<span class="ml-2 text-muted" style="font-size:.85rem;">{{ n.content }}</span>{% endif %}
+      </span>
+      <button type="button" class="close ml-auto p-0" style="font-size:1.1rem;"
+              onclick="dismissNotice({{ n.pk }})" aria-label="닫기">
+        <span aria-hidden="true">&times;</span>
+      </button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+
 
 {% if messages %}
 <div class="container mt-2">
