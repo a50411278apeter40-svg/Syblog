@@ -14,3 +14,9 @@ class UserProfileAdmin(admin.ModelAdmin):
     def unblock_users(self, request, queryset):
         queryset.update(is_blocked=False)
     unblock_users.short_description = '선택된 사용자 차단 해제'
+
+from .models import Follow
+
+@admin.register(Follow)
+class FollowAdmin(admin.ModelAdmin):
+    list_display = ['follower', 'following', 'created_at']

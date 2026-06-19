@@ -104,15 +104,51 @@
         </div>
         {% endif %}
         <hr>
-        <!-- Like Button -->
+        <!-- 독서 진행률 바 활성화 표시 (JS에서 인식) -->
+        <div id="post-content-end" style="height:1px;"></div>
+        <!-- Like & Action Buttons -->
         <div class="text-center">
             <a href="/blog/{{ post.pk }}/like/" id="like-btn" class="btn {% if user in post.likes.all %}btn-danger{% else %}btn-outline-danger{% endif %}">
                 <i class="fas fa-heart"></i> <span id="like-count">{{ post.like_count }}</span>
             </a>
+            {% if user.is_authenticated %}
+            <button id="bookmark-btn" onclick="toggleBookmark({{ post.pk }})" class="btn {% if user in post.bookmarked_by.all %}btn-warning{% else %}btn-outline-warning{% endif %} ml-2" title="북마크">
+                <i class="fas fa-bookmark"></i>
+            </button>
+            {% endif %}
+            <a href="/blog/{{ post.pk }}/export-pdf/" target="_blank" class="btn btn-outline-secondary ml-2" title="PDF로 저장 (인쇄)">
+                <i class="fas fa-file-pdf"></i>
+            </a>
+            {% if user.is_authenticated and user == post.author or user.is_superuser %}
+            <a href="/blog/{{ post.pk }}/history/" class="btn btn-outline-dark ml-2" title="버전 히스토리">
+                <i class="fas fa-history"></i>
+            </a>
+            {% endif %}
             <a href="/mail/compose/{{ post.author.username }}/" class="btn btn-outline-info ml-2">
                 <i class="fas fa-envelope"></i> 메일 보내기
             </a>
+            {% if user.is_authenticated and user != post.author %}
+            <button onclick="followUser('{{ post.author.username }}')" id="follow-btn" class="btn btn-outline-primary ml-2">
+                <i class="fas fa-user-plus"></i> <span id="follow-label">팔로우</span>
+            </button>
+            {% endif %}
         </div>
+        <!-- AI 글쓰기 보조 -->
+        {% if user.is_authenticated %}
+        <div class="mt-3 p-3" style="background:rgba(108,99,255,0.06);border-radius:10px;border:1px solid rgba(108,99,255,0.2);">
+            <div class="d-flex align-items-center mb-2 flex-wrap" style="gap:8px;">
+                <span style="font-size:1.1rem;">🤖</span>
+                <strong style="color:#6c63ff;">AI 글쓰기 보조</strong>
+                <small class="text-muted">이 글 기반으로 아이디어를 얻어보세요</small>
+            </div>
+            <div class="btn-group btn-group-sm mb-2">
+                <button onclick="aiAssist('title', '{{ post.title|escapejs }}')" class="btn btn-outline-primary">💡 제목 추천</button>
+                <button onclick="aiAssist('improve', document.querySelector('.post-content').innerText.substring(0,500))" class="btn btn-outline-success">✨ 내용 개선</button>
+                <button onclick="aiAssist('draft', '{{ post.title|escapejs }}')" class="btn btn-outline-secondary">📝 초안 작성</button>
+            </div>
+            <div id="ai-result" style="display:none;margin-top:10px;padding:12px;background:rgba(255,255,255,0.7);border-radius:8px;border:1px solid rgba(108,99,255,0.2);white-space:pre-wrap;font-size:.9rem;max-height:200px;overflow-y:auto;"></div>
+        </div>
+        {% endif %}
     </div>
 </div>
 
@@ -168,11 +204,16 @@
                         </div>
                         <p class="mb-1 mt-1">{{ comment.content }}</p>
                     </div>
-                    <div class="mt-1">
+                    <div class="mt-1 d-flex align-items-center">
                         {% if user.is_authenticated and not comment.is_deleted %}
                         <a href="#" class="btn btn-sm btn-link text-muted p-0 mr-2" onclick="setReply({{ comment.pk }}, '{{ comment.author.username }}')">
                             <i class="fas fa-reply"></i> 답글
                         </a>
+                        <button class="btn btn-sm btn-link p-0 mr-2 comment-like-btn" data-pk="{{ comment.pk }}"
+                            style="color:{% if user in comment.likes.all %}#e74c3c{% else %}#aaa{% endif %};">
+                            <i class="fas fa-thumbs-up"></i>
+                            <span class="comment-like-count">{{ comment.likes.count }}</span>
+                        </button>
                         {% endif %}
                         {% if user.is_authenticated and user == comment.author or user.is_superuser %}
                         <a href="/blog/update_comment/{{ comment.pk }}/" class="btn btn-sm btn-link text-info p-0 mr-2"><i class="fas fa-edit"></i></a>
@@ -210,6 +251,56 @@
         {% endfor %}
     </div>
 </div>
+
+<!-- 목차(TOC) 자동 생성 + 북마크/댓글좋아요 AJAX -->
+<script>
+// TOC 자동 생성
+document.addEventListener('DOMContentLoaded', function(){
+    const postBody = document.querySelector('.post-content');
+    if(!postBody) return;
+    const headings = postBody.querySelectorAll('h2, h3');
+    if(headings.length < 2) return;
+    const toc = document.createElement('div');
+    toc.style.cssText = 'background:var(--light-bg);border-left:4px solid #6c63ff;padding:16px 20px;border-radius:8px;margin-bottom:20px;';
+    toc.innerHTML = '<strong style="color:#6c63ff;"><i class="fas fa-list"></i> 목차</strong><ul style="margin:8px 0 0 16px;padding:0;" id="toc-list"></ul>';
+    const ul = toc.querySelector('#toc-list');
+    headings.forEach((h,i) => {
+        const id = 'heading-' + i;
+        h.id = id;
+        const li = document.createElement('li');
+        li.style.cssText = h.tagName==='H3' ? 'margin-left:16px;font-size:.88rem;' : 'font-size:.92rem;';
+        li.innerHTML = `<a href="#${id}" style="color:#6c63ff;text-decoration:none;">${h.textContent}</a>`;
+        ul.appendChild(li);
+    });
+    postBody.insertBefore(toc, postBody.firstChild);
+});
+
+// 북마크 AJAX
+function toggleBookmark(pk){
+    const btn = document.getElementById('bookmark-btn');
+    fetch('/blog/bookmark/' + pk + '/', {
+        method: 'GET',
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    }).then(r=>r.json()).then(d=>{
+        btn.className = d.bookmarked ? 'btn btn-warning ml-2' : 'btn btn-outline-warning ml-2';
+    }).catch(()=>{ location.href='/blog/bookmark/'+pk+'/'; });
+}
+
+// 댓글 좋아요 AJAX
+document.addEventListener('click', function(e){
+    const btn = e.target.closest('.comment-like-btn');
+    if(!btn) return;
+    e.preventDefault();
+    const pk = btn.dataset.pk;
+    fetch('/blog/comment/' + pk + '/like/', {
+        method: 'GET',
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    }).then(r=>r.json()).then(d=>{
+        btn.style.color = d.liked ? '#e74c3c' : '#aaa';
+        btn.querySelector('.comment-like-count').textContent = d.count;
+    });
+});
+</script>
 
 <script>
 function setReply(commentId, username) {

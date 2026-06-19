@@ -1,0 +1,39 @@
+{% extends 'blog/base.html' %}
+{% block head_title %}내 북마크 - SyBlog{% endblock %}
+{% block main_area %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2 style="color:#2d3436;font-weight:800;"><i class="fas fa-bookmark" style="color:#6c63ff;"></i> 내 북마크</h2>
+  <span class="badge badge-primary">{{ bookmarks.count }}개</span>
+</div>
+{% if bookmarks %}
+  {% for bm in bookmarks %}
+  <div class="card mb-3">
+    <div class="card-body d-flex justify-content-between align-items-center">
+      <div>
+        {% if bm.post.category %}<span class="badge badge-primary mr-2">{{ bm.post.category }}</span>{% endif %}
+        <a href="{{ bm.post.get_absolute_url }}" class="font-weight-bold text-dark text-decoration-none" style="font-size:1.05rem;">{{ bm.post.title }}</a>
+        <div class="text-muted mt-1" style="font-size:.85rem;">
+          <i class="fas fa-user"></i> {{ bm.post.author.username }}
+          <span class="ml-2"><i class="fas fa-eye"></i> {{ bm.post.view_count }}</span>
+          <span class="ml-2"><i class="fas fa-heart text-danger"></i> {{ bm.post.like_count }}</span>
+          <span class="ml-2"><i class="fas fa-clock"></i> 저장: {{ bm.created_at|date:"Y.m.d" }}</span>
+        </div>
+      </div>
+      <div class="d-flex gap-2" style="gap:8px;">
+        <a href="{{ bm.post.get_absolute_url }}" class="btn btn-sm btn-primary">읽기</a>
+        <a href="/blog/bookmark/{{ bm.post.pk }}/" class="btn btn-sm btn-outline-danger"
+           onclick="return confirm('북마크를 삭제하시겠습니까?')">
+          <i class="fas fa-trash"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="text-center py-5">
+    <i class="fas fa-bookmark" style="font-size:4rem;color:#ddd;"></i>
+    <p class="text-muted mt-3">저장된 북마크가 없습니다.</p>
+    <a href="/blog/" class="btn btn-primary">블로그 둘러보기</a>
+  </div>
+{% endif %}
+{% endblock %}

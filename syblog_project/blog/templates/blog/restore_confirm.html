@@ -1,0 +1,13 @@
+{% extends 'blog/base.html' %}
+{% block main_area %}
+<div class="card text-center py-5">
+  <div class="card-body">
+    <h3>⏪ v{{ version.version }} 버전으로 복원</h3>
+    <p class="text-muted">현재 글의 내용이 <strong>v{{ version.version }}</strong> 버전으로 교체됩니다.<br>현재 버전은 히스토리에 자동 저장됩니다.</p>
+    <form method="POST">{% csrf_token %}
+      <button type="submit" class="btn btn-primary mr-2">✅ 복원하기</button>
+      <a href="{{ post.get_absolute_url }}" class="btn btn-outline-secondary">취소</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

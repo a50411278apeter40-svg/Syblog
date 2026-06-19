@@ -111,6 +111,12 @@
         <input type="text" name="tags_str" class="form-control" placeholder="django; python; web  (;로 구분)">
       </div>
 
+      <!-- 예약 게시 -->
+      <div class="form-group">
+        <label class="font-weight-bold"><i class="fas fa-calendar-alt text-warning"></i> 예약 게시 <small class="text-muted font-weight-normal">(비워두면 즉시 공개)</small></label>
+        <input type="datetime-local" name="publish_at" class="form-control" style="max-width:280px;">
+        <small class="text-muted">설정한 시각에 자동으로 공개됩니다.</small>
+      </div>
       <hr>
       <button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-save"></i> 저장하기</button>
       <a href="/blog/" class="btn btn-secondary btn-lg ml-2">취소</a>

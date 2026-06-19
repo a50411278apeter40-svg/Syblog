@@ -159,3 +159,83 @@ class Notice(models.Model):
         if self.expires_at and timezone.now() > self.expires_at:
             return False
         return True
+
+# ─── 1. 북마크 모델 ───────────────────────────────────────────
+class Bookmark(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bookmarks')
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='bookmarked_by')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'post')
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.user.username} → {self.post.title}'
+
+
+# ─── 2. 예약 게시 필드 (Post에 추가) - 별도 모델로 스케줄 관리 ───
+class ScheduledPost(models.Model):
+    post = models.OneToOneField(Post, on_delete=models.CASCADE, related_name='schedule')
+    publish_at = models.DateTimeField(verbose_name='예약 공개 시각')
+    is_published = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f'{self.post.title} @ {self.publish_at}'
+
+
+# ─── 3. 글 버전 히스토리 ────────────────────────────────────────
+class PostHistory(models.Model):
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='history')
+    title = models.CharField(max_length=200)
+    content = models.TextField()
+    saved_at = models.DateTimeField(auto_now_add=True)
+    saved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        ordering = ['-saved_at']
+
+    def __str__(self):
+        return f'{self.post.title} v{self.version}'
+
+
+# ─── 4. 댓글 좋아요 ─────────────────────────────────────────────
+class CommentLike(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='comment_likes')
+    comment = models.ForeignKey(Comment, on_delete=models.CASCADE, related_name='likes')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'comment')
+
+    def __str__(self):
+        return f'{self.user.username} ♥ comment#{self.comment.pk}'
+
+
+# ─── 5. 실시간 알림 ─────────────────────────────────────────────
+class Notification(models.Model):
+    TYPE_CHOICES = [
+        ('like',      '좋아요'),
+        ('comment',   '댓글'),
+        ('reply',     '답글'),
+        ('follow',    '팔로우'),
+        ('mention',   '멘션'),
+        ('comment_like', '댓글 좋아요'),
+    ]
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_notifications', null=True, blank=True)
+    ntype = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    message = models.CharField(max_length=300)
+    url = models.CharField(max_length=500, blank=True)
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'→{self.recipient.username}: {self.message[:40]}'
+
+
+# ─── 6. RSS Feed (별도 모델 불필요 - views에서 처리) ────────────

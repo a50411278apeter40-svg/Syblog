@@ -1,0 +1,37 @@
+{% extends 'blog/base.html' %}
+{% block head_title %}알림 - SyBlog{% endblock %}
+{% block main_area %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2 style="font-weight:800;color:#2d3436;"><i class="fas fa-bell" style="color:#6c63ff;"></i> 알림</h2>
+  <span class="badge badge-primary">{{ notifications|length }}개</span>
+</div>
+{% if notifications %}
+  {% for n in notifications %}
+  <a href="{{ n.url|default:'#' }}" class="text-decoration-none">
+    <div class="card mb-2 {% if not n.is_read %}border-left border-primary{% endif %}" style="{% if not n.is_read %}border-left:4px solid #6c63ff !important;{% endif %}">
+      <div class="card-body py-2 px-3 d-flex align-items-center">
+        <div class="mr-3" style="font-size:1.4rem;">
+          {% if n.ntype == 'like' %}❤️
+          {% elif n.ntype == 'comment' %}💬
+          {% elif n.ntype == 'reply' %}↩️
+          {% elif n.ntype == 'follow' %}👤
+          {% elif n.ntype == 'mention' %}📣
+          {% elif n.ntype == 'comment_like' %}👍
+          {% else %}🔔{% endif %}
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:.95rem;">{{ n.message }}</div>
+          <small class="text-muted">{{ n.created_at|date:"Y.m.d H:i" }}</small>
+        </div>
+        {% if not n.is_read %}<span class="badge badge-primary ml-2">새</span>{% endif %}
+      </div>
+    </div>
+  </a>
+  {% endfor %}
+{% else %}
+  <div class="text-center py-5">
+    <i class="fas fa-bell-slash" style="font-size:4rem;color:#ddd;"></i>
+    <p class="text-muted mt-3">아직 알림이 없습니다.</p>
+  </div>
+{% endif %}
+{% endblock %}

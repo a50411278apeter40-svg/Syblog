@@ -1,0 +1,135 @@
+{% extends 'blog/base.html' %}
+{% block head_title %}내 대시보드 - SyBlog{% endblock %}
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+{% block main_area %}
+<h2 style="color:#2d3436;font-weight:800;" class="mb-4"><i class="fas fa-chart-line" style="color:#6c63ff;"></i> 내 블로그 대시보드</h2>
+
+<!-- 통계 카드 -->
+<div class="row mb-4">
+  <div class="col-6 col-md-3 mb-3">
+    <div class="card text-center" style="border-top:4px solid #6c63ff;">
+      <div class="card-body py-3">
+        <div style="font-size:2rem;color:#6c63ff;font-weight:800;">{{ post_count }}</div>
+        <small class="text-muted">게시글</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3 mb-3">
+    <div class="card text-center" style="border-top:4px solid #48cfad;">
+      <div class="card-body py-3">
+        <div style="font-size:2rem;color:#48cfad;font-weight:800;">{{ total_views }}</div>
+        <small class="text-muted">총 조회수</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3 mb-3">
+    <div class="card text-center" style="border-top:4px solid #e74c3c;">
+      <div class="card-body py-3">
+        <div style="font-size:2rem;color:#e74c3c;font-weight:800;">{{ total_likes }}</div>
+        <small class="text-muted">총 좋아요</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3 mb-3">
+    <div class="card text-center" style="border-top:4px solid #f39c12;">
+      <div class="card-body py-3">
+        <div style="font-size:2rem;color:#f39c12;font-weight:800;">{{ total_comments }}</div>
+        <small class="text-muted">받은 댓글</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 팔로우 현황 -->
+<div class="row mb-4">
+  <div class="col-6">
+    <div class="card text-center">
+      <div class="card-body py-3">
+        <a href="/user/followers/{{ request.user.username }}/" class="text-decoration-none">
+          <div style="font-size:1.8rem;color:#6c63ff;font-weight:800;">{{ followers_count }}</div>
+          <small class="text-muted">팔로워</small>
+        </a>
+      </div>
+    </div>
+  </div>
+  <div class="col-6">
+    <div class="card text-center">
+      <div class="card-body py-3">
+        <a href="/user/following/{{ request.user.username }}/" class="text-decoration-none">
+          <div style="font-size:1.8rem;color:#48cfad;font-weight:800;">{{ following_count }}</div>
+          <small class="text-muted">팔로잉</small>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 조회수 차트 -->
+<div class="card mb-4">
+  <div class="card-header"><i class="fas fa-chart-bar"></i> 최근 7일 글 조회수</div>
+  <div class="card-body"><canvas id="viewChart" height="80"></canvas></div>
+</div>
+
+<!-- Top 5 인기 글 -->
+<div class="card mb-4">
+  <div class="card-header"><i class="fas fa-fire"></i> 내 인기 글 Top 5</div>
+  <div class="list-group list-group-flush">
+  {% for p in top_posts %}
+  <a href="{{ p.get_absolute_url }}" class="list-group-item list-group-item-action">
+    <div class="d-flex justify-content-between">
+      <span><span class="badge badge-primary mr-2">{{ forloop.counter }}</span>{{ p.title }}</span>
+      <small class="text-muted"><i class="fas fa-eye"></i> {{ p.view_count }} &nbsp; <i class="fas fa-heart text-danger"></i> {{ p.like_count }}</small>
+    </div>
+  </a>
+  {% empty %}
+  <div class="list-group-item text-muted">아직 게시글이 없습니다.</div>
+  {% endfor %}
+  </div>
+</div>
+
+<!-- 최근 글 -->
+<div class="card">
+  <div class="card-header"><i class="fas fa-clock"></i> 최근 게시글</div>
+  <div class="list-group list-group-flush">
+  {% for p in recent_posts %}
+  <a href="{{ p.get_absolute_url }}" class="list-group-item list-group-item-action">
+    <div class="d-flex justify-content-between">
+      <span>{{ p.title }}</span>
+      <small class="text-muted">{{ p.created_at|date:"m.d" }}</small>
+    </div>
+  </a>
+  {% empty %}
+  <div class="list-group-item text-muted">글이 없습니다.</div>
+  {% endfor %}
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+var raw = {{ daily_data|safe }};
+var labels = raw.map(d=>d.date);
+var data = raw.map(d=>d.views);
+var ctx = document.getElementById('viewChart').getContext('2d');
+new Chart(ctx, {
+  type: 'bar',
+  data: {
+    labels: labels,
+    datasets: [{
+      label: '조회수',
+      data: data,
+      backgroundColor: 'rgba(108,99,255,0.5)',
+      borderColor: '#6c63ff',
+      borderWidth: 2,
+      borderRadius: 6,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+  }
+});
+</script>
+{% endblock %}

@@ -39,3 +39,27 @@ class NoticeAdmin(admin.ModelAdmin):
         if not obj.pk:
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
+
+from .models import Bookmark, PostHistory, CommentLike, Notification, ScheduledPost
+
+@admin.register(Bookmark)
+class BookmarkAdmin(admin.ModelAdmin):
+    list_display = ['user', 'post', 'created_at']
+
+@admin.register(PostHistory)
+class PostHistoryAdmin(admin.ModelAdmin):
+    list_display = ['post', 'version', 'saved_by', 'saved_at']
+    readonly_fields = ['post', 'title', 'content', 'saved_at', 'saved_by', 'version']
+
+@admin.register(CommentLike)
+class CommentLikeAdmin(admin.ModelAdmin):
+    list_display = ['user', 'comment', 'created_at']
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ['recipient', 'sender', 'ntype', 'message', 'is_read', 'created_at']
+    list_filter = ['ntype', 'is_read']
+
+@admin.register(ScheduledPost)
+class ScheduledPostAdmin(admin.ModelAdmin):
+    list_display = ['post', 'publish_at', 'is_published']

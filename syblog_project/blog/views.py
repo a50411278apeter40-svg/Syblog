@@ -9,7 +9,7 @@ from django.http import JsonResponse
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from .models import Post, Category, Tag, Comment, Series, check_banned_keywords
-from .forms import CommentForm, PostForm, SeriesForm
+from .forms import CommentForm, PostForm, SeriesForm, PostFormWithSchedule
 from django.contrib.auth.models import User
 
 
@@ -68,7 +68,7 @@ class PostDetail(DetailView):
 
 class PostCreate(LoginRequiredMixin, CreateView):
     model = Post
-    form_class = PostForm
+    form_class = PostFormWithSchedule
     template_name = 'blog/post_form.html'
 
     def form_valid(self, form):
@@ -79,6 +79,10 @@ class PostCreate(LoginRequiredMixin, CreateView):
         
         form.instance.author = self.request.user
         response = super().form_valid(form)
+        # 예약 게시 처리
+        publish_at = form.cleaned_data.get('publish_at')
+        if publish_at:
+            ScheduledPost.objects.create(post=self.object, publish_at=publish_at)
         # 포인트 적립 (글 작성 20pt)
         _add_points(self.request.user, 20)
         # 배지 체크
@@ -98,6 +102,14 @@ class PostCreate(LoginRequiredMixin, CreateView):
                         tag.slug = slugify(t, allow_unicode=True)
                         tag.save()
                     self.object.tags.add(tag)
+        # 예약 게시 처리
+        publish_at = self.request.POST.get('publish_at', '').strip()
+        if publish_at:
+            from .models import ScheduledPost
+            from django.utils.dateparse import parse_datetime
+            dt = parse_datetime(publish_at)
+            if dt:
+                ScheduledPost.objects.update_or_create(post=self.object, defaults={'publish_at': dt, 'is_published': False})
         return response
 
     def get_form(self, form_class=None):
@@ -121,6 +133,15 @@ class PostUpdate(LoginRequiredMixin, UpdateView):
         if is_banned:
             form.add_error(None, f'금지된 키워드가 포함되어 있습니다: "{kw}"')
             return self.form_invalid(form)
+        # 수정 전 버전 히스토리 저장
+        try:
+            from .models import PostHistory
+            obj = self.get_object()
+            last = PostHistory.objects.filter(post=obj).first()
+            next_ver = (last.version + 1) if last else 1
+            PostHistory.objects.create(post=obj, title=obj.title, content=obj.content, saved_by=self.request.user, version=next_ver)
+        except Exception:
+            pass
         response = super().form_valid(form)
         self.object.tags.clear()
         tags_str = self.request.POST.get('tags_str')
@@ -193,6 +214,37 @@ def new_comment(request, pk):
                     pass
             comment.save()
             _award_blog_badge(request.user, "first_comment")
+            _add_points(request.user, 5)
+            # 알림 전송
+            try:
+                from .models import Notification as _Notif
+                if comment.parent and comment.parent.author and comment.parent.author != request.user:
+                    _Notif.objects.create(recipient=comment.parent.author, sender=request.user, ntype='reply',
+                        message=f'{request.user.username}님이 답글을 달았습니다.',
+                        url=comment.get_absolute_url())
+                elif not comment.parent and post.author and post.author != request.user:
+                    _Notif.objects.create(recipient=post.author, sender=request.user, ntype='comment',
+                        message=f'{request.user.username}님이 댓글을 달았습니다.',
+                        url=comment.get_absolute_url())
+                # @멘션 처리
+                import re as _re
+                _mentions = _re.findall(r'@(\w+)', comment.content)
+                from django.contrib.auth.models import User as _MU
+                for _uname in set(_mentions):
+                    try:
+                        _mu = _MU.objects.get(username=_uname)
+                        if _mu != request.user:
+                            _Notif.objects.get_or_create(
+                                recipient=_mu, sender=request.user, ntype='mention',
+                                defaults={
+                                    'message': f'{request.user.username}님이 댓글에서 회원님을 멘션했습니다.',
+                                    'url': comment.get_absolute_url()
+                                }
+                            )
+                    except Exception:
+                        pass
+            except Exception:
+                pass
             return redirect(comment.get_absolute_url())
     return redirect(post.get_absolute_url())
 
@@ -243,6 +295,26 @@ def like_post(request, pk):
         liked = True
         _award_blog_badge(request.user, "first_like")
         if post.like_count >= 10: _award_blog_badge(post.author, "popular") if post.author else None
+        # 좋아요 알림
+        try:
+            from .models import Notification as _N2
+            if post.author and post.author != request.user:
+                _N2.objects.create(
+                    recipient=post.author, sender=request.user, ntype='like',
+                    message=f'{request.user.username}님이 "{post.title}"에 좋아요를 눌렀습니다.',
+                    url=post.get_absolute_url()
+                )
+        except Exception:
+            pass
+        # 좋아요 알림
+        try:
+            from .models import Notification as _Notif
+            if post.author and post.author != request.user:
+                _Notif.objects.create(recipient=post.author, sender=request.user, ntype='like',
+                    message=f'{request.user.username}님이 게시글을 좋아합니다.',
+                    url=post.get_absolute_url())
+        except Exception:
+            pass
     post.like_count = post.likes.count()
     post.save(update_fields=['like_count'])
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -804,3 +876,380 @@ def notice_delete(request, pk):
     notice = get_object_or_404(Notice, pk=pk)
     notice.delete()
     return redirect('blog:notice_admin')
+
+# ═══════════════════════════════════════════════════════════════════
+#  NEW FEATURES — 2026.06
+# ═══════════════════════════════════════════════════════════════════
+from .models import Bookmark, PostHistory, CommentLike, Notification, ScheduledPost
+from django.db.models import Count, Sum
+import json as _json_mod
+
+
+def _send_notification(recipient, sender, ntype, message, url=''):
+    """알림 생성 헬퍼 (자기 자신 제외)"""
+    if recipient == sender:
+        return
+    Notification.objects.create(
+        recipient=recipient, sender=sender,
+        ntype=ntype, message=message, url=url
+    )
+
+
+# ── 1. 북마크 토글 ──────────────────────────────────────────────
+@login_required
+def bookmark_toggle(request, pk):
+    post = get_object_or_404(Post, pk=pk)
+    bm, created = Bookmark.objects.get_or_create(user=request.user, post=post)
+    if not created:
+        bm.delete()
+        bookmarked = False
+    else:
+        bookmarked = True
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'bookmarked': bookmarked})
+    return redirect(post.get_absolute_url())
+
+
+@login_required
+def my_bookmarks(request):
+    bookmarks = Bookmark.objects.filter(user=request.user).select_related('post', 'post__author', 'post__category')
+    return render(request, 'blog/my_bookmarks.html', {'bookmarks': bookmarks})
+
+
+# ── 2. 예약 게시 ────────────────────────────────────────────────
+@login_required
+def scheduled_posts(request):
+    schedules = ScheduledPost.objects.filter(
+        post__author=request.user, is_published=False
+    ).select_related('post').order_by('publish_at')
+    return render(request, 'blog/scheduled_posts.html', {'schedules': schedules})
+
+
+# ── 3. 글 버전 히스토리 ─────────────────────────────────────────
+@login_required
+def post_history(request, pk):
+    post = get_object_or_404(Post, pk=pk)
+    if not (request.user == post.author or request.user.is_superuser):
+        raise PermissionDenied
+    history = PostHistory.objects.filter(post=post)
+    return render(request, 'blog/post_history.html', {'post': post, 'history': history})
+
+
+@login_required
+def restore_post_version(request, pk, version_pk):
+    post = get_object_or_404(Post, pk=pk)
+    version = get_object_or_404(PostHistory, pk=version_pk, post=post)
+    if not (request.user == post.author or request.user.is_superuser):
+        raise PermissionDenied
+    if request.method == 'POST':
+        # 현재 버전 저장 후 복원
+        _save_post_history(post)
+        post.title = version.title
+        post.content = version.content
+        post.save(update_fields=['title', 'content'])
+        messages.success(request, f'v{version.version} 버전으로 복원되었습니다!')
+        return redirect(post.get_absolute_url())
+    return render(request, 'blog/restore_confirm.html', {'post': post, 'version': version})
+
+
+def _save_post_history(post):
+    last = PostHistory.objects.filter(post=post).first()
+    next_ver = (last.version + 1) if last else 1
+    PostHistory.objects.create(
+        post=post, title=post.title, content=post.content,
+        saved_by=post.author, version=next_ver
+    )
+
+
+# ── 4. 댓글 좋아요 ──────────────────────────────────────────────
+@login_required
+def like_comment(request, pk):
+    comment = get_object_or_404(Comment, pk=pk)
+    cl, created = CommentLike.objects.get_or_create(user=request.user, comment=comment)
+    if not created:
+        cl.delete()
+        liked = False
+        count = comment.likes.count()
+    else:
+        liked = True
+        count = comment.likes.count()
+        _send_notification(
+            comment.author, request.user, 'comment_like',
+            f'{request.user.username}님이 댓글을 좋아합니다.',
+            comment.get_absolute_url()
+        )
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'liked': liked, 'count': count})
+    return redirect(comment.post.get_absolute_url())
+
+
+# ── 5. 실시간 알림 ───────────────────────────────────────────────
+@login_required
+def notifications_view(request):
+    notifs = Notification.objects.filter(recipient=request.user)[:50]
+    Notification.objects.filter(recipient=request.user, is_read=False).update(is_read=True)
+    return render(request, 'blog/notifications.html', {'notifications': notifs})
+
+
+@login_required
+def notifications_count(request):
+    count = Notification.objects.filter(recipient=request.user, is_read=False).count()
+    return JsonResponse({'count': count})
+
+
+@login_required
+def notifications_dropdown(request):
+    notifs = Notification.objects.filter(recipient=request.user)[:10]
+    data = [
+        {
+            'id': n.pk,
+            'type': n.ntype,
+            'message': n.message,
+            'url': n.url,
+            'is_read': n.is_read,
+            'created_at': n.created_at.strftime('%m/%d %H:%M'),
+        }
+        for n in notifs
+    ]
+    return JsonResponse({'notifications': data})
+
+
+# ── 6. 팔로우 ────────────────────────────────────────────────────
+from accounts.models import Follow
+
+@login_required
+def follow_toggle(request, username):
+    target = get_object_or_404(User, username=username)
+    if target == request.user:
+        return JsonResponse({'error': '자기 자신을 팔로우할 수 없습니다.'}, status=400)
+    follow, created = Follow.objects.get_or_create(follower=request.user, following=target)
+    if not created:
+        follow.delete()
+        following = False
+    else:
+        following = True
+        _send_notification(
+            target, request.user, 'follow',
+            f'{request.user.username}님이 팔로우하기 시작했습니다.',
+            f'/user/profile/{request.user.username}/'
+        )
+    follower_count = target.followers.count()
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'following': following, 'follower_count': follower_count})
+    return redirect(f'/user/profile/{username}/')
+
+
+# ── 7. 내 블로그 대시보드 ────────────────────────────────────────
+@login_required
+def my_dashboard(request):
+    from django.db.models import Sum, Count
+    posts = Post.objects.filter(author=request.user)
+    total_views = posts.aggregate(s=Sum('view_count'))['s'] or 0
+    total_likes = posts.aggregate(s=Sum('like_count'))['s'] or 0
+    total_comments = Comment.objects.filter(post__author=request.user).count()
+    recent_posts = posts.order_by('-created_at')[:5]
+    # 일별 조회수 (최근 7일)
+    from django.utils import timezone
+    from datetime import timedelta
+    today = timezone.now().date()
+    daily_data = []
+    for i in range(6, -1, -1):
+        d = today - timedelta(days=i)
+        day_posts = posts.filter(created_at__date=d)
+        daily_data.append({'date': d.strftime('%m/%d'), 'views': day_posts.aggregate(s=Sum('view_count'))['s'] or 0})
+
+    # 인기 글 Top5
+    top_posts = posts.order_by('-view_count')[:5]
+    # 팔로워/팔로잉
+    followers_count = request.user.followers.count()
+    following_count = request.user.following.count()
+
+    return render(request, 'blog/my_dashboard.html', {
+        'total_views': total_views,
+        'total_likes': total_likes,
+        'total_comments': total_comments,
+        'recent_posts': recent_posts,
+        'daily_data': _json_mod.dumps(daily_data),
+        'top_posts': top_posts,
+        'post_count': posts.count(),
+        'followers_count': followers_count,
+        'following_count': following_count,
+    })
+
+
+# ── 8. 인기 글 위젯 API ──────────────────────────────────────────
+def popular_posts_api(request):
+    from django.utils import timezone
+    from datetime import timedelta
+    week_ago = timezone.now() - timedelta(days=7)
+    top = Post.objects.filter(created_at__gte=week_ago).order_by('-view_count', '-like_count')[:5]
+    data = [{'pk': p.pk, 'title': p.title, 'views': p.view_count, 'likes': p.like_count, 'url': p.get_absolute_url()} for p in top]
+    if not data:
+        top = Post.objects.order_by('-view_count')[:5]
+        data = [{'pk': p.pk, 'title': p.title, 'views': p.view_count, 'likes': p.like_count, 'url': p.get_absolute_url()} for p in top]
+    return JsonResponse({'posts': data})
+
+
+# ── 9. 다크모드 설정 저장 ────────────────────────────────────────
+def darkmode_toggle(request):
+    if request.method == 'POST':
+        mode = request.POST.get('mode', 'light')
+        request.session['dark_mode'] = (mode == 'dark')
+        return JsonResponse({'dark_mode': request.session['dark_mode']})
+    return JsonResponse({'error': 'POST only'}, status=405)
+
+
+# ── 10. 무한 스크롤 API ──────────────────────────────────────────
+def posts_api(request):
+    page = int(request.GET.get('page', 1))
+    per_page = 5
+    offset = (page - 1) * per_page
+    q = request.GET.get('q', '')
+    qs = Post.objects.order_by('-pk')
+    if q:
+        qs = qs.filter(Q(title__icontains=q) | Q(content__icontains=q))
+    total = qs.count()
+    posts = qs[offset:offset+per_page]
+    data = []
+    for p in posts:
+        data.append({
+            'pk': p.pk,
+            'title': p.title,
+            'hook_text': p.hook_text,
+            'author': p.author.username if p.author else '',
+            'avatar': p.get_avatar_url(),
+            'created_at': p.created_at.strftime('%Y.%m.%d'),
+            'view_count': p.view_count,
+            'like_count': p.like_count,
+            'comment_count': p.comments.count(),
+            'url': p.get_absolute_url(),
+            'head_image': p.head_image.url if p.head_image else '',
+            'category': str(p.category) if p.category else '미분류',
+        })
+    return JsonResponse({'posts': data, 'has_more': (offset + per_page) < total, 'page': page})
+
+
+# ── 11. 검색 자동완성 ────────────────────────────────────────────
+def search_autocomplete(request):
+    q = request.GET.get('q', '').strip()
+    if len(q) < 1:
+        return JsonResponse({'results': []})
+    posts = Post.objects.filter(
+        Q(title__icontains=q) | Q(tags__name__icontains=q)
+    ).distinct()[:8]
+    tags = Tag.objects.filter(name__icontains=q)[:4]
+    results = []
+    for p in posts:
+        results.append({'type': 'post', 'label': p.title, 'url': p.get_absolute_url()})
+    for t in tags:
+        results.append({'type': 'tag', 'label': f'#{t.name}', 'url': t.get_absolute_url()})
+    return JsonResponse({'results': results})
+
+
+# ── 12. AI 글쓰기 보조 (무료 API - HuggingFace Inference) ─────────
+def ai_writing_assist(request):
+    """API키 불필요한 무료 AI — HuggingFace serverless inference (mistral) 또는 pollinations.ai"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST only'}, status=405)
+    import urllib.request as _ur
+    import urllib.error
+
+    try:
+        body = _json_mod.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': '잘못된 요청'}, status=400)
+
+    mode = body.get('mode', 'draft')   # draft | improve | title
+    text = body.get('text', '').strip()
+
+    if not text:
+        return JsonResponse({'error': '텍스트를 입력하세요.'}, status=400)
+
+    if mode == 'draft':
+        prompt = f"다음 제목으로 한국어 블로그 글 초안을 3문단으로 작성해줘. 제목: {text}"
+    elif mode == 'improve':
+        prompt = f"다음 글을 더 자연스럽고 읽기 좋게 다듬어줘 (한국어):\n\n{text[:1000]}"
+    elif mode == 'title':
+        prompt = f"다음 내용에 어울리는 블로그 제목 5개를 한국어로 제안해줘:\n\n{text[:500]}"
+    else:
+        prompt = text
+
+    # pollinations.ai — 완전 무료, API키 불필요
+    try:
+        encoded_prompt = urllib.parse.quote(prompt)
+        url = f"https://text.pollinations.ai/{encoded_prompt}?model=mistral&seed=42&json=false"
+        req = _ur.Request(url, headers={'User-Agent': 'SyBlog/1.0'})
+        with _ur.urlopen(req, timeout=20) as resp:
+            result = resp.read().decode('utf-8').strip()
+        return JsonResponse({'result': result, 'mode': mode})
+    except Exception as e:
+        # fallback: 간단한 내장 템플릿
+        fallback = {
+            'draft': f"**{text}**\n\n안녕하세요! 오늘은 '{text}'에 대해 이야기해보려고 합니다.\n\n이 주제는 최근 많은 관심을 받고 있는데요, 실제로 경험해보니 생각보다 훨씬 흥미롭더라고요.\n\n여러분도 한번 시도해보시길 강력 추천드립니다!",
+            'improve': text,
+            'title': f"[추천 제목]\n1. '{text[:30]}' 완벽 가이드\n2. 초보자도 쉽게 배우는 {text[:20]}\n3. {text[:20]}의 모든 것\n4. 실전에서 바로 쓰는 {text[:20]}\n5. {text[:20]} 핵심 정리",
+        }
+        return JsonResponse({'result': fallback.get(mode, text), 'mode': mode, 'fallback': True})
+
+
+# ── 13. RSS 피드 ─────────────────────────────────────────────────
+from django.http import HttpResponse
+from django.utils import timezone as _tz
+
+def rss_feed(request):
+    posts = Post.objects.order_by('-created_at')[:20]
+    base_url = request.build_absolute_uri('/').rstrip('/')
+    items = ''
+    for p in posts:
+        abs_url = base_url + p.get_absolute_url()
+        items += f'''
+  <item>
+    <title><![CDATA[{p.title}]]></title>
+    <link>{abs_url}</link>
+    <guid>{abs_url}</guid>
+    <pubDate>{p.created_at.strftime('%a, %d %b %Y %H:%M:%S +0900')}</pubDate>
+    <description><![CDATA[{p.hook_text or p.title}]]></description>
+    <author>{p.author.username if p.author else 'unknown'}</author>
+  </item>'''
+
+    rss = f'''<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+<channel>
+  <title>SyBlog</title>
+  <link>{base_url}/blog/</link>
+  <description>SyBlog 최신 글</description>
+  <language>ko</language>
+  <lastBuildDate>{_tz.now().strftime('%a, %d %b %Y %H:%M:%S +0900')}</lastBuildDate>
+  {items}
+</channel>
+</rss>'''
+    return HttpResponse(rss, content_type='application/rss+xml; charset=utf-8')
+
+
+# ── 14. PDF 내보내기 ─────────────────────────────────────────────
+def export_post_pdf(request, pk):
+    post = get_object_or_404(Post, pk=pk)
+    html_content = f'''<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+  body{{font-family:Malgun Gothic,sans-serif;margin:40px;line-height:1.8;color:#333;}}
+  h1{{color:#6c63ff;border-bottom:2px solid #6c63ff;padding-bottom:10px;}}
+  .meta{{color:#888;font-size:.9rem;margin-bottom:20px;}}
+  .content{{margin-top:20px;}}
+  img{{max-width:100%;}}
+</style>
+</head>
+<body>
+<h1>{post.title}</h1>
+<div class="meta">
+  작성자: {post.author.username if post.author else ''} | 
+  작성일: {post.created_at.strftime('%Y년 %m월 %d일')} | 
+  조회수: {post.view_count} | 좋아요: {post.like_count}
+</div>
+{post.get_content_markdown()}
+</body>
+</html>'''
+    # 간단한 HTML 파일 반환 (프린트로 PDF 저장 안내)
+    return HttpResponse(html_content, content_type='text/html; charset=utf-8')

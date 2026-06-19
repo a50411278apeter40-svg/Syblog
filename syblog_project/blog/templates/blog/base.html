@@ -1,44 +1,88 @@
 <!DOCTYPE html>
 {% load static %}
-<html lang="ko">
+<html lang="ko" id="html-root">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block head_title %}SyBlog{% endblock %}</title>
+    <link rel="alternate" type="application/rss+xml" title="SyBlog RSS" href="/blog/feed/">
     <link rel="stylesheet" href="{% static 'blog/bootstrap/bootstrap.min.css' %}" media="screen">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        /* ── Light Mode ── */
         :root {
             --primary: #6c63ff;
             --secondary: #48cfad;
             --dark: #2d3436;
             --light-bg: #f8f9fa;
             --card-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            --body-bg: #f5f6fa;
+            --card-bg: #fff;
+            --text-color: #2d3436;
+            --text-muted: #636e72;
+            --border-color: #eee;
+            --input-bg: #fff;
+            --navbar-bg: linear-gradient(135deg, #2d3436, #6c63ff);
+            --footer-bg: linear-gradient(135deg, #2d3436, #1e1e2e);
         }
-        body { background-color: #f5f6fa; font-family: 'Segoe UI', sans-serif; }
-        .navbar { background: linear-gradient(135deg, #2d3436, #6c63ff) !important; box-shadow: 0 2px 15px rgba(108,99,255,0.3); }
+        /* ── Dark Mode ── */
+        html.dark-mode {
+            --body-bg: #1a1a2e;
+            --card-bg: #16213e;
+            --text-color: #e0e0e0;
+            --text-muted: #a0a0b0;
+            --border-color: #2a2a4a;
+            --input-bg: #0f3460;
+            --card-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            --navbar-bg: linear-gradient(135deg, #0f3460, #6c63ff);
+            --footer-bg: linear-gradient(135deg, #0d0d1a, #1a1a2e);
+        }
+        body { background-color: var(--body-bg); color: var(--text-color); font-family: 'Segoe UI', sans-serif; transition: background-color 0.3s, color 0.3s; }
+        .navbar { background: var(--navbar-bg) !important; box-shadow: 0 2px 15px rgba(108,99,255,0.3); }
         .navbar-brand { color: #fff !important; font-weight: 800; font-size: 1.5rem; }
         .nav-link { color: rgba(255,255,255,0.85) !important; }
         .nav-link:hover { color: #fff !important; }
-        .card { border: none; border-radius: 12px; box-shadow: var(--card-shadow); }
+        .card { border: none; border-radius: 12px; box-shadow: var(--card-shadow); background: var(--card-bg); color: var(--text-color); transition: background 0.3s, color 0.3s; }
         .card-header { background: linear-gradient(135deg, #6c63ff, #48cfad); color: white; border-radius: 12px 12px 0 0 !important; }
         .btn-primary { background: #6c63ff; border-color: #6c63ff; border-radius: 8px; }
         .btn-primary:hover { background: #5a52e0; border-color: #5a52e0; }
-        .badge-level { 
-            background: linear-gradient(135deg, #6c63ff, #48cfad);
-            color: white; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem;
-        }
+        .badge-level { background: linear-gradient(135deg, #6c63ff, #48cfad); color: white; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; }
         .nav-badge { background: #ff6b6b; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.7rem; }
-        .sidebar-widget { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--card-shadow); }
+        .sidebar-widget { background: var(--card-bg); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--card-shadow); }
         .sidebar-widget h5 { color: var(--primary); font-weight: 700; border-bottom: 2px solid var(--primary); padding-bottom: 8px; margin-bottom: 15px; }
-        footer { background: linear-gradient(135deg, #2d3436, #1e1e2e); color: #adb5bd; padding: 30px 0; margin-top: 40px; }
+        footer { background: var(--footer-bg); color: #adb5bd; padding: 30px 0; margin-top: 40px; }
         .level-badge { display: inline-block; background: linear-gradient(135deg, #6c63ff, #48cfad); color: white; padding: 2px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
         .points-display { color: #6c63ff; font-weight: 700; }
         .alert { border-radius: 10px; border: none; }
+        .text-muted { color: var(--text-muted) !important; }
+        .form-control { background: var(--input-bg) !important; color: var(--text-color) !important; border-color: var(--border-color) !important; }
+        .list-group-item { background: var(--card-bg) !important; color: var(--text-color) !important; border-color: var(--border-color) !important; }
+        /* 읽기 진행률 바 */
+        #reading-progress-bar {
+            position: fixed; top: 0; left: 0; height: 3px; width: 0%;
+            background: linear-gradient(90deg, #6c63ff, #48cfad);
+            z-index: 9999; transition: width 0.1s;
+        }
+        /* 검색 자동완성 */
+        .autocomplete-dropdown {
+            position: absolute; top: 100%; left: 0; right: 0; z-index: 1050;
+            background: var(--card-bg); border: 1px solid var(--border-color);
+            border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            max-height: 300px; overflow-y: auto;
+        }
+        .autocomplete-item { padding: 8px 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+        .autocomplete-item:hover { background: rgba(108,99,255,0.08); }
+        /* 다크모드 토글 */
+        .dark-toggle { cursor: pointer; font-size: 1.1rem; color: rgba(255,255,255,0.85) !important; padding: 0.5rem; }
+        /* 알림 드롭다운 */
+        .notif-dot { width: 8px; height: 8px; background: #ff6b6b; border-radius: 50%; display: inline-block; }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
 <body>
+<!-- 읽기 진행률 바 -->
+<div id="reading-progress-bar"></div>
+
 {% include 'blog/navbar.html' %}
 {% if active_notices %}
 <div id="notice-area" style="position:sticky;top:0;z-index:1040;">
@@ -46,24 +90,14 @@
   <div class="alert alert-{{ n.level }} notice-banner alert-dismissible mb-0 rounded-0 border-0 py-2 px-4"
        id="notice-{{ n.pk }}" style="font-size:.9rem;">
     <div class="container d-flex align-items-center" style="gap:10px;">
-      <span class="notice-icon">
-        {% if n.level == 'danger' %}🚨{% elif n.level == 'warning' %}⚠️{% elif n.level == 'success' %}✅{% else %}📢{% endif %}
-      </span>
-      <span>
-        <strong>{{ n.title }}</strong>
-        {% if n.content %}<span class="ml-2 text-muted" style="font-size:.85rem;">{{ n.content }}</span>{% endif %}
-      </span>
-      <button type="button" class="close ml-auto p-0" style="font-size:1.1rem;"
-              onclick="dismissNotice({{ n.pk }})" aria-label="닫기">
-        <span aria-hidden="true">&times;</span>
-      </button>
+      <span>{% if n.level == 'danger' %}🚨{% elif n.level == 'warning' %}⚠️{% elif n.level == 'success' %}✅{% else %}📢{% endif %}</span>
+      <span><strong>{{ n.title }}</strong>{% if n.content %}<span class="ml-2 text-muted" style="font-size:.85rem;">{{ n.content }}</span>{% endif %}</span>
+      <button type="button" class="close ml-auto p-0" style="font-size:1.1rem;" onclick="dismissNotice({{ n.pk }})" aria-label="닫기"><span>&times;</span></button>
     </div>
   </div>
   {% endfor %}
 </div>
 {% endif %}
-
-
 
 {% if messages %}
 <div class="container mt-2">
@@ -82,16 +116,18 @@
             {% block main_area %}{% endblock %}
         </div>
         <div class="col-md-4 col-lg-3">
-            <!-- Search Widget -->
-            <div class="sidebar-widget">
+            <!-- Search Widget with Autocomplete -->
+            <div class="sidebar-widget" style="position:relative;">
                 <h5><i class="fas fa-search"></i> 검색</h5>
-                <div class="input-group">
-                    <input type="text" class="form-control" placeholder="검색어 입력..." id="search-input">
+                <div class="input-group" style="position:relative;">
+                    <input type="text" class="form-control" placeholder="검색어 입력..." id="search-input" autocomplete="off">
                     <div class="input-group-append">
                         <button class="btn btn-primary" type="button" onclick="searchPost()">Go</button>
                     </div>
+                    <div id="autocomplete-dropdown" class="autocomplete-dropdown" style="display:none;"></div>
                 </div>
             </div>
+
             {% if user.is_authenticated %}
             <!-- User Widget -->
             <div class="sidebar-widget text-center">
@@ -99,38 +135,51 @@
                 <h6 class="font-weight-bold">{{ user.username }}</h6>
                 {% if user.profile %}
                 <span class="level-badge">Lv.{{ user.profile.level }} {{ user.profile.level_title }}</span>
-                <div class="mt-2">
-                    <small class="text-muted">포인트: <strong class="points-display">{{ user.profile.points }}</strong></small>
-                </div>
+                <div class="mt-2"><small class="text-muted">포인트: <strong class="points-display">{{ user.profile.points }}</strong></small></div>
                 <div class="progress mt-1" style="height: 6px; border-radius: 3px;">
                     <div class="progress-bar" style="width: {{ user.profile.level_progress }}%; background: linear-gradient(90deg, #6c63ff, #48cfad);"></div>
                 </div>
                 {% endif %}
                 <div class="mt-2">
-                    <a href="/user/profile/" class="btn btn-sm btn-outline-primary btn-block">내 프로필</a>
-                    <a href="/challenges/" class="btn btn-sm btn-outline-success btn-block">챌린지</a>
+                    <a href="/blog/my-dashboard/" class="btn btn-sm btn-outline-primary btn-block"><i class="fas fa-chart-line"></i> 내 대시보드</a>
+                    <a href="/blog/my-bookmarks/" class="btn btn-sm btn-outline-warning btn-block"><i class="fas fa-bookmark"></i> 북마크</a>
+                    <a href="/challenges/" class="btn btn-sm btn-outline-success btn-block"><i class="fas fa-gamepad"></i> 챌린지</a>
                 </div>
             </div>
             {% endif %}
+
+            <!-- Popular Posts Widget -->
+            <div class="sidebar-widget" id="popular-widget">
+                <h5><i class="fas fa-fire"></i> 이번 주 인기 글</h5>
+                <div id="popular-list"><small class="text-muted">로딩중...</small></div>
+            </div>
+
             <!-- Categories Widget -->
             <div class="sidebar-widget">
                 <h5><i class="fas fa-folder"></i> 카테고리</h5>
                 <ul class="list-unstyled">
                     {% for category in categories %}
                     <li class="mb-1">
-                        <a href="{{ category.get_absolute_url }}" class="text-decoration-none text-dark">
+                        <a href="{{ category.get_absolute_url }}" class="text-decoration-none" style="color:var(--text-color);">
                             <i class="fas fa-chevron-right text-primary" style="font-size:0.7rem;"></i>
                             {{ category }} <span class="badge badge-pill badge-light float-right">{{ category.post_set.count }}</span>
                         </a>
                     </li>
                     {% endfor %}
                     <li class="mb-1">
-                        <a href="/blog/category/no_category/" class="text-decoration-none text-dark">
+                        <a href="/blog/category/no_category/" class="text-decoration-none" style="color:var(--text-color);">
                             <i class="fas fa-chevron-right text-primary" style="font-size:0.7rem;"></i>
                             미분류 <span class="badge badge-pill badge-light float-right">{{ no_category_post_count }}</span>
                         </a>
                     </li>
                 </ul>
+            </div>
+
+            <!-- RSS 구독 -->
+            <div class="sidebar-widget text-center py-2">
+                <a href="/blog/feed/" class="btn btn-sm btn-outline-warning" target="_blank">
+                    <i class="fas fa-rss"></i> RSS 구독
+                </a>
             </div>
         </div>
     </div>
@@ -140,24 +189,107 @@
     <div class="container text-center">
         <p class="mb-1"><strong style="color:#6c63ff;">SyBlog</strong> &copy; 2024</p>
         <small>파이썬 장고로 만든 블로그 플랫폼</small>
+        <br><small><a href="/blog/feed/" style="color:#f39c12;"><i class="fas fa-rss"></i> RSS</a></small>
     </div>
 </footer>
-
-<script>
-function searchPost(){
-    let v = document.getElementById('search-input').value.trim();
-    if(v.length > 1){ location.href="/blog/search/"+v+"/"; }
-    else{ alert('검색어가 너무 짧습니다.'); }
-}
-document.getElementById('search-input').addEventListener('keyup', function(e){
-    if(e.key==='Enter') searchPost();
-});
-</script>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"></script>
 <script src="{% static 'blog/bootstrap/bootstrap.min.js' %}"></script>
-{% block extra_js %}{% endblock %}
 
+<script>
+// ── 다크모드 ──────────────────────────────────────────────────
+(function(){
+    var saved = localStorage.getItem('syblog_dark') === 'true';
+    if(saved) document.getElementById('html-root').classList.add('dark-mode');
+})();
+function toggleDarkMode(){
+    var html = document.getElementById('html-root');
+    var isDark = html.classList.toggle('dark-mode');
+    localStorage.setItem('syblog_dark', isDark);
+    var btn = document.getElementById('dark-toggle-btn');
+    if(btn) btn.innerHTML = isDark ? '☀️' : '🌙';
+    fetch('/blog/api/darkmode/', {method:'POST',headers:{'X-CSRFToken':getCookie('csrftoken'),'Content-Type':'application/x-www-form-urlencoded'},body:'mode='+(isDark?'dark':'light')});
+}
+
+// ── CSRF 헬퍼 ──────────────────────────────────────────────────
+function getCookie(name){var v=document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)');return v?v.pop():'';}
+
+// ── 검색 ──────────────────────────────────────────────────────
+function searchPost(){
+    var v = document.getElementById('search-input').value.trim();
+    if(v.length > 0) location.href="/blog/search/?q="+encodeURIComponent(v);
+    else alert('검색어가 너무 짧습니다.');
+}
+document.getElementById('search-input').addEventListener('keyup', function(e){
+    if(e.key==='Enter'){ searchPost(); return; }
+    var q = this.value.trim();
+    var dd = document.getElementById('autocomplete-dropdown');
+    if(q.length < 1){ dd.style.display='none'; return; }
+    fetch('/blog/api/autocomplete/?q='+encodeURIComponent(q))
+      .then(r=>r.json()).then(d=>{
+        if(d.results.length === 0){ dd.style.display='none'; return; }
+        dd.innerHTML = d.results.map(r=>
+          `<div class="autocomplete-item" onclick="location.href='${r.url}'">
+            <span>${r.type==='tag'?'🏷️':'📝'}</span>
+            <span>${r.label}</span>
+          </div>`
+        ).join('');
+        dd.style.display='block';
+      });
+});
+document.addEventListener('click', function(e){
+    if(!e.target.closest('.sidebar-widget')) document.getElementById('autocomplete-dropdown').style.display='none';
+});
+
+// ── 읽기 진행률 바 ─────────────────────────────────────────────
+window.addEventListener('scroll', function(){
+    var scrollTop = window.scrollY || document.documentElement.scrollTop;
+    var docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    var pct = docHeight > 0 ? (scrollTop / docHeight * 100) : 0;
+    document.getElementById('reading-progress-bar').style.width = Math.min(pct,100)+'%';
+});
+
+// ── 인기 글 위젯 로드 ──────────────────────────────────────────
+fetch('/blog/api/popular/')
+  .then(r=>r.json()).then(d=>{
+    var list = document.getElementById('popular-list');
+    if(!d.posts || d.posts.length===0){ list.innerHTML='<small class="text-muted">아직 데이터가 없습니다.</small>'; return; }
+    list.innerHTML = d.posts.map((p,i)=>
+      `<div class="mb-2 d-flex align-items-start gap-2">
+        <span class="badge badge-primary" style="min-width:22px;">${i+1}</span>
+        <div style="flex:1;min-width:0;">
+          <a href="${p.url}" class="text-decoration-none" style="color:var(--text-color);font-size:.88rem;font-weight:600;">${p.title}</a>
+          <div><small class="text-muted"><i class="fas fa-eye"></i> ${p.views} &nbsp; <i class="fas fa-heart text-danger"></i> ${p.likes}</small></div>
+        </div>
+      </div>`
+    ).join('');
+  }).catch(()=>{
+    document.getElementById('popular-list').innerHTML='<small class="text-muted">로드 실패</small>';
+  });
+
+// ── 알림 배지 갱신 ────────────────────────────────────────────
+{% if user.is_authenticated %}
+function refreshNotifBadge(){
+    fetch('/blog/notifications/count/')
+      .then(r=>r.json()).then(d=>{
+        var badge = document.getElementById('notif-badge');
+        if(badge){
+            if(d.count>0){ badge.textContent=d.count; badge.style.display='inline'; }
+            else badge.style.display='none';
+        }
+    });
+}
+refreshNotifBadge();
+setInterval(refreshNotifBadge, 30000);
+{% endif %}
+
+// ── 공지 닫기 ─────────────────────────────────────────────────
+function dismissNotice(pk){
+    document.getElementById('notice-'+pk).style.display='none';
+    fetch('/blog/spellcheck/', {method:'POST'}); // 세션 저장은 필요 시 별도 뷰 추가
+}
+</script>
+{% block extra_js %}{% endblock %}
 </body>
 </html>

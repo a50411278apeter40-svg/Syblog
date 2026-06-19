@@ -30,5 +30,25 @@ urlpatterns = [
     path('notices/create/', views.notice_create, name='notice_create'),
     path('notices/<int:pk>/edit/', views.notice_edit, name='notice_edit'),
     path('notices/<int:pk>/delete/', views.notice_delete, name='notice_delete'),
+
+    # ── NEW FEATURES ──────────────────────────────────────────
+    path('bookmark/<int:pk>/', views.bookmark_toggle, name='bookmark_toggle'),
+    path('my-bookmarks/', views.my_bookmarks, name='my_bookmarks'),
+    path('scheduled/', views.scheduled_posts, name='scheduled_posts'),
+    path('<int:pk>/history/', views.post_history, name='post_history'),
+    path('<int:pk>/history/<int:version_pk>/restore/', views.restore_post_version, name='restore_post_version'),
+    path('comment/<int:pk>/like/', views.like_comment, name='like_comment'),
+    path('notifications/', views.notifications_view, name='notifications'),
+    path('notifications/count/', views.notifications_count, name='notifications_count'),
+    path('notifications/dropdown/', views.notifications_dropdown, name='notifications_dropdown'),
+    path('popular-posts/', views.popular_posts_api, name='popular_posts_api'),
+    path('darkmode/', views.darkmode_toggle, name='darkmode_toggle'),
+    path('api/posts/', views.posts_api, name='posts_api'),
+    path('api/autocomplete/', views.search_autocomplete, name='search_autocomplete'),
+    path('ai-assist/', views.ai_writing_assist, name='ai_writing_assist'),
+    path('feed/', views.rss_feed, name='rss_feed'),
+    path('<int:pk>/pdf/', views.export_post_pdf, name='export_pdf'),
+    path('my-dashboard/', views.my_dashboard, name='my_dashboard'),
+
     path('', views.PostList.as_view(), name='index'),
 ]

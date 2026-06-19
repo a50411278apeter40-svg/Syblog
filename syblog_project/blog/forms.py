@@ -23,6 +23,15 @@ class PostForm(forms.ModelForm):
         if user:
             self.fields['series'].queryset = Series.objects.filter(author=user).order_by('-created_at')
 
+class PostFormWithSchedule(PostForm):
+    """예약 게시 기능이 포함된 PostForm 확장"""
+    publish_at = forms.DateTimeField(
+        required=False,
+        label='예약 게시 시각 (비우면 즉시 공개)',
+        widget=forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}),
+        input_formats=['%Y-%m-%dT%H:%M'],
+    )
+
 class SeriesForm(forms.ModelForm):
     class Meta:
         model = Series

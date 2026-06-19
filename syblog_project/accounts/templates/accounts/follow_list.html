@@ -1,0 +1,44 @@
+{% extends 'blog/base.html' %}
+{% block head_title %}{{ list_type|title }} - {{ target_user.username }}{% endblock %}
+{% block main_area %}
+<h2 class="mb-4">
+  <i class="fas fa-users" style="color:#6c63ff;"></i>
+  {% if list_type == 'following' %}{{ target_user.username }}님의 팔로잉{% else %}{{ target_user.username }}님의 팔로워{% endif %}
+</h2>
+{% if follows %}
+<div class="card">
+  <div class="list-group list-group-flush">
+  {% for f in follows %}
+    {% if list_type == 'following' %}{% with u=f.following %}
+    <a href="/user/profile/{{ u.username }}/" class="list-group-item list-group-item-action">
+      <div class="d-flex align-items-center">
+        {% if u.profile and u.profile.avatar %}<img src="{{ u.profile.avatar.url }}" class="rounded-circle mr-3" width="40" height="40" style="object-fit:cover;">{% else %}<img src="https://ui-avatars.com/api/?name={{ u.username }}&background=6c63ff&color=fff&size=40" class="rounded-circle mr-3">{% endif %}
+        <div>
+          <strong>{{ u.username }}</strong>
+          {% if u.profile %}<span class="badge badge-light ml-1">Lv.{{ u.profile.level }}</span>{% endif %}
+          {% if u.profile and u.profile.bio %}<div><small class="text-muted">{{ u.profile.bio|truncatechars:60 }}</small></div>{% endif %}
+        </div>
+      </div>
+    </a>
+    {% endwith %}{% else %}{% with u=f.follower %}
+    <a href="/user/profile/{{ u.username }}/" class="list-group-item list-group-item-action">
+      <div class="d-flex align-items-center">
+        {% if u.profile and u.profile.avatar %}<img src="{{ u.profile.avatar.url }}" class="rounded-circle mr-3" width="40" height="40" style="object-fit:cover;">{% else %}<img src="https://ui-avatars.com/api/?name={{ u.username }}&background=6c63ff&color=fff&size=40" class="rounded-circle mr-3">{% endif %}
+        <div>
+          <strong>{{ u.username }}</strong>
+          {% if u.profile %}<span class="badge badge-light ml-1">Lv.{{ u.profile.level }}</span>{% endif %}
+          {% if u.profile and u.profile.bio %}<div><small class="text-muted">{{ u.profile.bio|truncatechars:60 }}</small></div>{% endif %}
+        </div>
+      </div>
+    </a>
+    {% endwith %}{% endif %}
+  {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="text-center py-5">
+  <i class="fas fa-user-friends" style="font-size:4rem;color:#ddd;"></i>
+  <p class="text-muted mt-3">{% if list_type == 'following' %}팔로잉한 사람이 없습니다.{% else %}팔로워가 없습니다.{% endif %}</p>
+</div>
+{% endif %}
+{% endblock %}

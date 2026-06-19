@@ -12,4 +12,6 @@ urlpatterns = [
     path('leaderboard/', views.leaderboard, name='leaderboard'),
     path('admin/badges/', views.admin_badge_manage, name='admin_badge_manage'),
     path('admin/badges/award/', views.admin_badge_award, name='admin_badge_award'),
+    # ── NEW ──
+    path('follow/<str:username>/', views.follow_toggle_view, name='follow_toggle'),
 ]

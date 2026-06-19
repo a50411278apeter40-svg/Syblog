@@ -219,3 +219,82 @@ def custom_signup(request):
         'errors': errors,
         'posted': request.POST if request.method == 'POST' else {},
     })
+
+
+# ─── 팔로우 뷰 ──────────────────────────────────────────────────
+from .models import Follow
+
+@login_required
+def follow_toggle(request, username):
+    """팔로우 토글 — blog.views.follow_toggle과 동일 로직, accounts 네임스페이스용"""
+    target = get_object_or_404(User, username=username)
+    if target == request.user:
+        messages.error(request, '자기 자신을 팔로우할 수 없습니다.')
+        return redirect('accounts:user_profile', username=username)
+    from django.http import JsonResponse
+    follow, created = Follow.objects.get_or_create(follower=request.user, following=target)
+    if not created:
+        follow.delete()
+        following = False
+    else:
+        following = True
+        try:
+            from blog.models import Notification
+            Notification.objects.create(
+                recipient=target, sender=request.user, ntype='follow',
+                message=f'{request.user.username}님이 팔로우하기 시작했습니다.',
+                url=f'/user/profile/{request.user.username}/'
+            )
+        except Exception:
+            pass
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'following': following, 'follower_count': target.followers.count()})
+    return redirect('accounts:user_profile', username=username)
+
+
+def following_list(request, username):
+    target = get_object_or_404(User, username=username)
+    follows = Follow.objects.filter(follower=target).select_related('following')
+    return render(request, 'accounts/follow_list.html', {
+        'target_user': target, 'follows': follows, 'list_type': 'following'
+    })
+
+
+def followers_list(request, username):
+    target = get_object_or_404(User, username=username)
+    follows = Follow.objects.filter(following=target).select_related('follower')
+    return render(request, 'accounts/follow_list.html', {
+        'target_user': target, 'follows': follows, 'list_type': 'followers'
+    })
+
+
+# ── 팔로우 토글 뷰 ────────────────────────────────────────────
+from django.http import JsonResponse
+from .models import Follow
+
+@login_required
+def follow_toggle_view(request, username):
+    from django.contrib.auth.models import User as AuthUser
+    target = get_object_or_404(AuthUser, username=username)
+    if target == request.user:
+        return JsonResponse({'error': '자기 자신을 팔로우할 수 없습니다.'}, status=400)
+    follow, created = Follow.objects.get_or_create(follower=request.user, following=target)
+    if not created:
+        follow.delete()
+        following = False
+    else:
+        following = True
+        # 알림 생성
+        try:
+            from blog.models import Notification
+            Notification.objects.create(
+                recipient=target, sender=request.user, ntype='follow',
+                message=f'{request.user.username}님이 팔로우하기 시작했습니다.',
+                url=f'/user/profile/{request.user.username}/'
+            )
+        except Exception:
+            pass
+    follower_count = target.followers.count()
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'following': following, 'follower_count': follower_count})
+    return redirect(f'/user/profile/{username}/')
