@@ -5,9 +5,9 @@
 
 <!-- Level Filter Tabs -->
 <ul class="nav nav-pills justify-content-center mb-4" id="levelTabs">
-  <li class="nav-item"><a class="nav-link active" href="#" onclick="filterLevel(0)">전체</a></li>
-  {% for lv, pts, name in level_thresholds %}
-  <li class="nav-item"><a class="nav-link" href="#" onclick="filterLevel({{ lv }})">Lv.{{ lv }} {{ name }}</a></li>
+  <li class="nav-item"><a class="nav-link active" href="#" onclick="filterLevel(0,event)">전체</a></li>
+  {% for lv, pts, name, color in level_thresholds %}
+  <li class="nav-item"><a class="nav-link" href="#" onclick="filterLevel({{ lv }},event)">Lv.{{ lv }} {{ name }}</a></li>
   {% endfor %}
 </ul>
 
@@ -15,7 +15,13 @@
   <div class="card-body p-0">
     <table class="table mb-0" id="leaderboard-table">
       <thead style="background:linear-gradient(135deg,#6c63ff,#48cfad);color:white;">
-        <tr><th width="60">순위</th><th>사용자</th><th>레벨</th><th>포인트</th><th></th></tr>
+        <tr>
+          <th width="60">순위</th>
+          <th>사용자</th>
+          <th>레벨</th>
+          <th>포인트</th>
+          <th>진행도</th>
+        </tr>
       </thead>
       <tbody>
         {% for profile in profiles %}
@@ -49,10 +55,12 @@
     </table>
   </div>
 </div>
+
 <script>
-function filterLevel(lv) {
+function filterLevel(lv, event) {
+  if (event) event.preventDefault();
   document.querySelectorAll('#levelTabs .nav-link').forEach(a => a.classList.remove('active'));
-  event.target.classList.add('active');
+  if (event) event.target.classList.add('active');
   document.querySelectorAll('.level-row').forEach(row => {
     if (lv === 0 || parseInt(row.dataset.level) === lv) row.style.display = '';
     else row.style.display = 'none';

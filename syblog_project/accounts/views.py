@@ -4,7 +4,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.models import User
 from django.contrib import messages
 from django.http import JsonResponse
-from .models import UserProfile, LEVEL_THRESHOLDS
+from .models import UserProfile, LEVEL_THRESHOLDS, BADGE_IDS, BADGE_LIST
 from .forms import UserUpdateForm, ProfileUpdateForm
 
 @login_required
@@ -17,12 +17,16 @@ def profile_view(request, username=None):
     from blog.models import Post, Series
     posts = Post.objects.filter(author=user).order_by('-created_at')[:5]
     series_list = Series.objects.filter(author=user)
+    earned_badge_ids = profile.get_badges()
+    earned_badges = [BADGE_IDS[bid] for bid in earned_badge_ids if bid in BADGE_IDS]
     return render(request, 'accounts/profile.html', {
         'profile_user': user,
         'profile': profile,
         'posts': posts,
         'series_list': series_list,
         'level_thresholds': LEVEL_THRESHOLDS,
+        'earned_badges': earned_badges,
+        'earned_badge_ids': earned_badge_ids,
     })
 
 @login_required
