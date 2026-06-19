@@ -12,6 +12,27 @@ from .models import Post, Category, Tag, Comment, Series, check_banned_keywords
 from .forms import CommentForm, PostForm, SeriesForm
 from django.contrib.auth.models import User
 
+
+# ── 배지/포인트 헬퍼 ─────────────────────────────────────────
+def _award_blog_badge(user, badge_id):
+    """유저에게 배지 부여 (없을 때만)"""
+    try:
+        from accounts.models import UserProfile
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        profile.award_badge(badge_id)
+    except Exception:
+        pass
+
+def _add_points(user, amount):
+    """유저 포인트 적립 (상한 없음)"""
+    try:
+        from accounts.models import UserProfile
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        profile.points += amount
+        profile.save(update_fields=['points'])
+    except Exception:
+        pass
+
 class PostList(ListView):
     model = Post
     ordering = '-pk'
@@ -58,6 +79,8 @@ class PostCreate(LoginRequiredMixin, CreateView):
         
         form.instance.author = self.request.user
         response = super().form_valid(form)
+        # 포인트 적립 (글 작성 20pt)
+        _add_points(self.request.user, 20)
         # 배지 체크
         post_count = Post.objects.filter(author=self.request.user).count()
         _award_blog_badge(self.request.user, 'first_post')

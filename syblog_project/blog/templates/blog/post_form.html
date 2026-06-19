@@ -1,22 +1,205 @@
 {% extends 'blog/base.html' %}
 {% load crispy_forms_tags %}
-
 {% block head_title %}새 글 작성 - SyBlog{% endblock %}
 
 {% block main_area %}
-<div class="card">
-    <div class="card-header"><i class="fas fa-pen"></i> 새 글 작성</div>
-    <div class="card-body">
-        <form method="POST" enctype="multipart/form-data">
-            {% csrf_token %}
-            {{ form|crispy }}
-            <div class="form-group">
-                <label>태그 (;로 구분)</label>
-                <input type="text" name="tags_str" class="form-control" placeholder="django; python; web">
-            </div>
-            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> 저장</button>
-            <a href="/blog/" class="btn btn-secondary">취소</a>
-        </form>
-    </div>
+<div class="card shadow-sm">
+  <div class="card-header font-weight-bold" style="background:linear-gradient(135deg,#6c63ff,#48cfad);color:#fff;">
+    <i class="fas fa-pen"></i> 새 글 작성
+    <small style="opacity:.75;font-weight:400;margin-left:8px;">글 작성 시 <b>20pt</b> 적립!</small>
+  </div>
+  <div class="card-body">
+    <form method="POST" enctype="multipart/form-data" id="post-form">
+      {% csrf_token %}
+
+      <!-- 제목 -->
+      <div class="form-group">
+        <label class="font-weight-bold">제목 *</label>
+        <input type="text" name="title" class="form-control" placeholder="제목을 입력하세요" value="{{ form.title.value|default:'' }}" required>
+        {% if form.title.errors %}<small class="text-danger">{{ form.title.errors.0 }}</small>{% endif %}
+      </div>
+
+      <!-- 한줄요약 -->
+      <div class="form-group">
+        <label class="font-weight-bold">한줄 요약</label>
+        <input type="text" name="hook_text" class="form-control" placeholder="글의 핵심을 한 줄로 (선택)" value="{{ form.hook_text.value|default:'' }}">
+      </div>
+
+      <!-- 본문 -->
+      <div class="form-group">
+        <label class="font-weight-bold">본문 * <small class="text-muted font-weight-normal">(마크다운 지원)</small></label>
+        <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
+          <button type="button" class="btn btn-xs btn-outline-secondary" onclick="insertMd('**','**','굵게')"><b>B</b></button>
+          <button type="button" class="btn btn-xs btn-outline-secondary" onclick="insertMd('*','*','기울임')"><i>I</i></button>
+          <button type="button" class="btn btn-xs btn-outline-secondary" onclick="insertMd('## ','','제목')">H</button>
+          <button type="button" class="btn btn-xs btn-outline-secondary" onclick="insertMd('\n- ','','항목')">• 목록</button>
+          <button type="button" class="btn btn-xs btn-outline-secondary" onclick="insertMd('\`\`\`\n','\n\`\`\`','코드')">{ }</button>
+          <button type="button" class="btn btn-xs btn-outline-secondary" onclick="insertMd('[링크텍스트](','https://)','링크')">🔗</button>
+          <button type="button" class="btn btn-xs btn-outline-secondary" onclick="insertMd('> ','','인용')">❝</button>
+        </div>
+        <textarea name="content" id="content-textarea" class="form-control" rows="14"
+                  placeholder="본문 내용을 마크다운으로 작성하세요..." required>{{ form.content.value|default:'' }}</textarea>
+        {% if form.content.errors %}<small class="text-danger">{{ form.content.errors.0 }}</small>{% endif %}
+      </div>
+
+      <!-- 파일 업로드 + 미리보기 -->
+      <div class="form-group">
+        <label class="font-weight-bold"><i class="fas fa-paperclip"></i> 첨부 파일</label>
+        <div class="custom-file">
+          <input type="file" class="custom-file-input" id="file_upload" name="file_upload"
+                 accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt">
+          <label class="custom-file-label" for="file_upload">파일을 선택하거나 드래그하세요</label>
+        </div>
+        <small class="text-muted">이미지·영상·PDF·문서 등 모든 형식 지원</small>
+        <!-- 파일 미리보기 영역 -->
+        <div id="file-preview" style="margin-top:10px;display:none;"></div>
+      </div>
+
+      <!-- 대표 이미지 -->
+      <div class="form-group">
+        <label class="font-weight-bold"><i class="fas fa-image"></i> 대표 이미지</label>
+        <input type="file" name="head_image" class="form-control-file" id="head_image"
+               accept="image/*" onchange="previewHeadImage(this)">
+        <div id="head-image-preview" style="margin-top:8px;display:none;">
+          <img id="head-img-el" src="" style="max-height:160px;border-radius:8px;object-fit:cover;border:1px solid #eee;">
+        </div>
+      </div>
+
+      <!-- URL 임베드 -->
+      <div class="form-group">
+        <label class="font-weight-bold"><i class="fas fa-link"></i> URL 임베드
+          <small class="text-muted font-weight-normal">(YouTube, Twitter, 사이트 등)</small>
+        </label>
+        <div class="input-group">
+          <input type="url" name="url_embed" id="url_embed" class="form-control"
+                 placeholder="https://youtube.com/watch?v=..." value="{{ form.url_embed.value|default:'' }}"
+                 onchange="previewEmbed(this.value)" onblur="previewEmbed(this.value)">
+          <div class="input-group-append">
+            <button type="button" class="btn btn-outline-secondary" onclick="previewEmbed(document.getElementById('url_embed').value)">
+              <i class="fas fa-eye"></i> 미리보기
+            </button>
+          </div>
+        </div>
+        <small class="text-muted">YouTube, 일반 웹사이트 URL 모두 지원됩니다</small>
+        <div id="embed-preview" style="margin-top:10px;display:none;border:1px solid #eee;border-radius:8px;overflow:hidden;"></div>
+      </div>
+
+      <!-- 카테고리 + 시리즈 -->
+      <div class="row">
+        <div class="col-md-6">
+          <div class="form-group">
+            <label class="font-weight-bold">카테고리</label>
+            {{ form.category }}
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="form-group">
+            <label class="font-weight-bold">시리즈</label>
+            {{ form.series }}
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="font-weight-bold">시리즈 순서</label>
+        <input type="number" name="series_order" class="form-control" style="max-width:120px;"
+               value="{{ form.series_order.value|default:'0' }}" min="0">
+      </div>
+
+      <!-- 태그 -->
+      <div class="form-group">
+        <label class="font-weight-bold"><i class="fas fa-tags"></i> 태그</label>
+        <input type="text" name="tags_str" class="form-control" placeholder="django; python; web  (;로 구분)">
+      </div>
+
+      <hr>
+      <button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-save"></i> 저장하기</button>
+      <a href="/blog/" class="btn btn-secondary btn-lg ml-2">취소</a>
+    </form>
+  </div>
 </div>
+
+<script>
+// ── 마크다운 버튼 ──
+function insertMd(before, after, placeholder) {
+  const ta = document.getElementById('content-textarea');
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const sel = ta.value.substring(start, end) || placeholder;
+  ta.value = ta.value.substring(0, start) + before + sel + after + ta.value.substring(end);
+  ta.focus();
+  ta.setSelectionRange(start + before.length, start + before.length + sel.length);
+}
+
+// ── 파일 첨부 라벨 + 미리보기 ──
+document.getElementById('file_upload').addEventListener('change', function() {
+  const file = this.files[0];
+  if (!file) return;
+  this.nextElementSibling.textContent = file.name;
+
+  const preview = document.getElementById('file-preview');
+  preview.innerHTML = '';
+  preview.style.display = 'block';
+
+  const ext = file.name.split('.').pop().toLowerCase();
+  const url = URL.createObjectURL(file);
+
+  if (['jpg','jpeg','png','gif','webp','bmp','svg'].includes(ext)) {
+    preview.innerHTML = `<img src="${url}" style="max-height:220px;border-radius:8px;border:1px solid #eee;object-fit:contain;">`;
+  } else if (['mp4','webm','ogg','mov'].includes(ext)) {
+    preview.innerHTML = `<video controls src="${url}" style="max-height:220px;border-radius:8px;max-width:100%;"></video>`;
+  } else if (['mp3','wav','flac','aac','m4a'].includes(ext)) {
+    preview.innerHTML = `<audio controls src="${url}" style="width:100%;margin-top:6px;"></audio>`;
+  } else if (ext === 'pdf') {
+    preview.innerHTML = `<embed src="${url}" type="application/pdf" width="100%" height="300px" style="border-radius:8px;">`;
+  } else {
+    preview.innerHTML = `<div style="padding:12px;background:#f5f5f5;border-radius:8px;display:flex;align-items:center;gap:10px;">
+      <i class="fas fa-file" style="font-size:1.8rem;color:#6c63ff;"></i>
+      <div><strong>${file.name}</strong><br><small>${(file.size/1024).toFixed(1)} KB</small></div>
+    </div>`;
+  }
+});
+
+// ── 대표이미지 미리보기 ──
+function previewHeadImage(input) {
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('head-img-el').src = e.target.result;
+      document.getElementById('head-image-preview').style.display = 'block';
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+
+// ── URL 임베드 미리보기 ──
+function previewEmbed(url) {
+  const box = document.getElementById('embed-preview');
+  if (!url || !url.startsWith('http')) { box.style.display='none'; return; }
+
+  box.style.display = 'block';
+
+  // YouTube
+  const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
+  if (ytMatch) {
+    box.innerHTML = `<div style="position:relative;padding-top:56.25%;">
+      <iframe src="https://www.youtube.com/embed/${ytMatch[1]}" frameborder="0" allowfullscreen
+        style="position:absolute;top:0;left:0;width:100%;height:100%;"></iframe>
+    </div>`;
+    return;
+  }
+
+  // 일반 URL → iframe
+  box.innerHTML = `<div style="background:#f0f0f0;padding:12px;display:flex;align-items:center;gap:10px;">
+    <i class="fas fa-globe" style="color:#6c63ff;font-size:1.4rem;"></i>
+    <div>
+      <div style="font-weight:600;font-size:.9rem;">웹페이지 링크</div>
+      <a href="${url}" target="_blank" style="font-size:.8rem;color:#6c63ff;word-break:break-all;">${url}</a>
+    </div>
+    <a href="${url}" target="_blank" class="btn btn-sm btn-outline-primary ml-auto">열기 →</a>
+  </div>`;
+}
+</script>
+
+<style>
+.btn-xs { font-size:0.72rem; padding:2px 7px; }
+</style>
 {% endblock %}

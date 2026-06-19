@@ -1,22 +1,186 @@
 {% extends 'blog/base.html' %}
 {% load crispy_forms_tags %}
-
 {% block head_title %}글 수정 - SyBlog{% endblock %}
 
 {% block main_area %}
-<div class="card">
-    <div class="card-header"><i class="fas fa-edit"></i> 글 수정</div>
-    <div class="card-body">
-        <form method="POST" enctype="multipart/form-data">
-            {% csrf_token %}
-            {{ form|crispy }}
-            <div class="form-group">
-                <label>태그 (;로 구분)</label>
-                <input type="text" name="tags_str" class="form-control" value="{{ tags_str_default }}">
-            </div>
-            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> 저장</button>
-            <a href="{{ object.get_absolute_url }}" class="btn btn-secondary">취소</a>
-        </form>
-    </div>
+<div class="card shadow-sm">
+  <div class="card-header font-weight-bold" style="background:linear-gradient(135deg,#6c63ff,#48cfad);color:#fff;">
+    <i class="fas fa-edit"></i> 글 수정
+  </div>
+  <div class="card-body">
+    <form method="POST" enctype="multipart/form-data">
+      {% csrf_token %}
+
+      <div class="form-group">
+        <label class="font-weight-bold">제목 *</label>
+        <input type="text" name="title" class="form-control" value="{{ form.title.value|default:'' }}" required>
+      </div>
+
+      <div class="form-group">
+        <label class="font-weight-bold">한줄 요약</label>
+        <input type="text" name="hook_text" class="form-control" value="{{ form.hook_text.value|default:'' }}">
+      </div>
+
+      <div class="form-group">
+        <label class="font-weight-bold">본문 *</label>
+        <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
+          <button type="button" class="btn btn-xs btn-outline-secondary" onclick="insertMd('**','**','굵게')"><b>B</b></button>
+          <button type="button" class="btn btn-xs btn-outline-secondary" onclick="insertMd('*','*','기울임')"><i>I</i></button>
+          <button type="button" class="btn btn-xs btn-outline-secondary" onclick="insertMd('## ','','제목')">H</button>
+          <button type="button" class="btn btn-xs btn-outline-secondary" onclick="insertMd('\n- ','','항목')">• 목록</button>
+          <button type="button" class="btn btn-xs btn-outline-secondary" onclick="insertMd('\`\`\`\n','\n\`\`\`','코드')">{ }</button>
+          <button type="button" class="btn btn-xs btn-outline-secondary" onclick="insertMd('[링크텍스트](','https://)','링크')">🔗</button>
+        </div>
+        <textarea name="content" id="content-textarea" class="form-control" rows="14" required>{{ form.content.value|default:'' }}</textarea>
+      </div>
+
+      <!-- 파일 업로드 -->
+      <div class="form-group">
+        <label class="font-weight-bold"><i class="fas fa-paperclip"></i> 첨부 파일</label>
+        {% if object.file_upload %}
+        <div style="margin-bottom:8px;padding:10px;background:#f5f5f5;border-radius:8px;">
+          <i class="fas fa-file text-primary"></i>
+          <strong>현재 파일:</strong> {{ object.get_file_name }}
+          <a href="{{ object.file_upload.url }}" target="_blank" class="btn btn-sm btn-outline-primary ml-2">미리보기</a>
+        </div>
+        {% endif %}
+        <div class="custom-file">
+          <input type="file" class="custom-file-input" id="file_upload" name="file_upload"
+                 accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.zip,.txt">
+          <label class="custom-file-label" for="file_upload">새 파일로 교체 (선택)</label>
+        </div>
+        <div id="file-preview" style="margin-top:10px;display:none;"></div>
+      </div>
+
+      <!-- 대표 이미지 -->
+      <div class="form-group">
+        <label class="font-weight-bold"><i class="fas fa-image"></i> 대표 이미지</label>
+        {% if object.head_image %}
+        <div style="margin-bottom:8px;">
+          <img src="{{ object.head_image.url }}" style="max-height:100px;border-radius:6px;object-fit:cover;">
+          <small class="text-muted d-block">현재 이미지 (새 파일 선택 시 교체됩니다)</small>
+        </div>
+        {% endif %}
+        <input type="file" name="head_image" class="form-control-file" accept="image/*" onchange="previewHeadImage(this)">
+        <div id="head-image-preview" style="margin-top:8px;display:none;">
+          <img id="head-img-el" src="" style="max-height:120px;border-radius:8px;">
+        </div>
+      </div>
+
+      <!-- URL 임베드 -->
+      <div class="form-group">
+        <label class="font-weight-bold"><i class="fas fa-link"></i> URL 임베드</label>
+        <div class="input-group">
+          <input type="url" name="url_embed" id="url_embed" class="form-control"
+                 placeholder="https://youtube.com/watch?v=..." value="{{ form.url_embed.value|default:'' }}"
+                 onblur="previewEmbed(this.value)">
+          <div class="input-group-append">
+            <button type="button" class="btn btn-outline-secondary" onclick="previewEmbed(document.getElementById('url_embed').value)">
+              <i class="fas fa-eye"></i> 미리보기
+            </button>
+          </div>
+        </div>
+        <div id="embed-preview" style="margin-top:10px;display:none;border:1px solid #eee;border-radius:8px;overflow:hidden;"></div>
+      </div>
+
+      <div class="row">
+        <div class="col-md-6">
+          <div class="form-group">
+            <label class="font-weight-bold">카테고리</label>
+            {{ form.category }}
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="form-group">
+            <label class="font-weight-bold">시리즈</label>
+            {{ form.series }}
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="font-weight-bold">시리즈 순서</label>
+        <input type="number" name="series_order" class="form-control" style="max-width:120px;"
+               value="{{ form.series_order.value|default:'0' }}" min="0">
+      </div>
+
+      <div class="form-group">
+        <label class="font-weight-bold"><i class="fas fa-tags"></i> 태그</label>
+        <input type="text" name="tags_str" class="form-control" value="{{ tags_str_default }}">
+      </div>
+
+      <hr>
+      <button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-save"></i> 저장</button>
+      <a href="{{ object.get_absolute_url }}" class="btn btn-secondary btn-lg ml-2">취소</a>
+    </form>
+  </div>
 </div>
+
+<script>
+function insertMd(before, after, placeholder) {
+  const ta = document.getElementById('content-textarea');
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const sel = ta.value.substring(start, end) || placeholder;
+  ta.value = ta.value.substring(0, start) + before + sel + after + ta.value.substring(end);
+  ta.focus();
+  ta.setSelectionRange(start + before.length, start + before.length + sel.length);
+}
+
+document.getElementById('file_upload').addEventListener('change', function() {
+  const file = this.files[0];
+  if (!file) return;
+  this.nextElementSibling.textContent = file.name;
+  const preview = document.getElementById('file-preview');
+  preview.innerHTML = '';
+  preview.style.display = 'block';
+  const ext = file.name.split('.').pop().toLowerCase();
+  const url = URL.createObjectURL(file);
+  if (['jpg','jpeg','png','gif','webp'].includes(ext)) {
+    preview.innerHTML = `<img src="${url}" style="max-height:200px;border-radius:8px;border:1px solid #eee;">`;
+  } else if (['mp4','webm','ogg','mov'].includes(ext)) {
+    preview.innerHTML = `<video controls src="${url}" style="max-height:200px;border-radius:8px;max-width:100%;"></video>`;
+  } else if (['mp3','wav','flac'].includes(ext)) {
+    preview.innerHTML = `<audio controls src="${url}" style="width:100%;"></audio>`;
+  } else if (ext === 'pdf') {
+    preview.innerHTML = `<embed src="${url}" type="application/pdf" width="100%" height="280px">`;
+  } else {
+    preview.innerHTML = `<div style="padding:10px;background:#f5f5f5;border-radius:8px;"><i class="fas fa-file text-primary"></i> <strong>${file.name}</strong> (${(file.size/1024).toFixed(1)} KB)</div>`;
+  }
+});
+
+function previewHeadImage(input) {
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('head-img-el').src = e.target.result;
+      document.getElementById('head-image-preview').style.display = 'block';
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+
+function previewEmbed(url) {
+  const box = document.getElementById('embed-preview');
+  if (!url || !url.startsWith('http')) { box.style.display='none'; return; }
+  box.style.display = 'block';
+  const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
+  if (ytMatch) {
+    box.innerHTML = `<div style="position:relative;padding-top:56.25%;">
+      <iframe src="https://www.youtube.com/embed/${ytMatch[1]}" frameborder="0" allowfullscreen
+        style="position:absolute;top:0;left:0;width:100%;height:100%;"></iframe></div>`;
+    return;
+  }
+  box.innerHTML = `<div style="padding:12px;background:#f0f0f0;display:flex;align-items:center;gap:10px;">
+    <i class="fas fa-globe" style="color:#6c63ff;font-size:1.4rem;"></i>
+    <a href="${url}" target="_blank" style="font-size:.85rem;color:#6c63ff;word-break:break-all;">${url}</a>
+    <a href="${url}" target="_blank" class="btn btn-sm btn-outline-primary ml-auto">열기 →</a>
+  </div>`;
+}
+
+// 기존 임베드 URL이 있으면 미리보기
+window.addEventListener('DOMContentLoaded', () => {
+  const u = document.getElementById('url_embed').value;
+  if (u) previewEmbed(u);
+});
+</script>
+<style>.btn-xs{font-size:.72rem;padding:2px 7px;}</style>
 {% endblock %}

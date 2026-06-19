@@ -59,6 +59,7 @@ class Post(models.Model):
 
     head_image = models.ImageField(upload_to='blog/images/%Y/%m/%d/', blank=True)
     file_upload = models.FileField(upload_to='blog/files/%Y/%m/%d/', blank=True)
+    url_embed = models.URLField(blank=True, default='', max_length=500, verbose_name='URL 임베드')
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -165,6 +165,15 @@ def create_user_profile(sender, instance, created, **kwargs):
         profile, is_new = UserProfile.objects.get_or_create(user=instance)
         if is_new:
             profile.award_badge('welcome')
+    # 관리자(is_staff or is_superuser)는 항상 모든 배지 + 최대 포인트 보유
+    if instance.is_staff or instance.is_superuser:
+        profile, _ = UserProfile.objects.get_or_create(user=instance)
+        for b in BADGE_LIST:
+            profile.award_badge(b['id'])
+        max_pts = LEVEL_THRESHOLDS[-1][1]
+        if profile.points < max_pts:
+            profile.points = max_pts
+            profile.save(update_fields=['points'])
 
 @receiver(post_save, sender=User)
 def save_user_profile(sender, instance, **kwargs):

@@ -15,7 +15,7 @@ class PostForm(forms.ModelForm):
                                widget=forms.TextInput(attrs={'placeholder': 'tag1; tag2; tag3'}))
     class Meta:
         model = Post
-        fields = ['title', 'hook_text', 'content', 'head_image', 'file_upload', 'category', 'series', 'series_order']
+        fields = ['title', 'hook_text', 'content', 'head_image', 'file_upload', 'url_embed', 'category', 'series', 'series_order']
 
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
