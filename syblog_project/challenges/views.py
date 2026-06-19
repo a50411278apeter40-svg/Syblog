@@ -190,6 +190,7 @@ def my_scores(request):
 
 
 @login_required
+@login_required
 def badge_list(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
     earned_badge_ids = profile.get_badges()
