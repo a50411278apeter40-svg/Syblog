@@ -134,5 +134,199 @@ document.getElementById('search-input').addEventListener('keyup', function(e){
 <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"></script>
 <script src="{% static 'blog/bootstrap/bootstrap.min.js' %}"></script>
 {% block extra_js %}{% endblock %}
+
+<!-- ── 전역 맞춤법 검사 (다국어) ─────────────────────────────────── -->
+<script>
+(function() {
+  // ── 한국어 맞춤법 사전 (자주 틀리는 표현) ──────────────────
+  const KO_RULES = [
+    // 형태 혼동
+    { wrong: /되요/g,       right: '돼요',         msg: '"되요" → "돼요"' },
+    { wrong: /됬/g,         right: '됐',           msg: '"됬" → "됐"' },
+    { wrong: /안돼/g,       right: '안 돼',        msg: '"안돼" → "안 돼"' },
+    { wrong: /웬지/g,       right: '왠지',         msg: '"웬지" → "왠지"' },
+    { wrong: /왠만하면/g,   right: '웬만하면',     msg: '"왠만하면" → "웬만하면"' },
+    { wrong: /어떻해/g,     right: '어떡해',       msg: '"어떻해" → "어떡해"' },
+    { wrong: /어떻게요/g,   right: '어떻게요',     msg: '' },
+    { wrong: /가르켜/g,     right: '가르쳐',       msg: '"가르켜" → "가르쳐"' },
+    { wrong: /가리켜/g,     right: '가르쳐',       msg: '"가리켜" → "가르쳐"' },
+    { wrong: /틀리다(?=.*(?:맞|다르))/g, right: '다르다', msg: '"틀리다"는 "다르다"와 혼동 주의' },
+    { wrong: /오랫만/g,     right: '오랜만',       msg: '"오랫만" → "오랜만"' },
+    { wrong: /오랫만에/g,   right: '오랜만에',     msg: '"오랫만에" → "오랜만에"' },
+    { wrong: /역활/g,       right: '역할',         msg: '"역활" → "역할"' },
+    { wrong: /몇일/g,       right: '며칠',         msg: '"몇일" → "며칠"' },
+    { wrong: /설레임/g,     right: '설렘',         msg: '"설레임" → "설렘"' },
+    { wrong: /설래/g,       right: '설레',         msg: '"설래" → "설레"' },
+    { wrong: /마음껏/g,     right: '마음껏',       msg: '' },
+    { wrong: /금새/g,       right: '금세',         msg: '"금새" → "금세"' },
+    { wrong: /어의없/g,     right: '어이없',       msg: '"어의없" → "어이없"' },
+    { wrong: /희한하다/g,   right: '희한하다',     msg: '' },
+    { wrong: /어떻하/g,     right: '어떡하',       msg: '"어떻하" → "어떡하"' },
+    { wrong: /오랫동안/g,   right: '오랫동안',     msg: '' },
+    { wrong: /로서(?=\s*(?:의|는|가))/g, right: '로써', msg: '"로서"(자격) vs "로써"(수단) 혼동 주의' },
+    { wrong: /결재(?=\s*(?:하|받|해|됩|되|해드))/g, right: '결제', msg: '"결재"(승인) vs "결제"(지불) 혼동 주의' },
+    { wrong: /이따가/g,     right: '이따가',       msg: '' },
+    { wrong: /있다가/g,     right: '이따가',       msg: '"있다가" → "이따가" (잠시 후 의미라면)' },
+    { wrong: /문안하/g,     right: '무난하',       msg: '"문안하" → "무난하"' },
+    { wrong: /굉장이/g,     right: '굉장히',       msg: '"굉장이" → "굉장히"' },
+    { wrong: /얼마있으면/g, right: '얼마 있으면',  msg: '띄어쓰기: "얼마 있으면"' },
+    { wrong: /안되/g,       right: '안 돼',        msg: '"안되" → "안 돼"' },
+    { wrong: /넘(?=\s*좋|예|착|많)/g, right: '너무', msg: '"넘" → "너무" (구어체 주의)' },
+  ];
+
+  // ── 영어: 자주 틀리는 단어 ──
+  const EN_RULES = [
+    { wrong: /recieve/gi,     right: 'receive',    msg: '"recieve" → "receive"' },
+    { wrong: /occured/gi,     right: 'occurred',   msg: '"occured" → "occurred"' },
+    { wrong: /seperate/gi,    right: 'separate',   msg: '"seperate" → "separate"' },
+    { wrong: /defenitely/gi,  right: 'definitely', msg: '"defenitely" → "definitely"' },
+    { wrong: /untill/gi,      right: 'until',      msg: '"untill" → "until"' },
+    { wrong: /teh/g,          right: 'the',        msg: '"teh" → "the"' },
+    { wrong: /wierd/gi,       right: 'weird',      msg: '"wierd" → "weird"' },
+    { wrong: /belive/gi,      right: 'believe',    msg: '"belive" → "believe"' },
+    { wrong: /accomodate/gi,  right: 'accommodate',msg: '"accomodate" → "accommodate"' },
+    { wrong: /neccessary/gi,  right: 'necessary',  msg: '"neccessary" → "necessary"' },
+    { wrong: /goverment/gi,   right: 'government', msg: '"goverment" → "government"' },
+    { wrong: /enviroment/gi,  right: 'environment',msg: '"enviroment" → "environment"' },
+    { wrong: /existance/gi,   right: 'existence',  msg: '"existance" → "existence"' },
+    { wrong: /forsee/gi,      right: 'foresee',    msg: '"forsee" → "foresee"' },
+    { wrong: /grammer/gi,     right: 'grammar',    msg: '"grammer" → "grammar"' },
+    { wrong: /immediatly/gi,  right: 'immediately',msg: '"immediatly" → "immediately"' },
+    { wrong: /independance/gi,right: 'independence',msg: '"independance" → "independence"' },
+    { wrong: /liasion/gi,     right: 'liaison',    msg: '"liasion" → "liaison"' },
+    { wrong: /maintainance/gi,right: 'maintenance',msg: '"maintainance" → "maintenance"' },
+    { wrong: /occasionaly/gi, right: 'occasionally',msg:'"occasionaly" → "occasionally"' },
+    { wrong: /perseverence/gi,right: 'perseverance',msg:'"perseverence" → "perseverance"' },
+    { wrong: /pronouciation/gi,right:'pronunciation',msg:'"pronouciation" → "pronunciation"' },
+    { wrong: /refering/gi,    right: 'referring',  msg: '"refering" → "referring"' },
+    { wrong: /supercede/gi,   right: 'supersede',  msg: '"supercede" → "supersede"' },
+    { wrong: /thier/gi,       right: 'their',      msg: '"thier" → "their"' },
+    { wrong: /througout/gi,   right: 'throughout', msg: '"througout" → "throughout"' },
+    { wrong: /vacuume/gi,     right: 'vacuum',     msg: '"vacuume" → "vacuum"' },
+    { wrong: /wether/gi,      right: 'whether',    msg: '"wether" → "whether"' },
+    { wrong: /your\s+welcome/gi, right: "you're welcome", msg: '"your welcome" → "you're welcome"' },
+    { wrong: /should\s+of/gi, right: 'should have',msg: '"should of" → "should have"' },
+    { wrong: /could\s+of/gi,  right: 'could have', msg: '"could of" → "could have"' },
+    { wrong: /would\s+of/gi,  right: 'would have', msg: '"would of" → "would have"' },
+  ];
+
+  const ALL_RULES = [...KO_RULES, ...EN_RULES].filter(r => r.msg);
+
+  function checkSpelling(text) {
+    const issues = [];
+    const seen = new Set();
+    for (const rule of ALL_RULES) {
+      rule.wrong.lastIndex = 0;
+      let m;
+      const re = new RegExp(rule.wrong.source, rule.wrong.flags);
+      while ((m = re.exec(text)) !== null) {
+        const key = rule.msg + '|' + m.index;
+        if (!seen.has(key)) {
+          seen.add(key);
+          issues.push({
+            index: m.index,
+            length: m[0].length,
+            found: m[0],
+            right: rule.right,
+            msg: rule.msg
+          });
+        }
+      }
+    }
+    return issues;
+  }
+
+  function renderSpellPanel(issues, panelId) {
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+    if (!issues.length) {
+      panel.innerHTML = '<span style="color:#28a745;font-size:.82rem;"><i class="fas fa-check-circle"></i> 맞춤법 오류 없음</span>';
+      return;
+    }
+    const items = issues.map(i =>
+      `<span class="spell-item" title="${i.msg}">
+        <span class="spell-wrong">${escHtml(i.found)}</span>
+        <i class="fas fa-arrow-right" style="font-size:.7rem;color:#888;margin:0 4px;"></i>
+        <span class="spell-right">${escHtml(i.right)}</span>
+      </span>`
+    ).join('');
+    panel.innerHTML = `<span style="color:#e74c3c;font-size:.78rem;font-weight:600;margin-right:6px;"><i class="fas fa-spell-check"></i> 맞춤법 확인:</span>${items}`;
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function attachSpellCheck(textarea) {
+    if (textarea.dataset.spellAttached) return;
+    textarea.dataset.spellAttached = '1';
+    textarea.setAttribute('spellcheck', 'true');
+
+    // 패널 생성
+    const panelId = 'spell-panel-' + Math.random().toString(36).slice(2);
+    const panel = document.createElement('div');
+    panel.id = panelId;
+    panel.className = 'spell-panel';
+    textarea.parentNode.insertBefore(panel, textarea.nextSibling);
+
+    let timer = null;
+    function run() {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const issues = checkSpelling(textarea.value);
+        renderSpellPanel(issues, panelId);
+      }, 600);
+    }
+    textarea.addEventListener('input', run);
+    textarea.addEventListener('blur', run);
+    // 처음 로드 시 기존 내용 검사
+    if (textarea.value.trim()) run();
+  }
+
+  function initAll() {
+    document.querySelectorAll('textarea').forEach(attachSpellCheck);
+  }
+
+  // DOM 로드 후 + 동적 변화 감지
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAll);
+  } else {
+    initAll();
+  }
+  // MutationObserver로 동적 추가 textarea도 감지
+  const obs = new MutationObserver(() => initAll());
+  obs.observe(document.body, { childList: true, subtree: true });
+})();
+</script>
+
+<style>
+.spell-panel {
+  min-height: 22px;
+  margin: 4px 0 6px 0;
+  padding: 5px 10px;
+  background: #fffbf0;
+  border-left: 3px solid #f39c12;
+  border-radius: 0 6px 6px 0;
+  font-size: .8rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  transition: all .2s;
+}
+.spell-panel:empty { display: none; }
+.spell-item {
+  display: inline-flex;
+  align-items: center;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 20px;
+  padding: 1px 8px;
+  font-size: .78rem;
+  cursor: default;
+}
+.spell-wrong { color: #c0392b; font-weight: 600; text-decoration: line-through; }
+.spell-right  { color: #27ae60; font-weight: 700; }
+</style>
 </body>
 </html>
