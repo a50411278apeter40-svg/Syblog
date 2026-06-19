@@ -1253,3 +1253,68 @@ def export_post_pdf(request, pk):
 </html>'''
     # 간단한 HTML 파일 반환 (프린트로 PDF 저장 안내)
     return HttpResponse(html_content, content_type='text/html; charset=utf-8')
+
+
+# ── 15. 댓글 좋아요 ───────────────────────────────────────────────
+@login_required
+def comment_like_toggle(request, pk):
+    from .models import Comment, CommentLike
+    comment = get_object_or_404(Comment, pk=pk)
+    obj, created = CommentLike.objects.get_or_create(user=request.user, comment=comment)
+    if not created:
+        obj.delete()
+        liked = False
+    else:
+        liked = True
+        # 댓글 좋아요 알림
+        if comment.author and comment.author != request.user:
+            _send_notification(
+                recipient=comment.author, sender=request.user,
+                ntype='comment_like',
+                message=f'{request.user.username}님이 댓글에 좋아요를 눌렀습니다.',
+                url=comment.get_absolute_url()
+            )
+    count = comment.likes.count()
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'liked': liked, 'count': count})
+    return redirect(comment.get_absolute_url())
+
+
+# ── 16. 무한 스크롤 API ──────────────────────────────────────────
+def posts_api(request):
+    page = int(request.GET.get('page', 1))
+    from django.core.paginator import Paginator
+    qs = Post.objects.order_by('-created_at')
+    paginator = Paginator(qs, 5)
+    try:
+        page_obj = paginator.page(page)
+    except Exception:
+        return JsonResponse({'posts': [], 'has_more': False, 'page': page})
+
+    posts_data = []
+    for p in page_obj.object_list:
+        avatar = 'https://ui-avatars.com/api/?name=' + (p.author.username if p.author else 'U') + '&background=6c63ff&color=fff&size=30'
+        if p.author and hasattr(p.author, 'profile') and p.author.profile and p.author.profile.avatar:
+            try:
+                avatar = p.author.profile.avatar.url
+            except Exception:
+                pass
+        posts_data.append({
+            'title': p.title,
+            'url': p.get_absolute_url(),
+            'author': p.author.username if p.author else '익명',
+            'avatar': avatar,
+            'hook_text': p.hook_text or '',
+            'head_image': p.head_image.url if p.head_image else '',
+            'category': str(p.category) if p.category else '미분류',
+            'created_at': p.created_at.strftime('%Y.%m.%d'),
+            'like_count': p.like_count,
+            'comment_count': p.comments.filter(is_deleted=False).count(),
+            'view_count': p.view_count,
+        })
+
+    return JsonResponse({
+        'posts': posts_data,
+        'has_more': page_obj.has_next(),
+        'page': page,
+    })

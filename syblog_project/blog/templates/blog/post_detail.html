@@ -315,6 +315,41 @@ function cancelReply() {
     document.getElementById('reply-notice').style.display = 'none';
     return false;
 }
+// 팔로우 AJAX
+function followUser(username){
+    const btn = document.getElementById('follow-btn');
+    const label = document.getElementById('follow-label');
+    if(!btn) return;
+    fetch('/user/follow/' + username + '/', {
+        method: 'GET',
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    }).then(r=>r.json()).then(d=>{
+        if(d.following){
+            if(btn) btn.className = btn.className.replace('btn-primary','btn-secondary');
+            if(label) label.textContent = '팔로잉';
+        } else {
+            if(btn) btn.className = btn.className.replace('btn-secondary','btn-primary');
+            if(label) label.textContent = '팔로우';
+        }
+    }).catch(()=>{ location.href='/user/follow/'+username+'/'; });
+}
+
+// AI 보조
+function aiAssist(mode, text){
+    const resultEl = document.getElementById('ai-result');
+    if(!resultEl) return;
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> AI가 생성 중입니다...';
+    fetch('/blog/ai-assist/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json'},
+        body: JSON.stringify({mode: mode, text: text || ''})
+    }).then(r=>r.json()).then(d=>{
+        resultEl.innerHTML = '<strong>🤖 AI 결과:</strong><br><span style="white-space:pre-wrap;">' + (d.result||d.error||'오류 발생') + '</span><button onclick="navigator.clipboard.writeText(this.previousSibling.textContent).then(()=>alert('복사됨!'))" class="btn btn-outline-secondary btn-sm ml-2 mt-2"><i class="fas fa-copy"></i> 복사</button>';
+    }).catch(()=>{ resultEl.innerHTML='오류가 발생했습니다.'; });
+}
+function getCsrf(){ var c=document.cookie.match('(^|;)\s*csrftoken\s*=\s*([^;]+)'); return c?c.pop():''; }
+
 // Like AJAX
 document.getElementById('like-btn').addEventListener('click', function(e) {
     e.preventDefault();
