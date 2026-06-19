@@ -57,8 +57,6 @@
             <div class="card h-100 shadow-sm border-0">
                 {% if p.head_image %}
                 <img class="card-img-top" src="{{ p.head_image.url }}" alt="{{ p.title }}" style="height: 200px; object-fit: cover;">
-                {% else %}
-                <img class="card-img-top" src="https://picsum.photos/seed/{{ p.id }}/800/200" alt="random image" style="height: 200px; object-fit: cover;">
                 {% endif %}
                 <div class="card-body">
                     {% if p.category %}
