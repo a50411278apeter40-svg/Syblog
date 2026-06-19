@@ -2,47 +2,99 @@
 {% load challenge_extras %}
 {% block head_title %}챌린지 - SyBlog{% endblock %}
 {% block main_area %}
-<div class="text-center mb-5" style="background:linear-gradient(135deg,#6c63ff,#48cfad);border-radius:16px;padding:40px 20px;color:white;">
-  <h1><i class="fas fa-gamepad"></i> 챌린지 센터</h1>
-  <p class="mb-0">미니게임을 플레이하고 포인트를 모아 레벨을 올리세요!</p>
+
+<!-- 헤더 배너 -->
+<div style="background:linear-gradient(135deg,#6c63ff,#48cfad);border-radius:18px;padding:36px 24px;color:white;margin-bottom:28px;position:relative;overflow:hidden;">
+  <div style="position:absolute;top:-30px;right:-30px;font-size:8rem;opacity:0.08;">🎮</div>
+  <h1 style="margin:0 0 6px;font-weight:900;"><i class="fas fa-gamepad"></i> 챌린지 센터</h1>
+  <p style="margin:0;opacity:0.9;">미니게임을 플레이하고 포인트를 모아 배지와 등급을 획득하세요!</p>
   {% if user.is_authenticated and user.profile %}
-  <div class="mt-3">
-    <span class="badge" style="background:rgba(255,255,255,0.2);padding:8px 20px;border-radius:20px;font-size:1rem;">
-      <i class="fas fa-star"></i> {{ user.profile.points }} 포인트 · Lv.{{ user.profile.level }} {{ user.profile.level_title }}
+  <div style="margin-top:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+    <span style="background:rgba(255,255,255,0.2);padding:8px 18px;border-radius:20px;font-size:1rem;font-weight:700;">
+      {{ user.profile.level_title }} Lv.{{ user.profile.level }} · {{ user.profile.points }}pt
     </span>
+    {% if user.profile.next_level_points %}
+    <div style="flex:1;min-width:160px;">
+      <div style="background:rgba(0,0,0,0.2);border-radius:99px;height:10px;overflow:hidden;">
+        <div style="height:100%;border-radius:99px;background:#FFD700;width:{{ user.profile.level_progress }}%;"></div>
+      </div>
+      <div style="font-size:0.72rem;opacity:0.8;margin-top:3px;">다음 레벨까지 {{ user.profile.next_level_points }}pt</div>
+    </div>
+    {% endif %}
+    <a href="{% url 'challenges:badges' %}" style="background:rgba(255,255,255,0.25);color:#fff;padding:8px 16px;border-radius:20px;text-decoration:none;font-weight:700;font-size:0.85rem;">🏅 배지 {{ earned_badges|length }}/{{ all_badges|length }}</a>
   </div>
   {% endif %}
 </div>
 
+<!-- 최근 획득 배지 -->
+{% if user.is_authenticated and earned_badges %}
+<div style="background:#fff;border:1px solid #eee;border-radius:14px;padding:18px 20px;margin-bottom:24px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <h6 style="margin:0;font-weight:700;font-size:0.95rem;">🏅 획득한 배지</h6>
+    <a href="{% url 'challenges:badges' %}" style="font-size:0.8rem;color:#6c63ff;text-decoration:none;font-weight:600;">전체 보기 →</a>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+    {% for badge in earned_badges %}
+    <div title="{{ badge.name }}: {{ badge.desc }}" style="width:46px;height:46px;background:linear-gradient(135deg,#fffde7,#fff9c4);border:2px solid #F1C40F;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;cursor:help;" class="badge-icon-btn">{{ badge.icon }}</div>
+    {% endfor %}
+    {% if all_badges|length > earned_badges|length %}
+    <div style="width:46px;height:46px;background:#f5f5f5;border:2px dashed #ddd;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:#bbb;text-align:center;line-height:1.2;">+{{ all_badges|length|add:earned_badges|length|add:"-0" }}<br>더</div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- 등급 로드맵 -->
+{% if user.is_authenticated %}
+<div style="background:#f8f9fa;border-radius:14px;padding:18px 20px;margin-bottom:24px;">
+  <h6 style="margin:0 0 12px;font-weight:700;font-size:0.9rem;color:#555;">📈 등급 로드맵</h6>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;">
+    {% for lv, threshold, name, color in level_thresholds %}
+    <div style="flex:1;min-width:70px;text-align:center;padding:8px 4px;border-radius:8px;border:2px solid {{ color }};background:{% if user.profile.level >= lv %}{{ color }}33{% else %}transparent{% endif %};">
+      <div style="font-size:1.1rem;">{{ name }}</div>
+      <div style="font-size:0.62rem;color:{{ color }};font-weight:700;">Lv.{{ lv }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- 게임 목록 -->
+<h5 style="font-weight:800;margin-bottom:16px;">🎮 게임 목록 ({{ challenges|length }}개)</h5>
 <div class="row">
 {% for game_id, game_name, _ in challenges %}
 <div class="col-md-4 col-sm-6 mb-4">
-  <div class="card h-100 game-card" style="border-radius:12px;overflow:hidden;transition:transform 0.2s;">
-    <div style="height:100px;background:linear-gradient(135deg,hsl({{ forloop.counter0|add:20 }}0,70%,60%),hsl({{ forloop.counter0|add:20 }}0,80%,40%));display:flex;align-items:center;justify-content:center;">
-      <i class="fas fa-gamepad" style="font-size:2.5rem;color:white;"></i>
+  <div class="card h-100 game-card" style="border-radius:14px;overflow:hidden;transition:transform 0.2s,box-shadow 0.2s;border:none;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+    <div style="height:90px;background:linear-gradient(135deg,hsl({{ forloop.counter0|add:'20' }}0,65%,55%),hsl({{ forloop.counter0|add:'20' }}0,75%,38%));display:flex;align-items:center;justify-content:center;font-size:2.8rem;">
+      {{ game_name|slice:":2" }}
     </div>
-    <div class="card-body">
-      <h6 class="font-weight-bold">{{ game_name }}</h6>
+    <div class="card-body" style="padding:14px;">
+      <h6 style="font-weight:700;margin-bottom:6px;">{{ game_name }}</h6>
       {% with scores|get_item:game_id as best %}
       {% if best %}
-      <small class="text-muted"><i class="fas fa-medal text-warning"></i> 최고: {{ best.score }}점 (+{{ best.points_earned }}p)</small>
+      <div style="font-size:0.8rem;color:#888;"><span style="color:#F1C40F;">🥇</span> 최고 {{ best.score }}점 <span style="background:#e8f5e9;color:#2E7D32;padding:2px 8px;border-radius:99px;font-size:0.72rem;font-weight:700;">+{{ best.points_earned }}pt</span></div>
       {% else %}
-      <small class="text-muted">아직 플레이하지 않았습니다</small>
+      <div style="font-size:0.78rem;color:#bbb;">🎮 아직 플레이하지 않음</div>
       {% endif %}
       {% endwith %}
     </div>
-    <div class="card-footer">
-      <a href="/challenges/play/{{ game_id }}/" class="btn btn-primary btn-block btn-sm"><i class="fas fa-play"></i> 플레이</a>
+    <div class="card-footer" style="background:transparent;border-top:1px solid #f0f0f0;padding:10px 14px;">
+      <a href="/challenges/play/{{ game_id }}/" class="btn btn-primary btn-block btn-sm" style="border-radius:8px;font-weight:700;"><i class="fas fa-play"></i> 플레이</a>
     </div>
   </div>
 </div>
 {% endfor %}
 </div>
-<div class="text-center mt-3">
-  <a href="/challenges/my-scores/" class="btn btn-outline-primary mr-2"><i class="fas fa-history"></i> 내 플레이 기록</a>
-  <a href="/user/leaderboard/" class="btn btn-outline-warning"><i class="fas fa-trophy"></i> 리더보드</a>
+
+<!-- 하단 버튼 -->
+<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:8px;">
+  <a href="{% url 'challenges:my_scores' %}" class="btn btn-outline-primary"><i class="fas fa-history"></i> 내 플레이 기록</a>
+  <a href="{% url 'challenges:badges' %}" class="btn btn-outline-warning"><i class="fas fa-medal"></i> 배지 컬렉션</a>
+  <a href="/user/leaderboard/" class="btn btn-outline-success"><i class="fas fa-trophy"></i> 리더보드</a>
 </div>
+
 <style>
-.game-card:hover { transform: translateY(-5px); box-shadow: 0 8px 25px rgba(108,99,255,0.2); }
+.game-card:hover { transform: translateY(-6px); box-shadow: 0 12px 32px rgba(108,99,255,0.18) !important; }
+.badge-icon-btn:hover { transform: scale(1.15); transition: transform 0.2s; }
 </style>
 {% endblock %}

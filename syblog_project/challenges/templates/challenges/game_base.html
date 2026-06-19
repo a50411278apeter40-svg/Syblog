@@ -12,26 +12,62 @@ body { background: #1a1a2e; color: white; font-family: 'Segoe UI', sans-serif; }
 .game-container { max-width: 800px; margin: 0 auto; padding: 20px; }
 .game-header { background: linear-gradient(135deg,#6c63ff,#48cfad); border-radius: 12px; padding: 15px 20px; margin-bottom: 20px; display:flex; justify-content:space-between; align-items:center; }
 canvas { display: block; margin: 0 auto; border-radius: 8px; }
-.score-display { font-size: 1.3rem; font-weight: 700; color: #48cfad; }
-.btn-game { background: linear-gradient(135deg,#6c63ff,#48cfad); border: none; color: white; padding: 10px 30px; border-radius: 25px; font-weight: 700; cursor: pointer; }
-.btn-game:hover { opacity: 0.9; transform: scale(1.02); }
-#result-overlay { display:none; position:fixed; top:0;left:0;right:0;bottom:0; background:rgba(0,0,0,0.7); z-index:100; align-items:center; justify-content:center; }
+.score-display { font-size: 1.3rem; font-weight: 700; color: #fff; }
+.btn-game { background: linear-gradient(135deg,#6c63ff,#48cfad); border: none; color: white; padding: 10px 30px; border-radius: 25px; font-weight: 700; cursor: pointer; transition: opacity 0.2s; }
+.btn-game:hover { opacity: 0.88; }
+
+/* 결과 오버레이 */
+#result-overlay { display:none; position:fixed; top:0;left:0;right:0;bottom:0; background:rgba(0,0,0,0.75); z-index:200; align-items:center; justify-content:center; }
 #result-overlay.show { display:flex; }
-.result-card { background: linear-gradient(135deg,#16213e,#0f3460); border-radius:20px; padding:40px; text-align:center; max-width:350px; width:100%; }
+.result-card { background: linear-gradient(135deg,#16213e,#0f3460); border-radius:20px; padding:36px 28px; text-align:center; max-width:380px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,0.5); }
 .result-score { font-size: 3rem; font-weight: 800; color: #48cfad; }
-.points-earned { font-size: 1.2rem; color: #ffd200; }
+.points-earned { font-size: 1.1rem; color: #ffd200; margin-top:6px; }
+
+/* 레벨업 팝업 */
+#levelup-popup {
+  display:none; position:fixed; top:20px; left:50%; transform:translateX(-50%);
+  background:linear-gradient(135deg,#F1C40F,#E67E22);
+  color:#fff; padding:14px 28px; border-radius:50px;
+  font-size:1.05rem; font-weight:800; z-index:300;
+  box-shadow:0 8px 30px rgba(241,196,15,0.5);
+  animation:popIn 0.4s ease;
+}
+@keyframes popIn { from{transform:translateX(-50%) scale(0.5);opacity:0;} to{transform:translateX(-50%) scale(1);opacity:1;} }
+
+/* 배지 팝업 */
+#badge-popup {
+  display:none; position:fixed; bottom:24px; right:24px; z-index:300;
+  display:none; flex-direction:column; gap:8px; max-width:260px;
+}
+.badge-toast {
+  background:linear-gradient(135deg,#1a1a2e,#16213e);
+  border:2px solid #F1C40F; border-radius:14px;
+  padding:12px 16px; display:flex; align-items:center; gap:12px;
+  animation:slideIn 0.4s ease; box-shadow:0 8px 25px rgba(0,0,0,0.5);
+}
+@keyframes slideIn { from{transform:translateX(120%);opacity:0;} to{transform:translateX(0);opacity:1;} }
+.badge-toast .badge-icon { font-size:2rem; flex-shrink:0; }
+.badge-toast .badge-info { flex:1; }
+.badge-toast .badge-title { font-size:0.72rem; color:#F1C40F; font-weight:700; }
+.badge-toast .badge-name { font-size:0.9rem; font-weight:800; color:#fff; }
+.badge-toast .badge-desc { font-size:0.7rem; color:#aaa; margin-top:2px; }
+
+/* 레벨 진행바 (게임 헤더) */
+.level-bar-wrap { flex:1; margin-left:12px; }
+.level-bar-bg { background:rgba(255,255,255,0.2); border-radius:99px; height:8px; overflow:hidden; margin-top:4px; }
+.level-bar-fill { height:100%; border-radius:99px; background:#ffd200; transition:width 0.6s; }
 </style>
 </head>
 <body>
 <div class="game-container">
   <div class="game-header">
-    <div>
+    <div style="flex:1;">
       <h4 class="mb-0"><i class="fas fa-gamepad"></i> {{ game_name }}</h4>
-      <small>점수에 따라 포인트 지급!</small>
+      <small style="opacity:0.85;">점수에 따라 포인트 & 배지 획득!</small>
     </div>
-    <div class="text-right">
+    <div style="text-align:right;">
       <div class="score-display">점수: <span id="score-display">0</span></div>
-      {% if best_score %}<small>최고: {{ best_score.score }}</small>{% endif %}
+      {% if best_score %}<small style="opacity:0.8;">최고: {{ best_score.score }}</small>{% endif %}
     </div>
   </div>
 
@@ -40,6 +76,9 @@ canvas { display: block; margin: 0 auto; border-radius: 8px; }
   <div class="text-center mt-3">
     <button class="btn-game" id="start-btn" onclick="startGame()"><i class="fas fa-play"></i> 시작</button>
     <a href="/challenges/" class="btn btn-outline-light ml-2"><i class="fas fa-arrow-left"></i> 목록</a>
+    {% if request.user.is_authenticated %}
+    <a href="/challenges/badges/" class="btn btn-outline-warning ml-2"><i class="fas fa-medal"></i> 배지</a>
+    {% endif %}
   </div>
 </div>
 
@@ -48,29 +87,70 @@ canvas { display: block; margin: 0 auto; border-radius: 8px; }
   <div class="result-card">
     <h3>🎮 게임 종료!</h3>
     <div class="result-score" id="final-score">0</div>
-    <div class="points-earned mt-2">+<span id="points-earned">0</span> 포인트 획득!</div>
+    <div class="points-earned">+<span id="points-earned">0</span> 포인트 획득!</div>
     {% if request.user.is_authenticated %}
-    <div class="mt-2" id="level-up-msg" style="display:none;color:#48cfad;">🎉 레벨 업!</div>
-    <div class="mt-3">
-      <div>현재 포인트: <strong id="total-points">-</strong></div>
-      <div>현재 레벨: <strong id="current-level">-</strong></div>
+    <div id="level-up-msg" style="display:none;color:#48cfad;font-weight:800;font-size:1.1rem;margin-top:8px;">🎉 레벨 업!</div>
+    <div style="margin-top:12px;background:rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;">
+      <div style="font-size:0.85rem;color:#aaa;">현재 포인트</div>
+      <div style="font-size:1.4rem;font-weight:800;color:#ffd200;"><span id="total-points">-</span>pt</div>
+      <div style="font-size:0.85rem;color:#aaa;margin-top:6px;">현재 등급</div>
+      <div style="font-size:1rem;font-weight:700;color:#48cfad;" id="current-level">-</div>
+      <!-- 레벨 진행바 -->
+      <div style="margin-top:10px;">
+        <div style="background:rgba(255,255,255,0.15);border-radius:99px;height:10px;overflow:hidden;">
+          <div id="result-level-bar" style="height:100%;border-radius:99px;background:#ffd200;transition:width 0.8s;width:0%;"></div>
+        </div>
+        <div style="font-size:0.72rem;color:#888;margin-top:4px;" id="result-level-hint"></div>
+      </div>
     </div>
     {% endif %}
-    <div class="mt-4">
-      <button class="btn-game mr-2" onclick="startGame()"><i class="fas fa-redo"></i> 다시하기</button>
+    <div class="mt-4" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+      <button class="btn-game" onclick="startGame()"><i class="fas fa-redo"></i> 다시하기</button>
       <a href="/challenges/" class="btn btn-outline-light">목록</a>
+      {% if request.user.is_authenticated %}
+      <a href="/challenges/my-scores/" class="btn btn-outline-warning">내 기록</a>
+      {% endif %}
     </div>
   </div>
 </div>
+
+<!-- 레벨업 팝업 -->
+<div id="levelup-popup"></div>
+
+<!-- 배지 팝업 컨테이너 -->
+<div id="badge-popup" style="display:flex;position:fixed;bottom:24px;right:24px;z-index:300;flex-direction:column;gap:8px;max-width:260px;pointer-events:none;"></div>
 
 <script>
 const GAME_TYPE = '{{ game_type }}';
 const CSRF = '{{ csrf_token }}';
 const IS_AUTH = {% if request.user.is_authenticated %}true{% else %}false{% endif %};
 
+function showBadgeToast(badge) {
+  const container = document.getElementById('badge-popup');
+  const toast = document.createElement('div');
+  toast.className = 'badge-toast';
+  toast.innerHTML = `
+    <div class="badge-icon">${badge.icon}</div>
+    <div class="badge-info">
+      <div class="badge-title">🏅 새 배지 획득!</div>
+      <div class="badge-name">${badge.name}</div>
+      <div class="badge-desc">${badge.desc}</div>
+    </div>`;
+  container.appendChild(toast);
+  setTimeout(() => { toast.style.animation='slideIn 0.4s ease reverse'; setTimeout(()=>toast.remove(), 400); }, 4000);
+}
+
+function showLevelUp(title, color) {
+  const pop = document.getElementById('levelup-popup');
+  pop.innerHTML = `🎉 레벨 업! ${title}`;
+  pop.style.background = `linear-gradient(135deg, ${color}, ${color}aa)`;
+  pop.style.display = 'block';
+  setTimeout(() => { pop.style.display = 'none'; }, 3500);
+}
+
 function submitScore(score) {
+  document.getElementById('final-score').textContent = score;
   if (!IS_AUTH) {
-    document.getElementById('final-score').textContent = score;
     document.getElementById('result-overlay').classList.add('show');
     return;
   }
@@ -79,15 +159,29 @@ function submitScore(score) {
     headers: {'Content-Type':'application/json','X-CSRFToken':CSRF},
     body: JSON.stringify({game_type: GAME_TYPE, score: score})
   }).then(r=>r.json()).then(data=>{
-    document.getElementById('final-score').textContent = score;
     document.getElementById('points-earned').textContent = data.points_earned || 0;
     document.getElementById('total-points').textContent = data.total_points || 0;
     document.getElementById('current-level').textContent = 'Lv.' + (data.level||1) + ' ' + (data.level_title||'');
-    if(data.level_up) document.getElementById('level-up-msg').style.display='block';
-    document.getElementById('score-display').textContent = score;
+    if (data.level_progress !== undefined) {
+      document.getElementById('result-level-bar').style.width = data.level_progress + '%';
+      if (data.next_level_points) {
+        document.getElementById('result-level-hint').textContent = `다음 레벨까지 ${data.next_level_points}pt`;
+      } else {
+        document.getElementById('result-level-hint').textContent = '🏆 최고 레벨 달성!';
+      }
+    }
+    if (data.level_up) {
+      document.getElementById('level-up-msg').style.display = 'block';
+      showLevelUp(data.level_title || '', data.level_color || '#F1C40F');
+    }
+    // 배지 팝업
+    if (data.new_badges && data.new_badges.length > 0) {
+      data.new_badges.forEach((badge, i) => {
+        setTimeout(() => showBadgeToast(badge), i * 800);
+      });
+    }
     document.getElementById('result-overlay').classList.add('show');
   }).catch(()=>{
-    document.getElementById('final-score').textContent = score;
     document.getElementById('result-overlay').classList.add('show');
   });
 }

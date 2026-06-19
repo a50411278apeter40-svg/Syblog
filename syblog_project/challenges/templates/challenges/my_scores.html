@@ -1,33 +1,96 @@
 {% extends 'blog/base.html' %}
-{% block head_title %}내 점수 기록 - SyBlog{% endblock %}
+{% block head_title %}내 점수 & 배지 - SyBlog{% endblock %}
 {% block main_area %}
-<h3 class="mb-4"><i class="fas fa-history" style="color:#6c63ff;"></i> 내 플레이 기록</h3>
-<div class="card mb-4" style="background:linear-gradient(135deg,#6c63ff,#48cfad);color:white;">
-  <div class="card-body text-center">
-    <h2>총 획득 포인트: {{ user.profile.points }}</h2>
-    <small>레벨 {{ user.profile.level }} {{ user.profile.level_title }}</small>
+<div style="max-width:860px;margin:0 auto;">
+
+  <!-- 레벨 카드 -->
+  <div style="background:linear-gradient(135deg,{{ profile.level_color }}33,{{ profile.level_color }}66);border:2px solid {{ profile.level_color }};border-radius:18px;padding:24px;margin-bottom:24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+    <div style="font-size:3.5rem;line-height:1;">{{ profile.level_title }}</div>
+    <div style="flex:1;min-width:200px;">
+      <div style="font-size:1.3rem;font-weight:800;color:{{ profile.level_color }};">레벨 {{ profile.level }}</div>
+      <div style="font-size:0.9rem;color:#555;">총 포인트 <strong>{{ profile.points }}pt</strong></div>
+      {% if profile.next_level_points %}
+      <div style="margin-top:10px;background:rgba(0,0,0,0.12);border-radius:99px;height:12px;overflow:hidden;">
+        <div style="height:100%;border-radius:99px;background:{{ profile.level_color }};width:{{ profile.level_progress }}%;"></div>
+      </div>
+      <div style="font-size:0.75rem;color:#777;margin-top:4px;">다음 레벨까지 {{ profile.next_level_points }}pt</div>
+      {% else %}
+      <div style="color:#FFD700;font-weight:700;margin-top:8px;">🏆 최고 레벨!</div>
+      {% endif %}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <a href="{% url 'challenges:badges' %}" style="background:{{ profile.level_color }};color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none;font-weight:700;font-size:0.85rem;text-align:center;">🏅 배지 보기</a>
+      <a href="{% url 'challenges:list' %}" style="background:#444;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none;font-weight:700;font-size:0.85rem;text-align:center;">🎮 게임하기</a>
+    </div>
   </div>
-</div>
-<div class="card">
-  <div class="card-body p-0">
-    <table class="table table-hover mb-0">
-      <thead><tr><th>게임</th><th>점수</th><th>획득 포인트</th><th>날짜</th></tr></thead>
-      <tbody>
-        {% for s in scores %}
-        <tr>
-          <td><i class="fas fa-gamepad text-primary mr-1"></i> {{ s.game_type }}</td>
-          <td><strong>{{ s.score }}</strong></td>
-          <td><span class="badge badge-success">+{{ s.points_earned }}p</span></td>
-          <td><small class="text-muted">{{ s.played_at|date:"m.d H:i" }}</small></td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="4" class="text-center text-muted py-4">아직 플레이 기록이 없습니다.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+
+  <!-- 획득 배지 요약 -->
+  <div style="background:#fff;border:1px solid #eee;border-radius:14px;padding:20px;margin-bottom:24px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <h4 style="margin:0;font-size:1rem;font-weight:700;">🏅 획득한 배지 ({{ earned_badges|length }}/{{ all_badges|length }})</h4>
+      <a href="{% url 'challenges:badges' %}" style="font-size:0.8rem;color:#6c63ff;text-decoration:none;font-weight:600;">전체 보기 →</a>
+    </div>
+    {% if earned_badges %}
+    <div style="display:flex;flex-wrap:wrap;gap:10px;">
+      {% for badge in earned_badges %}
+      <div title="{{ badge.name }}: {{ badge.desc }}" style="width:52px;height:52px;background:linear-gradient(135deg,#fffde7,#fff9c4);border:2px solid #F1C40F;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.6rem;cursor:help;">{{ badge.icon }}</div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:#aaa;margin:0;font-size:0.9rem;">아직 획득한 배지가 없습니다. 게임을 플레이해서 배지를 모아보세요!</p>
+    {% endif %}
   </div>
-</div>
-<div class="text-center mt-3">
-  <a href="/challenges/" class="btn btn-primary"><i class="fas fa-gamepad"></i> 게임 하러 가기</a>
+
+  <!-- 배지 카테고리별 미리보기 -->
+  {% for cat_name, badges in badge_categories.items %}
+  <div style="background:#fff;border:1px solid #eee;border-radius:14px;padding:20px;margin-bottom:16px;">
+    <h4 style="margin:0 0 14px;font-size:0.95rem;font-weight:700;color:#444;">
+      {% if cat_name == '기본' %}🎯{% elif cat_name == '블로그' %}📝{% elif cat_name == '게임' %}🎮{% elif cat_name == '등급' %}⭐{% else %}✨{% endif %}
+      {{ cat_name }} 배지
+      <span style="font-size:0.75rem;color:#888;font-weight:400;margin-left:6px;">
+        {% for b in badges %}{% if b.earned %}1{% endif %}{% endfor %}/{{ badges|length }}
+      </span>
+    </h4>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;">
+      {% for badge in badges %}
+      <div style="text-align:center;padding:12px 8px;border-radius:12px;border:2px solid {% if badge.earned %}#F1C40F{% else %}#e0e0e0{% endif %};background:{% if badge.earned %}#fffde7{% else %}#f9f9f9{% endif %};{% if not badge.earned %}opacity:0.5;{% endif %}">
+        <div style="font-size:1.8rem;">{{ badge.icon }}</div>
+        <div style="font-size:0.72rem;font-weight:700;margin-top:4px;color:{% if badge.earned %}#333{% else %}#999{% endif %};">{{ badge.name }}</div>
+        {% if badge.earned %}<div style="font-size:0.62rem;color:#F1C40F;margin-top:2px;">✅ 획득</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+
+  <!-- 플레이 기록 -->
+  <div style="background:#fff;border:1px solid #eee;border-radius:14px;padding:20px;margin-top:8px;">
+    <h4 style="margin:0 0 16px;font-size:1rem;font-weight:700;">📊 최근 플레이 기록</h4>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+        <thead>
+          <tr style="background:#f5f5f5;">
+            <th style="padding:10px 12px;text-align:left;border-radius:8px 0 0 8px;">게임</th>
+            <th style="padding:10px 12px;text-align:center;">점수</th>
+            <th style="padding:10px 12px;text-align:center;">획득 포인트</th>
+            <th style="padding:10px 12px;text-align:right;border-radius:0 8px 8px 0;">날짜</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in scores %}
+          <tr style="border-bottom:1px solid #f0f0f0;">
+            <td style="padding:10px 12px;font-weight:600;">🎮 {{ s.game_type }}</td>
+            <td style="padding:10px 12px;text-align:center;"><strong>{{ s.score }}</strong></td>
+            <td style="padding:10px 12px;text-align:center;"><span style="background:#e8f5e9;color:#2E7D32;padding:3px 10px;border-radius:99px;font-size:0.8rem;font-weight:700;">+{{ s.points_earned }}pt</span></td>
+            <td style="padding:10px 12px;text-align:right;color:#888;font-size:0.8rem;">{{ s.played_at|date:"m.d H:i" }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" style="text-align:center;padding:32px;color:#aaa;">아직 플레이 기록이 없습니다.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 {% endblock %}

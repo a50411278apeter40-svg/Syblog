@@ -58,6 +58,11 @@ class PostCreate(LoginRequiredMixin, CreateView):
         
         form.instance.author = self.request.user
         response = super().form_valid(form)
+        # 배지 체크
+        post_count = Post.objects.filter(author=self.request.user).count()
+        _award_blog_badge(self.request.user, 'first_post')
+        if post_count >= 5: _award_blog_badge(self.request.user, 'writer5')
+        if post_count >= 20: _award_blog_badge(self.request.user, 'writer20')
         
         tags_str = self.request.POST.get('tags_str')
         if tags_str:
@@ -164,6 +169,7 @@ def new_comment(request, pk):
                 except:
                     pass
             comment.save()
+            _award_blog_badge(request.user, "first_comment")
             return redirect(comment.get_absolute_url())
     return redirect(post.get_absolute_url())
 
@@ -212,6 +218,8 @@ def like_post(request, pk):
     else:
         post.likes.add(request.user)
         liked = True
+        _award_blog_badge(request.user, "first_like")
+        if post.like_count >= 10: _award_blog_badge(post.author, "popular") if post.author else None
     post.like_count = post.likes.count()
     post.save(update_fields=['like_count'])
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
