@@ -127,22 +127,22 @@ SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_LOGIN_ON_GET = True
 SOCIALACCOUNT_EMAIL_REQUIRED = False
 
-# Google 소셜 앱은 settings에서만 관리 (DB 중복 방지)
-# DB에 등록된 앱이 있어도 settings 값 우선 사용
+# allauth 65.x 호환 방식 (APPS 리스트 + SOCIALACCOUNT_STORE_TOKENS)
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
-        'APP': {
-            'client_id': os.environ.get('GOOGLE_CLIENT_ID', ''),
-            'secret': os.environ.get('GOOGLE_CLIENT_SECRET', ''),
-            'key': '',
-        },
         'SCOPE': ['profile', 'email'],
         'AUTH_PARAMS': {'access_type': 'online'},
         'OAUTH_PKCE_ENABLED': True,
         'FETCH_USERINFO': True,
+        'APPS': [
+            {
+                'client_id': os.environ.get('GOOGLE_CLIENT_ID', ''),
+                'secret': os.environ.get('GOOGLE_CLIENT_SECRET', ''),
+                'key': '',
+            }
+        ],
     }
 }
-# DB에 SocialApp 레코드가 있어도 settings.APP을 우선 사용 (MultipleObjectsReturned 방지)
 SOCIALACCOUNT_STORE_TOKENS = False
 
 LOGIN_REDIRECT_URL = '/blog/'
