@@ -5,7 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block head_title %}SyBlog{% endblock %}</title>
-    <link rel="alternate" type="application/rss+xml" title="SyBlog RSS" href="/blog/feed/">
     <link rel="stylesheet" href="{% static 'blog/bootstrap/bootstrap.min.css' %}" media="screen">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -174,13 +173,6 @@
                     </li>
                 </ul>
             </div>
-
-            <!-- RSS 구독 -->
-            <div class="sidebar-widget text-center py-2">
-                <a href="/blog/feed/" class="btn btn-sm btn-outline-warning" target="_blank">
-                    <i class="fas fa-rss"></i> RSS 구독
-                </a>
-            </div>
         </div>
     </div>
 </div>
@@ -189,7 +181,6 @@
     <div class="container text-center">
         <p class="mb-1"><strong style="color:#6c63ff;">SyBlog</strong> &copy; 2024</p>
         <small>파이썬 장고로 만든 블로그 플랫폼</small>
-        <br><small><a href="/blog/feed/" style="color:#f39c12;"><i class="fas fa-rss"></i> RSS</a></small>
     </div>
 </footer>
 

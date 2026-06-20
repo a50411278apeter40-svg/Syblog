@@ -1207,38 +1207,6 @@ def ai_writing_assist(request):
         return JsonResponse({'result': fallback.get(mode, text), 'mode': mode, 'fallback': True})
 
 
-# ── 13. RSS 피드 ─────────────────────────────────────────────────
-from django.http import HttpResponse
-from django.utils import timezone as _tz
-
-def rss_feed(request):
-    posts = Post.objects.order_by('-created_at')[:20]
-    base_url = request.build_absolute_uri('/').rstrip('/')
-    items = ''
-    for p in posts:
-        abs_url = base_url + p.get_absolute_url()
-        items += f'''
-  <item>
-    <title><![CDATA[{p.title}]]></title>
-    <link>{abs_url}</link>
-    <guid>{abs_url}</guid>
-    <pubDate>{p.created_at.strftime('%a, %d %b %Y %H:%M:%S +0900')}</pubDate>
-    <description><![CDATA[{p.hook_text or p.title}]]></description>
-    <author>{p.author.username if p.author else 'unknown'}</author>
-  </item>'''
-
-    rss = f'''<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0">
-<channel>
-  <title>SyBlog</title>
-  <link>{base_url}/blog/</link>
-  <description>SyBlog 최신 글</description>
-  <language>ko</language>
-  <lastBuildDate>{_tz.now().strftime('%a, %d %b %Y %H:%M:%S +0900')}</lastBuildDate>
-  {items}
-</channel>
-</rss>'''
-    return HttpResponse(rss, content_type='application/rss+xml; charset=utf-8')
 
 
 # ── 14. PDF 내보내기 ─────────────────────────────────────────────

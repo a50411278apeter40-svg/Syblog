@@ -51,7 +51,6 @@ urlpatterns = [
     path('api/darkmode/', views.darkmode_toggle, name='darkmode_toggle_v2'),
     path('<int:pk>/export-pdf/', views.export_post_pdf, name='export_post_pdf'),
     path('ai-assist/', views.ai_writing_assist, name='ai_writing_assist'),
-    path('feed/', views.rss_feed, name='rss_feed'),
     path('<int:pk>/pdf/', views.export_post_pdf, name='export_pdf'),
     path('my-dashboard/', views.my_dashboard, name='my_dashboard'),
 
