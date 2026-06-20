@@ -25,6 +25,85 @@
     </div>
 </div>
 
+
+<!-- ── 스토리지 현황 ────────────────────────────────────── -->
+<div class="card mb-4" style="border:2px solid #11998e;">
+  <div class="card-header font-weight-bold"
+       style="background:linear-gradient(135deg,#11998e,#38ef7d);color:white;">
+    <i class="fas fa-hdd"></i> 스토리지 현황
+  </div>
+  <div class="card-body">
+
+    <!-- 전체 디스크 게이지 -->
+    <div class="mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        <span class="font-weight-bold" style="font-size:.95rem;">
+          <i class="fas fa-server" style="color:#11998e;"></i> 전체 디스크
+        </span>
+        <span class="badge badge-pill"
+              style="background:{% if storage.disk_pct >= 80 %}#e74c3c{% elif storage.disk_pct >= 60 %}#f39c12{% else %}#11998e{% endif %};color:white;font-size:.85rem;padding:5px 12px;">
+          {{ storage.disk_pct }}%
+        </span>
+      </div>
+      <div class="progress mb-1" style="height:14px;border-radius:8px;">
+        <div class="progress-bar"
+             style="width:{{ storage.disk_pct }}%;border-radius:8px;
+                    background:{% if storage.disk_pct >= 80 %}linear-gradient(90deg,#e74c3c,#c0392b){% elif storage.disk_pct >= 60 %}linear-gradient(90deg,#f39c12,#e67e22){% else %}linear-gradient(90deg,#11998e,#38ef7d){% endif %};">
+        </div>
+      </div>
+      <small class="text-muted">
+        사용 <strong>{{ storage.disk_used_fmt }}</strong> /
+        전체 <strong>{{ storage.disk_total_fmt }}</strong>
+        &nbsp;·&nbsp; 여유 <strong style="color:#11998e;">{{ storage.disk_free_fmt }}</strong>
+      </small>
+    </div>
+
+    <!-- 앱 총 사용량 게이지 -->
+    <div class="mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        <span class="font-weight-bold" style="font-size:.95rem;">
+          <i class="fas fa-blog" style="color:#6c63ff;"></i> 블로그 앱 합계
+        </span>
+        <span style="font-size:.88rem;color:#6c63ff;font-weight:600;">
+          {{ storage.app_total_fmt }}
+        </span>
+      </div>
+      <div class="progress mb-1" style="height:10px;border-radius:8px;">
+        <div class="progress-bar"
+             style="width:{{ storage.app_pct }}%;border-radius:8px;
+                    background:linear-gradient(90deg,#6c63ff,#48cfad);min-width:3px;">
+        </div>
+      </div>
+    </div>
+
+    <!-- 세부 항목 -->
+    <div class="row text-center mt-3">
+      <div class="col-4">
+        <div class="p-3 rounded" style="background:rgba(108,99,255,0.08);border:1px solid rgba(108,99,255,0.15);">
+          <div style="font-size:1.4rem;">🖼</div>
+          <div class="font-weight-bold" style="color:#6c63ff;font-size:1rem;">{{ storage.media_fmt }}</div>
+          <small class="text-muted">미디어 파일</small>
+        </div>
+      </div>
+      <div class="col-4">
+        <div class="p-3 rounded" style="background:rgba(17,153,142,0.08);border:1px solid rgba(17,153,142,0.15);">
+          <div style="font-size:1.4rem;">📦</div>
+          <div class="font-weight-bold" style="color:#11998e;font-size:1rem;">{{ storage.static_fmt }}</div>
+          <small class="text-muted">정적 파일</small>
+        </div>
+      </div>
+      <div class="col-4">
+        <div class="p-3 rounded" style="background:rgba(249,83,198,0.08);border:1px solid rgba(249,83,198,0.15);">
+          <div style="font-size:1.4rem;">🗄</div>
+          <div class="font-weight-bold" style="color:#f953c6;font-size:1rem;">{{ storage.db_fmt }}</div>
+          <small class="text-muted">데이터베이스</small>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
 <!-- GitHub 백업 / 복원 -->
 <div class="card mb-4" style="border: 2px solid #6c63ff;">
     <div class="card-header font-weight-bold" style="background:linear-gradient(135deg,#6c63ff,#48cfad); color:white;">

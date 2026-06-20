@@ -369,21 +369,67 @@ def series_edit(request, pk):
 # ── Admin Views ──
 @staff_member_required
 def admin_dashboard(request):
+    import shutil, os as _os
+    from django.conf import settings as _settings
     from accounts.models import UserProfile
     from challenges.models import ChallengeScore
     from mail_system.models import Mail
+
+    # ── 스토리지 계산 ─────────────────────────────────────────
+    def _dir_size(path):
+        total = 0
+        if _os.path.exists(path):
+            for dirpath, dirnames, filenames in _os.walk(path):
+                for fname in filenames:
+                    try:
+                        total += _os.path.getsize(_os.path.join(dirpath, fname))
+                    except OSError:
+                        pass
+        return total
+
+    def _fmt(b):
+        if b >= 1073741824: return f"{b/1073741824:.2f} GB"
+        if b >= 1048576:    return f"{b/1048576:.2f} MB"
+        if b >= 1024:       return f"{b/1024:.1f} KB"
+        return f"{b} B"
+
+    media_root  = getattr(_settings, 'MEDIA_ROOT',  '')
+    static_root = getattr(_settings, 'STATIC_ROOT', '')
+    db_path     = _os.path.join(_settings.BASE_DIR, 'db.sqlite3')
+
+    media_bytes  = _dir_size(media_root)
+    static_bytes = _dir_size(static_root)
+    db_bytes     = _os.path.getsize(db_path) if _os.path.exists(db_path) else 0
+    app_total    = media_bytes + static_bytes + db_bytes
+
+    disk_total, disk_used, disk_free = shutil.disk_usage('/')
+
+    storage = {
+        'media_fmt':       _fmt(media_bytes),
+        'static_fmt':      _fmt(static_bytes),
+        'db_fmt':          _fmt(db_bytes),
+        'app_total_fmt':   _fmt(app_total),
+        'disk_used_fmt':   _fmt(disk_used),
+        'disk_total_fmt':  _fmt(disk_total),
+        'disk_free_fmt':   _fmt(disk_free),
+        'disk_pct':        round(disk_used / disk_total * 100, 1),
+        'app_pct':         round(app_total  / disk_total * 100, 2),
+        'media_pct':       round(media_bytes  / disk_total * 100, 2) if disk_total else 0,
+    }
+
     stats = {
-        'total_users': User.objects.count(),
-        'total_posts': Post.objects.count(),
+        'total_users':    User.objects.count(),
+        'total_posts':    Post.objects.count(),
         'total_comments': Comment.objects.count(),
-        'blocked_users': UserProfile.objects.filter(is_blocked=True).count(),
-        'total_mails': Mail.objects.count(),
-        'total_scores': ChallengeScore.objects.count(),
+        'blocked_users':  UserProfile.objects.filter(is_blocked=True).count(),
+        'total_mails':    Mail.objects.count(),
+        'total_scores':   ChallengeScore.objects.count(),
     }
     recent_posts = Post.objects.order_by('-created_at')[:10]
     recent_users = User.objects.order_by('-date_joined')[:10]
     return render(request, 'blog/admin_dashboard.html', {
-        'stats': stats,
+        'stats':        stats,
+        'storage':      storage,
         'recent_posts': recent_posts,
         'recent_users': recent_users,
     })
