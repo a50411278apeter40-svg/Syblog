@@ -166,3 +166,29 @@ BANNED_KEYWORDS = [
     '창녀', '매춘', '강간', '성폭행', '자살', '살인', '폭탄', '테러',
     'sex', 'porn', 'fuck', 'shit', 'bitch', 'asshole', 'kill', 'rape',
 ]
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'accounts': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'allauth': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
+}
