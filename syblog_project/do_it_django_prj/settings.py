@@ -50,7 +50,6 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'allauth.account.middleware.AccountMiddleware',
     'accounts.middleware.BlockedUserMiddleware',
 ]
 
@@ -120,39 +119,29 @@ AUTHENTICATION_BACKENDS = [
 
 SITE_ID = 1
 
-# allauth 설정 (최신 버전 호환)
-ACCOUNT_SIGNUP_FIELDS = ['username*', 'password1*', 'password2*']
-ACCOUNT_LOGIN_METHODS = {'username'}
+# ── allauth 0.54.x 구버전 설정 ──────────────────────────────────────────
+ACCOUNT_EMAIL_REQUIRED = False
+ACCOUNT_EMAIL_VERIFICATION = 'none'
+ACCOUNT_AUTHENTICATION_METHOD = 'username'
+ACCOUNT_USERNAME_REQUIRED = True
 SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_LOGIN_ON_GET = True
 SOCIALACCOUNT_EMAIL_REQUIRED = False
 
-# allauth 65.x 호환 방식 (APPS 리스트 + SOCIALACCOUNT_STORE_TOKENS)
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
         'SCOPE': ['profile', 'email'],
         'AUTH_PARAMS': {'access_type': 'online'},
-        'OAUTH_PKCE_ENABLED': False,
-        'FETCH_USERINFO': True,
-        'APPS': [
-            {
-                'client_id': os.environ.get('GOOGLE_CLIENT_ID', ''),
-                'secret': os.environ.get('GOOGLE_CLIENT_SECRET', ''),
-                'key': '',
-            }
-        ],
     }
 }
-SOCIALACCOUNT_STORE_TOKENS = False
+
 SOCIALACCOUNT_ADAPTER = 'accounts.adapter.SocialAccountAdapter'
 ACCOUNT_ADAPTER = 'accounts.adapter.AccountAdapter'
 
-# Render 프록시 HTTPS 인식 (OAuth redirect_uri 정상화)
-# 세션을 서명된 쿠키로 저장 — 서버 재시작·다중 인스턴스 세션 불일치 방지
-SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
+# Render HTTPS 프록시 인식
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SESSION_COOKIE_SECURE = True
-SESSION_COOKIE_SAMESITE = 'Lax'    # OAuth redirect는 Lax로 동작
+SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SECURE = True
 CSRF_COOKIE_SAMESITE = 'Lax'
 
