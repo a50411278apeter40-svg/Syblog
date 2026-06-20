@@ -117,6 +117,8 @@
         <input type="datetime-local" name="publish_at" class="form-control" style="max-width:280px;">
         <small class="text-muted">설정한 시각에 자동으로 공개됩니다.</small>
       </div>
+      <!-- AI 글쓰기 보조 패널 -->
+      {% include 'blog/_ai_assist_panel.html' with panel_id='post-write' panel_mode='post' textarea_id='content-textarea' %}
       <hr>
       <button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-save"></i> 저장하기</button>
       <a href="/blog/" class="btn btn-secondary btn-lg ml-2">취소</a>

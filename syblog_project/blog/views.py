@@ -1168,9 +1168,19 @@ def ai_writing_assist(request):
     if mode == 'draft':
         prompt = f"다음 제목으로 한국어 블로그 글 초안을 3문단으로 작성해줘. 제목: {text}"
     elif mode == 'improve':
-        prompt = f"다음 글을 더 자연스럽고 읽기 좋게 다듬어줘 (한국어):\n\n{text[:1000]}"
+        prompt = f"다음 글을 더 자연스럽고 읽기 좋게 다듬어줘 (한국어). 수정된 전체 글을 출력해줘:\n\n{text[:800]}"
     elif mode == 'title':
-        prompt = f"다음 내용에 어울리는 블로그 제목 5개를 한국어로 제안해줘:\n\n{text[:500]}"
+        prompt = f"다음 내용에 어울리는 블로그 제목 5개를 한국어로 제안해줘. 번호 목록으로 출력해줘:\n\n{text[:500]}"
+    elif mode == 'summarize':
+        prompt = f"다음 글을 3~5문장으로 핵심만 요약해줘 (한국어):\n\n{text[:800]}"
+    elif mode == 'spell':
+        prompt = f"다음 글의 맞춤법과 어색한 표현을 교정해줘. 수정한 부분만 [원문 → 수정] 형태로 목록으로 보여줘 (없으면 '맞춤법 오류 없음' 출력):\n\n{text[:800]}"
+    elif mode == 'continue':
+        prompt = f"다음 글에 이어서 자연스럽게 2~3문단 추가해줘 (한국어):\n\n{text[:800]}"
+    elif mode == 'comment_improve':
+        prompt = f"다음 댓글을 더 자연스럽고 명확하게 다듬어줘 (한국어). 수정된 댓글만 출력해줘:\n\n{text[:400]}"
+    elif mode == 'comment_polite':
+        prompt = f"다음 댓글을 정중하고 예의 바른 표현으로 바꿔줘 (한국어). 수정된 댓글만 출력해줘:\n\n{text[:400]}"
     else:
         prompt = text
 
@@ -1188,6 +1198,11 @@ def ai_writing_assist(request):
             'draft': f"**{text}**\n\n안녕하세요! 오늘은 '{text}'에 대해 이야기해보려고 합니다.\n\n이 주제는 최근 많은 관심을 받고 있는데요, 실제로 경험해보니 생각보다 훨씬 흥미롭더라고요.\n\n여러분도 한번 시도해보시길 강력 추천드립니다!",
             'improve': text,
             'title': f"[추천 제목]\n1. '{text[:30]}' 완벽 가이드\n2. 초보자도 쉽게 배우는 {text[:20]}\n3. {text[:20]}의 모든 것\n4. 실전에서 바로 쓰는 {text[:20]}\n5. {text[:20]} 핵심 정리",
+            'summarize': f"[요약]\n이 글은 {text[:100]}...에 관한 내용입니다.",
+            'spell': "AI 연결이 불안정합니다. 잠시 후 다시 시도해주세요.",
+            'continue': f"\n\n이어서, {text[-50:] if len(text)>50 else text}에 대해 더 이야기하자면...",
+            'comment_improve': text,
+            'comment_polite': text,
         }
         return JsonResponse({'result': fallback.get(mode, text), 'mode': mode, 'fallback': True})
 

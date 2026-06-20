@@ -180,6 +180,8 @@
                 <small>답글 작성 중... <a href="#" onclick="cancelReply()">취소</a></small>
             </div>
             {{ comment_form.content }}
+            <!-- AI 댓글 보조 패널 -->
+            {% include 'blog/_ai_assist_panel.html' with panel_id='comment' panel_mode='comment' textarea_id='id_content' %}
             <button type="submit" class="btn btn-primary btn-sm mt-2"><i class="fas fa-paper-plane"></i> 댓글 등록</button>
         </form>
         {% else %}

@@ -108,6 +108,8 @@
         <input type="text" name="tags_str" class="form-control" value="{{ tags_str_default }}">
       </div>
 
+      <!-- AI 글쓰기 보조 패널 -->
+      {% include 'blog/_ai_assist_panel.html' with panel_id='post-edit' panel_mode='post' textarea_id='content-textarea' %}
       <hr>
       <button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-save"></i> 저장</button>
       <a href="{{ object.get_absolute_url }}" class="btn btn-secondary btn-lg ml-2">취소</a>
