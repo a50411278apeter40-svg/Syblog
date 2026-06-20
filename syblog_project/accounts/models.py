@@ -197,3 +197,30 @@ class Follow(models.Model):
 
     def __str__(self):
         return f'{self.follower.username} → {self.following.username}'
+
+
+# ─── 구글 소셜 로그인 시 프사 자동 동기화 ──────────────────────────
+def _sync_google_avatar(sociallogin, **kwargs):
+    """구글 계정 연동/업데이트 시 프로필 사진 자동 저장"""
+    try:
+        if sociallogin.account.provider != 'google':
+            return
+        import requests
+        from io import BytesIO
+        from django.core.files.base import ContentFile
+        extra_data = sociallogin.account.extra_data or {}
+        picture_url = extra_data.get('picture', '')
+        if not picture_url:
+            return
+        user = sociallogin.user
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        resp = requests.get(picture_url, timeout=10)
+        if resp.status_code == 200:
+            filename = f'google_{user.pk}.jpg'
+            profile.avatar.save(filename, ContentFile(resp.content), save=True)
+    except Exception:
+        pass
+
+from allauth.socialaccount.signals import social_account_added, social_account_updated
+social_account_added.connect(_sync_google_avatar)
+social_account_updated.connect(_sync_google_avatar)
