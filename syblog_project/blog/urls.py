@@ -54,5 +54,9 @@ urlpatterns = [
     path('<int:pk>/pdf/', views.export_post_pdf, name='export_pdf'),
     path('my-dashboard/', views.my_dashboard, name='my_dashboard'),
 
+    path('ai-chat/save/', views.ai_chat_save, name='ai_chat_save'),
+    path('ai-chat/load/', views.ai_chat_load, name='ai_chat_load'),
+    path('ai-chat/clear/', views.ai_chat_clear, name='ai_chat_clear'),
+
     path('', views.PostList.as_view(), name='index'),
 ]

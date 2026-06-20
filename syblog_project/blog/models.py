@@ -239,3 +239,18 @@ class Notification(models.Model):
 
 
 # ─── 6. RSS Feed (별도 모델 불필요 - views에서 처리) ────────────
+
+
+# ─── 7. AI 채팅 히스토리 (유저별 영구 저장, 최대 60개) ──────────────────────
+class AiChatHistory(models.Model):
+    user       = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ai_chat_histories')
+    panel_key  = models.CharField(max_length=120)          # 패널 식별자 (페이지URL+panelId)
+    role       = models.CharField(max_length=10)           # 'user' or 'ai'
+    content    = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f'{self.user.username} / {self.panel_key} / {self.role} / {self.content[:30]}'

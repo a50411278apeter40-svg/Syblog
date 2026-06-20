@@ -8,6 +8,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
+from django.views.decorators.http import require_POST
 from .models import Post, Category, Tag, Comment, Series, check_banned_keywords
 from .forms import CommentForm, PostForm, SeriesForm, PostFormWithSchedule
 from django.contrib.auth.models import User
@@ -1368,3 +1369,63 @@ def search_view(request):
         'no_category_post_count': Post.objects.filter(category=None).count()
     }
     return render(request, 'blog/search.html', context)
+
+# ── 13. AI 채팅 히스토리 저장 (DB 영구 저장) ────────────────────────────────
+@require_POST
+def ai_chat_save(request):
+    """유저별 AI 채팅 히스토리를 DB에 저장 (최대 60개 유지)"""
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': '로그인 필요'}, status=401)
+    try:
+        body = _json_mod.loads(request.body)
+        panel_key = str(body.get('panel_key', ''))[:120]
+        messages  = body.get('messages', [])   # [{role, content}, ...]
+        if not panel_key or not isinstance(messages, list):
+            return JsonResponse({'error': '잘못된 요청'}, status=400)
+
+        from blog.models import AiChatHistory
+
+        # 기존 해당 패널 대화 전체 삭제 후 재저장 (완전 동기화 방식)
+        AiChatHistory.objects.filter(user=request.user, panel_key=panel_key).delete()
+
+        # 최대 60개 유지
+        messages = messages[-60:]
+        objs = []
+        for m in messages:
+            role    = str(m.get('role','user'))[:10]
+            content = str(m.get('content',''))
+            objs.append(AiChatHistory(user=request.user, panel_key=panel_key, role=role, content=content))
+        AiChatHistory.objects.bulk_create(objs)
+        return JsonResponse({'ok': True, 'saved': len(objs)})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# ── 14. AI 채팅 히스토리 불러오기 ──────────────────────────────────────────
+def ai_chat_load(request):
+    """유저별 패널 AI 대화 기록 반환"""
+    if not request.user.is_authenticated:
+        return JsonResponse({'messages': []})
+    panel_key = request.GET.get('panel_key', '')[:120]
+    if not panel_key:
+        return JsonResponse({'messages': []})
+    from blog.models import AiChatHistory
+    qs = AiChatHistory.objects.filter(user=request.user, panel_key=panel_key).order_by('created_at')[:60]
+    messages = [{'role': m.role, 'content': m.content} for m in qs]
+    return JsonResponse({'messages': messages})
+
+
+# ── 15. AI 채팅 히스토리 초기화 ─────────────────────────────────────────────
+@require_POST
+def ai_chat_clear(request):
+    """유저별 패널 AI 대화 기록 전체 삭제"""
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': '로그인 필요'}, status=401)
+    try:
+        body = _json_mod.loads(request.body)
+        panel_key = str(body.get('panel_key', ''))[:120]
+        from blog.models import AiChatHistory
+        deleted, _ = AiChatHistory.objects.filter(user=request.user, panel_key=panel_key).delete()
+        return JsonResponse({'ok': True, 'deleted': deleted})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
