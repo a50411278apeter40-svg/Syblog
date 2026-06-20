@@ -50,6 +50,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # allauth 65.x 필수 미들웨어
+    'allauth.account.middleware.AccountMiddleware',
     'accounts.middleware.BlockedUserMiddleware',
 ]
 
@@ -119,16 +121,19 @@ AUTHENTICATION_BACKENDS = [
 
 SITE_ID = 1
 
-# ── allauth 설정 ──────────────────────────────────────────
+# ── allauth 65.x 설정 ──────────────────────────────────────────────────────
+# 65.x에서는 ACCOUNT_* 대신 새 키 사용
+ACCOUNT_LOGIN_METHODS = {'username'}          # 'email' or 'username' or both
 ACCOUNT_EMAIL_REQUIRED = False
 ACCOUNT_EMAIL_VERIFICATION = 'none'
-ACCOUNT_AUTHENTICATION_METHOD = 'username'
 ACCOUNT_USERNAME_REQUIRED = True
+ACCOUNT_SIGNUP_FIELDS = ['username*', 'password1*', 'password2*']
+
 SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_LOGIN_ON_GET = True
 SOCIALACCOUNT_EMAIL_REQUIRED = False
 
-# Google OAuth2 클라이언트 정보를 환경변수에서 읽어 settings에 직접 주입
+# Google OAuth2 클라이언트 정보를 환경변수에서 읽어 주입
 # → DB에 SocialApp 레코드가 없어도 allauth가 이 값을 사용함
 _GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 _GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
@@ -137,7 +142,8 @@ SOCIALACCOUNT_PROVIDERS = {
     'google': {
         'SCOPE': ['profile', 'email'],
         'AUTH_PARAMS': {'access_type': 'online'},
-        # APP 키가 있으면 allauth가 DB 조회를 건너뜀
+        'OAUTH_PKCE_ENABLED': True,
+        # APP 키 → allauth가 DB 조회를 건너뜀
         'APP': {
             'client_id': _GOOGLE_CLIENT_ID,
             'secret': _GOOGLE_CLIENT_SECRET,

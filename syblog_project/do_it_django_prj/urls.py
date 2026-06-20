@@ -12,7 +12,8 @@ urlpatterns = [
     path('blog/', include('blog.urls')),
     path('admin/', admin.site.urls),
     path('markdownx/', include('markdownx.urls')),
-    path('accounts/', include('allauth.urls')),   # 나머지 allauth URL (logout 등)
+    # allauth 65.x URL (socialaccount, logout 등 포함)
+    path('accounts/', include('allauth.urls')),
     path('user/', include('accounts.urls')),
     path('challenges/', include('challenges.urls')),
     path('mail/', include('mail_system.urls')),
