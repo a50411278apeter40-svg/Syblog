@@ -59,4 +59,18 @@ urlpatterns = [
     path('ai-chat/clear/', views.ai_chat_clear, name='ai_chat_clear'),
 
     path('', views.PostList.as_view(), name='index'),
+
+    path('ai/credit/status/', views.ai_credit_status, name='ai_credit_status'),
+    path('ai/credit/buy/', views.ai_credit_buy, name='ai_credit_buy'),
+    path('ai/credit/shop/', views.ai_credit_shop, name='ai_credit_shop'),
+    path('ai/chat/stream/', views.ai_chat_stream, name='ai_chat_stream'),
+    path('admin-ai-credits/', views.admin_ai_credits, name='admin_ai_credits'),
+    path('ai-webdev/', views.ai_webdev, name='ai_webdev'),
+    path('ai-webdev/new/', views.ai_webdev_new_project, name='ai_webdev_new'),
+    path('ai-webdev/<int:pk>/', views.ai_webdev_project, name='ai_webdev_project'),
+    path('ai-webdev/<int:pk>/chat/', views.ai_webdev_chat, name='ai_webdev_chat'),
+    path('ai-webdev/<int:pk>/tool/', views.ai_webdev_tool, name='ai_webdev_tool'),
+    path('ai-webdev/<int:pk>/files/', views.ai_webdev_files, name='ai_webdev_files'),
 ]
+
+    # ── AI 크레딧 & 스트리밍 & 웹개발 ─────────────────────────────

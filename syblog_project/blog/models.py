@@ -254,3 +254,95 @@ class AiChatHistory(models.Model):
 
     def __str__(self):
         return f'{self.user.username} / {self.panel_key} / {self.role} / {self.content[:30]}'
+
+
+# ─── 8. AI 크레딧 시스템 ────────────────────────────────────────
+class AiCredit(models.Model):
+    """유저별 AI 크레딧 (기본 30, 포인트로 구매 가능, 관리자 무제한)"""
+    user           = models.OneToOneField(User, on_delete=models.CASCADE, related_name='ai_credit')
+    credits        = models.IntegerField(default=30)       # 잔여 크레딧
+    total_used     = models.IntegerField(default=0)        # 누적 사용량
+    is_unlimited   = models.BooleanField(default=False)    # 관리자 무제한
+
+    updated_at     = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.user.username} AI크레딧={self.credits} 무제한={self.is_unlimited}'
+
+    def can_use(self, cost=1):
+        """크레딧 사용 가능 여부"""
+        if self.is_unlimited or self.user.is_staff or self.user.is_superuser:
+            return True
+        return self.credits >= cost
+
+    def use(self, cost=1):
+        """크레딧 차감 (관리자는 차감 없음). 성공 시 True"""
+        if self.is_unlimited or self.user.is_staff or self.user.is_superuser:
+            self.total_used += cost
+            self.save(update_fields=['total_used', 'updated_at'])
+            return True
+        if self.credits < cost:
+            return False
+        self.credits -= cost
+        self.total_used += cost
+        self.save(update_fields=['credits', 'total_used', 'updated_at'])
+        return True
+
+    def add(self, amount):
+        self.credits += amount
+        self.save(update_fields=['credits', 'updated_at'])
+
+
+class AiCreditLog(models.Model):
+    """크레딧 변동 이력"""
+    ACTION_CHOICES = [
+        ('use',      'AI 사용'),
+        ('buy',      '포인트 구매'),
+        ('admin',    '관리자 지급'),
+        ('reset',    '초기화'),
+        ('webdev',   'AI 웹개발 사용'),
+    ]
+    user       = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ai_credit_logs')
+    action     = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    amount     = models.IntegerField()          # 양수=획득, 음수=사용
+    balance    = models.IntegerField()          # 변동 후 잔액
+    note       = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.user.username} {self.action} {self.amount:+d} → {self.balance}'
+
+
+# ─── 9. AI 웹개발 프로젝트 ───────────────────────────────────────
+class AiWebProject(models.Model):
+    """AI 웹개발 베타: 유저별 가상환경 프로젝트"""
+    STATUS_CHOICES = [
+        ('active',   '작업중'),
+        ('deployed', '배포됨'),
+        ('stopped',  '중지'),
+    ]
+    user        = models.ForeignKey(User, on_delete=models.CASCADE, related_name='web_projects')
+    name        = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    status      = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    deploy_url  = models.URLField(blank=True)
+    created_at  = models.DateTimeField(auto_now_add=True)
+    updated_at  = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.user.username}/{self.name}'
+
+
+class AiWebSession(models.Model):
+    """AI 웹개발 대화 세션"""
+    project     = models.ForeignKey(AiWebProject, on_delete=models.CASCADE, related_name='sessions')
+    role        = models.CharField(max_length=10)   # 'user' or 'ai'
+    content     = models.TextField()
+    tool_calls  = models.JSONField(default=list)    # [{tool, args, result}, ...]
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']

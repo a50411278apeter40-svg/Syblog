@@ -1,0 +1,148 @@
+{% extends 'blog/base.html' %}
+{% block content %}
+<div class="container py-4">
+  <h3 class="fw-bold mb-4">👑 AI 크레딧 관리 (관리자)</h3>
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div class="alert alert-{{ msg.tags }} alert-dismissible fade show">
+        {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card border-0 shadow-sm mb-4" style="border-radius:14px;">
+        <div class="card-header bg-white border-0 pt-3">
+          <h5 class="fw-bold mb-0">👥 전체 사용자 크레딧</h5>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>유저</th>
+                  <th>크레딧</th>
+                  <th>누적사용</th>
+                  <th>상태</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in user_credits %}
+                <tr>
+                  <td>
+                    <strong>{{ item.user.username }}</strong>
+                    {% if item.user.is_staff %}<span class="badge bg-danger ms-1">관리자</span>{% endif %}
+                    <br><small class="text-muted">{{ item.user.email }}</small>
+                  </td>
+                  <td>
+                    {% if item.credit %}
+                      {% if item.credit.is_unlimited %}
+                        <span class="badge bg-success">♾️ 무제한</span>
+                      {% else %}
+                        <span class="fw-bold text-primary">{{ item.credit.credits }}</span>
+                      {% endif %}
+                    {% else %}
+                      <span class="text-muted">미생성 (기본30)</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ item.credit.total_used|default:0 }}</td>
+                  <td>
+                    {% if item.credit.is_unlimited %}
+                      <span class="badge bg-success">무제한</span>
+                    {% elif item.credit %}
+                      <span class="badge bg-primary">{{ item.credit.credits }}개 남음</span>
+                    {% else %}
+                      <span class="badge bg-secondary">신규</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <button class="btn btn-sm btn-outline-primary" 
+                            onclick="showManage('{{ item.user.pk }}','{{ item.user.username }}',{{ item.credit.credits|default:30 }})">
+                      관리
+                    </button>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm" style="border-radius:14px;">
+        <div class="card-header bg-white border-0 pt-3">
+          <h5 class="fw-bold mb-0">📜 최근 크레딧 변동</h5>
+        </div>
+        <div class="card-body p-0" style="max-height:500px;overflow-y:auto;">
+          <table class="table table-sm mb-0">
+            <tbody>
+              {% for log in recent_logs %}
+              <tr>
+                <td>
+                  {% if log.action == 'use' %}💬{% elif log.action == 'buy' %}💰{% elif log.action == 'admin' %}👑{% elif log.action == 'webdev' %}🛠️{% else %}🔄{% endif %}
+                </td>
+                <td>
+                  <strong>{{ log.user.username }}</strong>
+                  <br><small class="text-muted">{{ log.note|truncatechars:25 }}</small>
+                </td>
+                <td>
+                  {% if log.amount > 0 %}<span class="text-success">+{{ log.amount }}</span>
+                  {% else %}<span class="text-danger">{{ log.amount }}</span>{% endif %}
+                </td>
+                <td class="text-muted small">{{ log.created_at|date:"m/d H:i" }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 크레딧 관리 모달 -->
+<div class="modal fade" id="manageModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="border-radius:16px;">
+      <div class="modal-header border-0">
+        <h5 class="modal-title fw-bold">크레딧 관리: <span id="modal-username"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted">현재 크레딧: <strong id="modal-current"></strong></p>
+        
+        <form method="post" action="{% url 'blog:admin_ai_credits' %}">
+          {% csrf_token %}
+          <input type="hidden" name="user_id" id="modal-user-id">
+          
+          <div class="d-grid gap-2">
+            <div class="input-group">
+              <input type="number" class="form-control" name="value" id="modal-value" placeholder="크레딧 수" min="0">
+              <button type="submit" name="action" value="set" class="btn btn-primary">직접 설정</button>
+              <button type="submit" name="action" value="add" class="btn btn-success">추가 지급</button>
+            </div>
+            <div class="d-flex gap-2">
+              <button type="submit" name="action" value="reset" class="btn btn-warning flex-fill">30으로 초기화</button>
+              <button type="submit" name="action" value="unlimited" class="btn btn-danger flex-fill">무제한 토글</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showManage(userId, username, current) {
+  document.getElementById('modal-username').textContent = username;
+  document.getElementById('modal-current').textContent = current;
+  document.getElementById('modal-user-id').value = userId;
+  new bootstrap.Modal(document.getElementById('manageModal')).show();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,357 @@
+{% extends 'blog/base.html' %}
+{% block content %}
+<div class="container-fluid py-2" style="max-width:1400px;">
+  <!-- 헤더 -->
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <a href="{% url 'blog:ai_webdev' %}" class="text-muted text-decoration-none">← 프로젝트 목록</a>
+      <h4 class="fw-bold mb-0 mt-1">🛠️ {{ project.name }}
+        <span class="badge bg-warning text-dark ms-2" style="font-size:.55rem;">BETA</span>
+      </h4>
+      {% if project.description %}<small class="text-muted">{{ project.description }}</small>{% endif %}
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+      {% if not credit.is_unlimited %}
+        <div class="badge bg-primary fs-6 px-3 py-2" id="credit-badge">💳 {{ credit.credits }} 크레딧</div>
+      {% else %}
+        <div class="badge bg-success fs-6 px-3 py-2">♾️ 무제한</div>
+      {% endif %}
+      <button class="btn btn-sm btn-outline-secondary" onclick="loadFiles()">📁 파일 새로고침</button>
+    </div>
+  </div>
+
+  <div class="row g-3" style="height:calc(100vh - 160px);">
+    <!-- 왼쪽: 파일 탐색기 -->
+    <div class="col-md-2" style="height:100%;">
+      <div class="card border-0 shadow-sm h-100" style="border-radius:14px;">
+        <div class="card-header bg-white border-0 py-2">
+          <small class="fw-bold text-muted">📁 파일 탐색기</small>
+        </div>
+        <div class="card-body p-2 overflow-auto" id="file-tree" style="font-size:.8rem;">
+          <div class="text-muted text-center py-3">파일 없음</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 가운데: 파일 에디터 -->
+    <div class="col-md-5" style="height:100%;">
+      <div class="card border-0 shadow-sm h-100" style="border-radius:14px;">
+        <div class="card-header bg-white border-0 py-2 d-flex justify-content-between">
+          <small class="fw-bold text-muted" id="editor-filename">📄 파일 에디터</small>
+          <div class="d-flex gap-1">
+            <input type="text" class="form-control form-control-sm" id="new-file-path" placeholder="경로 예: src/App.jsx" style="width:160px;font-size:.75rem;">
+            <button class="btn btn-sm btn-primary" onclick="saveFile()">💾 저장</button>
+          </div>
+        </div>
+        <div class="card-body p-0 d-flex flex-column" style="height:calc(100% - 50px);">
+          <textarea id="file-editor" class="flex-fill border-0 p-3" 
+                    style="resize:none;font-family:'Courier New',monospace;font-size:.85rem;outline:none;background:#1e1e1e;color:#d4d4d4;border-radius:0 0 14px 14px;"
+                    placeholder="파일을 선택하거나 AI에게 코드를 작성해달라고 요청하세요..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- 오른쪽: AI 채팅 -->
+    <div class="col-md-5" style="height:100%;">
+      <div class="card border-0 shadow-sm h-100" style="border-radius:14px;">
+        <div class="card-header bg-white border-0 py-2">
+          <small class="fw-bold text-muted">🤖 AI 에이전트 (도구 실행 가능)</small>
+        </div>
+        
+        <!-- 채팅 메시지 -->
+        <div class="card-body overflow-auto p-3" id="chat-messages" style="height:calc(100% - 110px);flex:1;">
+          {% for session in sessions %}
+          <div class="mb-3 {% if session.role == 'user' %}text-end{% endif %}">
+            {% if session.role == 'user' %}
+              <div class="d-inline-block text-white px-3 py-2 rounded-3" style="background:#6c63ff;max-width:85%;text-align:left;">
+                {{ session.content }}
+              </div>
+            {% else %}
+              <div class="d-inline-block px-3 py-2 rounded-3" style="background:#f3f4f6;max-width:90%;text-align:left;">
+                <div class="ai-message-content">{{ session.content }}</div>
+                {% if session.tool_calls %}
+                <div class="mt-2 p-2 rounded" style="background:#fef3c7;font-size:.8rem;">
+                  🔧 도구 실행: {{ session.tool_calls|length }}개
+                </div>
+                {% endif %}
+              </div>
+            {% endif %}
+            <div class="text-muted mt-1" style="font-size:.7rem;">{{ session.created_at|date:"H:i" }}</div>
+          </div>
+          {% empty %}
+          <div class="text-center py-4 text-muted">
+            <div style="font-size:3rem;">🤖</div>
+            <p>AI에게 무엇을 만들지 말씀해주세요!<br>
+            <small>예: "React로 투두앱 만들어줘", "Flask API 서버 구축해줘"</small></p>
+          </div>
+          {% endfor %}
+        </div>
+
+        <!-- 도구 실행 로그 -->
+        <div id="tool-log" class="px-3 py-1 border-top" style="font-size:.75rem;max-height:80px;overflow-y:auto;background:#f9fafb;display:none;">
+        </div>
+
+        <!-- 입력 영역 -->
+        <div class="card-footer border-0 bg-white p-2" style="border-radius:0 0 14px 14px;">
+          <div class="input-group">
+            <textarea class="form-control border-0 bg-light" id="chat-input" rows="2" 
+                      placeholder="AI에게 요청... (Ctrl+Enter로 전송)"
+                      style="resize:none;border-radius:10px 0 0 10px;font-size:.9rem;"></textarea>
+            <button class="btn btn-primary" id="send-btn" onclick="sendMessage()" style="border-radius:0 10px 10px 0;">
+              <span id="send-icon">▶</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const PROJECT_ID = {{ project.pk }};
+const CSRF = '{{ csrf_token }}';
+let chatHistory = [];
+let pendingToolCalls = [];
+
+// 파일 트리 로드
+async function loadFiles() {
+  const resp = await fetch(`/blog/ai-webdev/${PROJECT_ID}/files/`);
+  const data = await resp.json();
+  renderFileTree(data.files, document.getElementById('file-tree'));
+}
+
+function renderFileTree(files, container) {
+  container.innerHTML = '';
+  if (!files || files.length === 0) {
+    container.innerHTML = '<div class="text-muted text-center py-3">파일 없음</div>';
+    return;
+  }
+  const ul = document.createElement('ul');
+  ul.style.listStyle = 'none';
+  ul.style.padding = '0';
+  ul.style.margin = '0';
+  files.forEach(f => {
+    const li = document.createElement('li');
+    li.style.padding = '3px 0';
+    if (f.type === 'dir') {
+      li.innerHTML = `<span style="cursor:pointer;color:#6c63ff;">📁 ${f.name}</span>`;
+      if (f.children && f.children.length) {
+        const sub = document.createElement('div');
+        sub.style.paddingLeft = '12px';
+        renderFileTree(f.children, sub);
+        li.appendChild(sub);
+      }
+    } else {
+      li.innerHTML = `<span style="cursor:pointer;color:#374151;" onclick="openFile('${f.path}')">📄 ${f.name}</span>`;
+    }
+    ul.appendChild(li);
+  });
+  container.appendChild(ul);
+}
+
+async function openFile(path) {
+  const resp = await fetch(`/blog/ai-webdev/${PROJECT_ID}/tool/`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+    body: JSON.stringify({project_id: PROJECT_ID, tool:'read_file', args:{path}})
+  });
+  const data = await resp.json();
+  if (data.result && data.result.content !== undefined) {
+    document.getElementById('file-editor').value = data.result.content;
+    document.getElementById('new-file-path').value = path;
+    document.getElementById('editor-filename').textContent = '📄 ' + path;
+  }
+}
+
+async function saveFile() {
+  const path = document.getElementById('new-file-path').value.trim();
+  const content = document.getElementById('file-editor').value;
+  if (!path) { alert('파일 경로를 입력하세요'); return; }
+  const resp = await fetch(`/blog/ai-webdev/${PROJECT_ID}/tool/`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+    body: JSON.stringify({project_id: PROJECT_ID, tool:'write_file', args:{path, content}})
+  });
+  const data = await resp.json();
+  if (data.ok) {
+    alert('✅ 파일 저장 완료');
+    loadFiles();
+  }
+}
+
+// AI 채팅 (스트리밍)
+async function sendMessage() {
+  const input = document.getElementById('chat-input');
+  const message = input.value.trim();
+  if (!message) return;
+
+  input.value = '';
+  document.getElementById('send-btn').disabled = true;
+  document.getElementById('send-icon').textContent = '⏳';
+
+  // 사용자 메시지 표시
+  appendMessage('user', message);
+  chatHistory.push({role: 'user', content: message});
+
+  // AI 응답 버블 생성
+  const aiDiv = appendMessage('ai', '');
+  const aiContent = aiDiv.querySelector('.ai-message-content');
+
+  try {
+    const resp = await fetch(`/blog/ai-webdev/${PROJECT_ID}/chat/`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+      body: JSON.stringify({
+        project_id: PROJECT_ID,
+        message,
+        history: chatHistory.slice(-10),
+        tool_results: pendingToolCalls,
+      })
+    });
+
+    if (resp.status === 402) {
+      const data = await resp.json();
+      aiContent.innerHTML = `<span class="text-danger">❌ ${data.error}</span><br>
+        <a href="/blog/ai/credit/shop/" class="btn btn-sm btn-warning mt-2">💳 크레딧 구매</a>`;
+      return;
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = '';
+    pendingToolCalls = [];
+
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      const lines = decoder.decode(value).split('\n');
+      for (const line of lines) {
+        if (!line.startsWith('data:')) continue;
+        try {
+          const evt = JSON.parse(line.slice(5).trim());
+          if (evt.token) {
+            fullText += evt.token;
+            aiContent.innerHTML = formatAiMessage(fullText);
+            // 도구 호출 감지 및 실행
+            await processToolCalls(fullText, aiContent);
+          }
+          if (evt.done) {
+            chatHistory.push({role: 'ai', content: fullText});
+            // 크레딧 배지 업데이트
+            updateCreditBadge();
+            loadFiles();
+          }
+          if (evt.error) {
+            aiContent.innerHTML = `<span class="text-danger">❌ ${evt.error}</span>`;
+          }
+        } catch(e) {}
+      }
+    }
+  } catch(e) {
+    aiContent.innerHTML = '<span class="text-danger">연결 오류가 발생했습니다.</span>';
+  } finally {
+    document.getElementById('send-btn').disabled = false;
+    document.getElementById('send-icon').textContent = '▶';
+  }
+
+  // 스크롤 아래로
+  const msgs = document.getElementById('chat-messages');
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function formatAiMessage(text) {
+  // 코드블록 하이라이트
+  text = text.replace(/```(\w*)\n([\s\S]*?)```/g, (m, lang, code) => 
+    `<pre style="background:#1e1e1e;color:#d4d4d4;padding:10px;border-radius:8px;font-size:.8rem;overflow-x:auto;"><code>${escHtml(code)}</code></pre>`
+  );
+  // tool_call 태그 시각화
+  text = text.replace(/<tool_call>([\s\S]*?)<\/tool_call>/g, (m, json) => 
+    `<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;padding:6px;margin:4px 0;font-size:.8rem;">🔧 <strong>도구 호출</strong><pre style="margin:0;font-size:.75rem;">${escHtml(json)}</pre></div>`
+  );
+  text = text.replace(/\n/g, '<br>');
+  return text;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// 도구 호출 파싱 및 실행
+async function processToolCalls(text, aiContent) {
+  const regex = /<tool_call>([\s\S]*?)<\/tool_call>/g;
+  let match;
+  const executed = [];
+  while ((match = regex.exec(text)) !== null) {
+    const jsonStr = match[1].trim();
+    if (executed.includes(jsonStr)) continue;
+    executed.push(jsonStr);
+    try {
+      const toolData = JSON.parse(jsonStr);
+      showToolLog(`⚡ 실행 중: ${toolData.tool}...`);
+      const resp = await fetch(`/blog/ai-webdev/${PROJECT_ID}/tool/`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+        body: JSON.stringify({project_id: PROJECT_ID, tool: toolData.tool, args: toolData.args || {}})
+      });
+      const result = await resp.json();
+      showToolLog(`✅ ${toolData.tool}: ${JSON.stringify(result.result).slice(0,100)}`);
+      pendingToolCalls.push({tool: toolData.tool, args: toolData.args, result: result.result});
+    } catch(e) {
+      showToolLog(`❌ 파싱 오류: ${e.message}`);
+    }
+  }
+}
+
+function showToolLog(msg) {
+  const log = document.getElementById('tool-log');
+  log.style.display = 'block';
+  log.innerHTML += `<div>${msg}</div>`;
+  log.scrollTop = log.scrollHeight;
+}
+
+async function updateCreditBadge() {
+  try {
+    const resp = await fetch('/blog/ai/credit/status/');
+    const data = await resp.json();
+    const badge = document.getElementById('credit-badge');
+    if (badge && !data.is_unlimited) {
+      badge.textContent = `💳 ${data.credits} 크레딧`;
+    }
+  } catch(e) {}
+}
+
+function appendMessage(role, content) {
+  const msgs = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = `mb-3 ${role === 'user' ? 'text-end' : ''}`;
+  if (role === 'user') {
+    div.innerHTML = `<div class="d-inline-block text-white px-3 py-2 rounded-3" style="background:#6c63ff;max-width:85%;text-align:left;">${content}</div>`;
+  } else {
+    div.innerHTML = `<div class="d-inline-block px-3 py-2 rounded-3" style="background:#f3f4f6;max-width:90%;text-align:left;"><div class="ai-message-content">${content || '<span class="spinner-border spinner-border-sm"></span> 생각 중...'}</div></div>`;
+  }
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+// Ctrl+Enter로 전송
+document.getElementById('chat-input').addEventListener('keydown', function(e) {
+  if (e.ctrlKey && e.key === 'Enter') sendMessage();
+});
+
+// 페이지 로드 시 파일 트리 로드
+loadFiles();
+
+// 채팅 히스토리 복원
+{% for session in sessions %}
+chatHistory.push({role: '{{ session.role }}', content: {{ session.content|escapejs|safe|stringformat:"'%s'" }}});
+{% endfor %}
+
+// 스크롤 맨 아래
+document.getElementById('chat-messages').scrollTop = 999999;
+</script>
+
+<style>
+pre { max-height: 300px; overflow-y: auto; }
+</style>
+{% endblock %}

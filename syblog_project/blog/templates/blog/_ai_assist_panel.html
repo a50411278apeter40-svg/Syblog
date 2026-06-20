@@ -249,15 +249,94 @@
     else { var ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); showToast(); }
   };
 
-  /* ── 공통 fetch ── */
-  function callAi(panelId, payload, onSuccess, onError){
+  /* ── 크레딧 표시 업데이트 ── */
+  function updateCreditDisplay(){
+    fetch('/blog/ai/credit/status/')
+      .then(function(r){return r.json();})
+      .then(function(d){
+        var el=document.getElementById('ai-credit-badge');
+        if(!el) return;
+        if(d.is_unlimited){ el.textContent='♾️ 무제한'; el.style.background='#10b981'; }
+        else{ el.textContent='💳 '+d.credits+' 크레딧'; el.style.background=d.credits<=5?'#ef4444':'#6c63ff'; }
+      }).catch(function(){});
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', updateCreditDisplay);
+  else updateCreditDisplay();
+
+  /* ── 스트리밍 AI 호출 (크레딧 차감) ── */
+  function callAiStream(panelId, payload, onToken, onDone, onError){
     var csrf=(document.querySelector('[name=csrfmiddlewaretoken]')||{}).value||'';
-    fetch('/blog/ai-assist/',{
+    fetch('/blog/ai/chat/stream/',{
       method:'POST',
       headers:{'X-CSRFToken':csrf,'Content-Type':'application/json'},
       body:JSON.stringify(payload)
-    }).then(function(r){ return r.json(); }).then(onSuccess).catch(onError);
+    }).then(function(resp){
+      if(resp.status===402){
+        return resp.json().then(function(d){
+          onError('❌ 크레딧이 부족합니다. <a href="/blog/ai/credit/shop/" style="color:#fff;font-weight:bold;">크레딧 구매하기 →</a>');
+        });
+      }
+      var reader=resp.body.getReader();
+      var decoder=new TextDecoder();
+      function read(){
+        reader.read().then(function(res){
+          if(res.done){ onDone(); updateCreditDisplay(); return; }
+          var lines=decoder.decode(res.value).split('\n');
+          lines.forEach(function(line){
+            if(!line.startsWith('data:')) return;
+            try{
+              var evt=JSON.parse(line.slice(5).trim());
+              if(evt.token) onToken(evt.token);
+              if(evt.done){ onDone(); updateCreditDisplay(); }
+              if(evt.error) onError(evt.error);
+            }catch(e){}
+          });
+          read();
+        }).catch(function(e){ onError('스트리밍 오류'); });
+      }
+      read();
+    }).catch(function(e){ onError('연결 오류: '+e.message); });
   }
+
+  /* ── 공통 fetch (비스트리밍 fallback) ── */
+  function callAi(panelId, payload, onSuccess, onError){
+    var csrf=(document.querySelector('[name=csrfmiddlewaretoken]')||{}).value||'';
+    // 스트리밍 사용
+    var loadBubble=renderLoading(panelId);
+    var hist=document.getElementById('ai-hist-'+panelId);
+    var streamDiv=null;
+    callAiStream(panelId, payload,
+      function(token){ // onToken
+        if(!streamDiv){
+          if(loadBubble){ loadBubble.remove(); loadBubble=null; }
+          var b=document.createElement('div');
+          b.style.cssText='background:linear-gradient(135deg,rgba(108,99,255,0.09),rgba(72,207,173,0.09));border:1px solid rgba(108,99,255,0.2);border-radius:10px 10px 10px 2px;padding:9px 12px;max-width:88%;font-size:.88rem;line-height:1.6;word-break:break-word;white-space:pre-wrap;';
+          if(hist) hist.appendChild(b);
+          streamDiv=b;
+        }
+        streamDiv.innerHTML=(streamDiv.innerHTML||'')+escHtmlJs(token);
+        if(hist) hist.scrollTop=hist.scrollHeight;
+      },
+      function(){ // onDone
+        // 완료 - 히스토리 저장
+        if(streamDiv){
+          var res=streamDiv.innerText||streamDiv.textContent;
+          if(!window._aiHistory[panelId]) window._aiHistory[panelId]=[];
+          window._aiHistory[panelId].push({role:'ai',content:res});
+          if(window._aiHistory[panelId].length>200) window._aiHistory[panelId]=window._aiHistory[panelId].slice(-200);
+          saveHistoryDb(panelId);
+        }
+      },
+      function(errMsg){ // onError
+        if(loadBubble){ loadBubble.remove(); }
+        var b=document.createElement('div');
+        b.style.cssText='background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:9px 12px;max-width:88%;font-size:.88rem;color:#991b1b;';
+        b.innerHTML=errMsg;
+        if(hist) hist.appendChild(b);
+      }
+    );
+  }
+  function escHtmlJs(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
   /* ── 빠른 버튼 ── */
   window.aiQuick = function(panelId, mode, textareaId){
@@ -273,8 +352,8 @@
       renderBubble(panelId,'ai',res);
       window._aiHistory[panelId].push({role:'user',content:modeLabel[mode]||mode});
       window._aiHistory[panelId].push({role:'ai',content:res});
-      /* 최대 60개 유지 */
-      if(window._aiHistory[panelId].length>60) window._aiHistory[panelId]=window._aiHistory[panelId].slice(-60);
+      /* 무제한 히스토리 - 최대 200개 */
+      if(window._aiHistory[panelId].length>200) window._aiHistory[panelId]=window._aiHistory[panelId].slice(-200);
       saveHistoryDb(panelId);
     },function(){
       if(loadBubble) loadBubble.remove();
@@ -309,7 +388,7 @@
       hist.push({role:'user',content:cmd});
       hist.push({role:'ai',content:res});
       /* 최대 60개 유지 */
-      if(hist.length>60) window._aiHistory[panelId]=hist.slice(-60);
+      if(hist.length>200) window._aiHistory[panelId]=hist.slice(-200);
       saveHistoryDb(panelId);
     },function(){
       if(loadBubble) loadBubble.remove();

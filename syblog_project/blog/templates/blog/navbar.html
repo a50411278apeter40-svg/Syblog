@@ -24,6 +24,18 @@
                         <a class="nav-link" href="/blog/admin-dashboard/"><i class="fas fa-cog"></i> 관리자</a>
                     </li>
                     {% endif %}
+                    <!-- AI 웹개발 & 크레딧 구매 버튼 -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="/blog/ai-webdev/" title="AI 웹개발 (베타)" style="position:relative;">
+                            🛠️ <span class="d-none d-lg-inline">AI 웹개발</span>
+                            <span class="badge badge-warning" style="font-size:.55rem;vertical-align:super;">BETA</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/blog/ai/credit/shop/" title="AI 크레딧" id="nav-credit-link">
+                            <span id="ai-credit-badge" style="background:#6c63ff;color:#fff;border-radius:12px;padding:2px 8px;font-size:.78rem;font-weight:600;">💳 로딩중</span>
+                        </a>
+                    </li>
                     <!-- 메일 -->
                     <li class="nav-item">
                         <a class="nav-link" href="/mail/">
@@ -57,10 +69,14 @@
                             <a class="dropdown-item" href="/blog/scheduled/"><i class="fas fa-clock"></i> 예약 게시</a>
                             <a class="dropdown-item" href="/challenges/my-scores/"><i class="fas fa-star"></i> 내 점수</a>
                             <a class="dropdown-item" href="/mail/"><i class="fas fa-inbox"></i> 메일함</a>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item" href="/blog/ai-webdev/"><span>🛠️</span> AI 웹개발 <span class="badge badge-warning" style="font-size:.6rem;">BETA</span></a>
+                            <a class="dropdown-item" href="/blog/ai/credit/shop/"><span>💳</span> AI 크레딧 구매</a>
                             {% if user.is_staff or user.is_superuser %}
                             <div class="dropdown-divider"></div>
                             <a class="dropdown-item text-danger" href="/user/admin/users/"><i class="fas fa-users-cog"></i> 사용자 관리</a>
                             <a class="dropdown-item text-danger" href="/blog/admin-dashboard/"><i class="fas fa-tachometer-alt"></i> 대시보드</a>
+                            <a class="dropdown-item text-danger" href="/blog/admin-ai-credits/"><i class="fas fa-coins"></i> AI 크레딧 관리</a>
                             {% endif %}
                             <div class="dropdown-divider"></div>
                             <a class="dropdown-item" href="/accounts/logout/"><i class="fas fa-sign-out-alt"></i> 로그아웃</a>

@@ -63,3 +63,31 @@ class NotificationAdmin(admin.ModelAdmin):
 @admin.register(ScheduledPost)
 class ScheduledPostAdmin(admin.ModelAdmin):
     list_display = ['post', 'publish_at', 'is_published']
+
+# ── AI 크레딧 & 웹개발 Admin ────────────────────────────────────
+from blog.models import AiCredit, AiCreditLog, AiWebProject, AiWebSession
+
+@admin.register(AiCredit)
+class AiCreditAdmin(admin.ModelAdmin):
+    list_display = ('user', 'credits', 'is_unlimited', 'total_used', 'updated_at')
+    list_editable = ('credits', 'is_unlimited')
+    search_fields = ('user__username',)
+    list_filter = ('is_unlimited',)
+
+@admin.register(AiCreditLog)
+class AiCreditLogAdmin(admin.ModelAdmin):
+    list_display = ('user', 'action', 'amount', 'balance', 'note', 'created_at')
+    list_filter = ('action',)
+    search_fields = ('user__username',)
+    readonly_fields = ('created_at',)
+
+@admin.register(AiWebProject)
+class AiWebProjectAdmin(admin.ModelAdmin):
+    list_display = ('user', 'name', 'status', 'deploy_url', 'created_at')
+    list_filter = ('status',)
+    search_fields = ('user__username', 'name')
+
+@admin.register(AiWebSession)
+class AiWebSessionAdmin(admin.ModelAdmin):
+    list_display = ('project', 'role', 'created_at')
+    list_filter = ('role',)
