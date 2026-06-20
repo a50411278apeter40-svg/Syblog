@@ -132,7 +132,7 @@ SOCIALACCOUNT_PROVIDERS = {
     'google': {
         'SCOPE': ['profile', 'email'],
         'AUTH_PARAMS': {'access_type': 'online'},
-        'OAUTH_PKCE_ENABLED': True,
+        'OAUTH_PKCE_ENABLED': False,
         'FETCH_USERINFO': True,
         'APPS': [
             {
@@ -148,11 +148,13 @@ SOCIALACCOUNT_ADAPTER = 'accounts.adapter.SocialAccountAdapter'
 ACCOUNT_ADAPTER = 'accounts.adapter.AccountAdapter'
 
 # Render 프록시 HTTPS 인식 (OAuth redirect_uri 정상화)
+# 세션을 서명된 쿠키로 저장 — 서버 재시작·다중 인스턴스 세션 불일치 방지
+SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SESSION_COOKIE_SECURE = True
-SESSION_COOKIE_SAMESITE = 'None'   # OAuth 콜백 시 cross-site 쿠키 허용
+SESSION_COOKIE_SAMESITE = 'Lax'    # OAuth redirect는 Lax로 동작
 CSRF_COOKIE_SECURE = True
-CSRF_COOKIE_SAMESITE = 'None'
+CSRF_COOKIE_SAMESITE = 'Lax'
 
 LOGIN_REDIRECT_URL = '/blog/'
 LOGOUT_REDIRECT_URL = '/'
