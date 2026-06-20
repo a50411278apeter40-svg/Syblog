@@ -73,6 +73,15 @@
       transition: border-color .2s;
     }
     .btn-google:hover { border-color: #6c63ff; color: #333; text-decoration: none; }
+    .btn-microsoft {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; padding: 12px;
+      background: #2f2f2f; border: 2px solid #2f2f2f; border-radius: 10px;
+      color: #fff; font-weight: 600; font-size: .95rem;
+      text-decoration: none; margin-bottom: 12px;
+      transition: background .2s;
+    }
+    .btn-microsoft:hover { background: #1a1a1a; border-color: #1a1a1a; color: #fff; text-decoration: none; }
     .divider { display: flex; align-items: center; gap: 12px; color: #bbb; font-size: .82rem; margin-bottom: 20px; }
     .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #eee; }
     .error-box {
@@ -104,6 +113,17 @@
         <a href="/accounts/google/login/?process=login" class="btn-google">
           <img src="https://developers.google.com/identity/images/g-logo.png" width="20" alt="G">
           Google 계정으로 로그인
+        </a>
+
+        <!-- Microsoft 로그인 -->
+        <a href="/accounts/microsoft/login/?process=login" class="btn-microsoft">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23">
+            <path fill="#f35325" d="M1 1h10v10H1z"/>
+            <path fill="#81bc06" d="M12 1h10v10H12z"/>
+            <path fill="#05a6f0" d="M1 12h10v10H1z"/>
+            <path fill="#ffba08" d="M12 12h10v10H12z"/>
+          </svg>
+          Microsoft 계정으로 로그인
         </a>
 
         <div class="divider">또는 아이디로 로그인</div>
