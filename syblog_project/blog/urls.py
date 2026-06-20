@@ -71,6 +71,13 @@ urlpatterns = [
     path('ai-webdev/<int:pk>/chat/', views.ai_webdev_chat, name='ai_webdev_chat'),
     path('ai-webdev/<int:pk>/tool/', views.ai_webdev_tool, name='ai_webdev_tool'),
     path('ai-webdev/<int:pk>/files/', views.ai_webdev_files, name='ai_webdev_files'),
+
+    path('ai-webdev/<int:pk>/deploy/', views.ai_webdev_deploy, name='ai_webdev_deploy'),
+    path('ai-webdev/<int:pk>/preview/', views.ai_webdev_preview, name='ai_webdev_preview'),
+    path('ai-webdev/<int:pk>/preview/<path:filepath>', views.ai_webdev_static, name='ai_webdev_static'),
+    path('ai-webdev/<int:pk>/terminal/', views.ai_webdev_terminal_stream, name='ai_webdev_terminal'),
+    path('ai-webdev/<int:pk>/file/read/', views.ai_webdev_file_read, name='ai_webdev_file_read'),
+    path('ai-webdev/<int:pk>/file/write/', views.ai_webdev_file_write, name='ai_webdev_file_write'),
 ]
 
     # ── AI 크레딧 & 스트리밍 & 웹개발 ─────────────────────────────

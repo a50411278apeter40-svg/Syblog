@@ -1,108 +1,245 @@
 {% extends 'blog/base.html' %}
 {% block content %}
-<div class="container-fluid py-2" style="max-width:1400px;">
-  <!-- 헤더 -->
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-      <a href="{% url 'blog:ai_webdev' %}" class="text-muted text-decoration-none">← 프로젝트 목록</a>
-      <h4 class="fw-bold mb-0 mt-1">🛠️ {{ project.name }}
-        <span class="badge bg-warning text-dark ms-2" style="font-size:.55rem;">BETA</span>
-      </h4>
-      {% if project.description %}<small class="text-muted">{{ project.description }}</small>{% endif %}
-    </div>
-    <div class="d-flex gap-2 align-items-center">
+<style>
+* { box-sizing: border-box; }
+body { overflow: hidden; }
+#workbench { display: flex; height: calc(100vh - 56px); gap: 0; }
+
+/* ── 사이드바: 파일 탐색기 ── */
+#sidebar {
+  width: 220px; min-width: 180px; max-width: 320px;
+  background: #1e1e2e; color: #cdd6f4;
+  display: flex; flex-direction: column;
+  border-right: 1px solid #313244;
+  position: relative;
+}
+#sidebar-header { padding: 10px 12px; background: #181825; font-size: .8rem; font-weight: 700; color: #89b4fa; border-bottom: 1px solid #313244; display: flex; align-items: center; gap: 6px; }
+#file-tree { flex: 1; overflow-y: auto; padding: 6px 0; font-size: .78rem; }
+.tree-item { padding: 3px 10px; cursor: pointer; display: flex; align-items: center; gap: 5px; border-radius: 4px; margin: 1px 4px; transition: background .12s; }
+.tree-item:hover { background: #313244; }
+.tree-item.active { background: #45475a; color: #cba6f7; }
+.tree-item.is-dir { color: #89b4fa; font-weight: 600; }
+.tree-item.is-file { color: #cdd6f4; }
+#sidebar-actions { padding: 8px; border-top: 1px solid #313244; display: flex; gap: 4px; flex-wrap: wrap; }
+#sidebar-actions button { flex: 1; font-size: .7rem; padding: 4px 6px; border: none; border-radius: 6px; cursor: pointer; }
+
+/* ── 에디터 ── */
+#editor-pane {
+  flex: 1; display: flex; flex-direction: column;
+  background: #1e1e1e; min-width: 0;
+}
+#editor-tabs { background: #252526; border-bottom: 1px solid #3d3d3d; display: flex; align-items: center; padding: 0 8px; min-height: 36px; overflow-x: auto; gap: 2px; }
+.editor-tab { padding: 6px 12px; font-size: .78rem; color: #969696; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+.editor-tab.active { color: #fff; border-bottom-color: #0078d4; }
+.editor-tab .tab-close { opacity: .5; font-size: .75rem; padding: 0 2px; }
+.editor-tab .tab-close:hover { opacity: 1; color: #f48771; }
+#file-path-bar { background: #2d2d2d; padding: 3px 10px; font-size: .75rem; color: #858585; display: flex; align-items: center; gap: 8px; }
+#code-editor {
+  flex: 1; resize: none; border: none; outline: none;
+  background: #1e1e1e; color: #d4d4d4;
+  font-family: 'Fira Code', 'Courier New', monospace;
+  font-size: .85rem; line-height: 1.6; padding: 12px 16px;
+  tab-size: 2;
+}
+#editor-footer { background: #007acc; color: #fff; padding: 2px 10px; font-size: .72rem; display: flex; gap: 12px; }
+
+/* ── 오른쪽 패널: 미리보기 + AI 채팅 ── */
+#right-panel { width: 520px; min-width: 380px; display: flex; flex-direction: column; background: #fff; border-left: 1px solid #e5e7eb; }
+
+/* 탭 */
+#right-tabs { background: #f3f4f6; border-bottom: 1px solid #e5e7eb; display: flex; min-height: 38px; }
+.right-tab { flex: 1; border: none; background: none; padding: 8px 4px; font-size: .8rem; font-weight: 600; cursor: pointer; color: #6b7280; border-bottom: 2px solid transparent; transition: all .15s; }
+.right-tab.active { color: #6c63ff; border-bottom-color: #6c63ff; background: #fff; }
+
+/* 미리보기 */
+#preview-pane { flex: 1; display: none; flex-direction: column; }
+#preview-toolbar { padding: 6px 10px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; display: flex; gap: 6px; align-items: center; }
+#preview-url { flex: 1; font-size: .78rem; color: #6b7280; background: #fff; border: 1px solid #d1d5db; border-radius: 6px; padding: 3px 8px; }
+#preview-iframe { flex: 1; border: none; width: 100%; }
+
+/* 도구 로그 */
+#tool-pane { flex: 1; display: none; flex-direction: column; overflow: hidden; }
+#tool-log-area { flex: 1; overflow-y: auto; padding: 10px; font-family: 'Courier New', monospace; font-size: .78rem; background: #0d1117; color: #e6edf3; }
+.tool-log-entry { margin: 3px 0; padding: 4px 8px; border-radius: 4px; border-left: 3px solid; }
+.tool-log-entry.info  { border-color: #58a6ff; background: rgba(88,166,255,.08); }
+.tool-log-entry.success { border-color: #3fb950; background: rgba(63,185,80,.08); color: #3fb950; }
+.tool-log-entry.error { border-color: #f85149; background: rgba(248,81,73,.08); color: #f85149; }
+.tool-log-entry.tool  { border-color: #d2a8ff; background: rgba(210,168,255,.08); color: #d2a8ff; }
+.tool-log-entry.terminal { border-color: #ffa657; background: rgba(255,166,87,.08); color: #ffa657; white-space: pre; }
+
+/* AI 채팅 */
+#chat-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+#chat-messages { flex: 1; overflow-y: auto; padding: 12px; }
+.msg-user { text-align: right; margin: 6px 0; }
+.msg-user .bubble { display: inline-block; background: #6c63ff; color: #fff; padding: 8px 12px; border-radius: 14px 14px 2px 14px; max-width: 88%; font-size: .88rem; text-align: left; word-break: break-word; }
+.msg-ai { text-align: left; margin: 6px 0; }
+.msg-ai .bubble { display: inline-block; background: #f3f4f6; color: #111; padding: 8px 12px; border-radius: 14px 14px 14px 2px; max-width: 92%; font-size: .88rem; word-break: break-word; }
+.msg-ai .bubble pre { background: #1e1e1e; color: #d4d4d4; padding: 8px; border-radius: 6px; font-size: .78rem; overflow-x: auto; margin: 6px 0; }
+.msg-ai .bubble code { font-family: 'Courier New', monospace; }
+.tool-call-badge { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 3px 8px; font-size: .75rem; margin: 3px 0; display: inline-block; }
+#chat-input-area { border-top: 1px solid #e5e7eb; padding: 8px; background: #fff; }
+#chat-input { width: 100%; border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 8px 12px; font-size: .88rem; resize: none; outline: none; font-family: inherit; transition: border-color .15s; }
+#chat-input:focus { border-color: #6c63ff; }
+#chat-send-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+#send-btn { background: linear-gradient(135deg,#6c63ff,#48cfad); color: #fff; border: none; border-radius: 8px; padding: 6px 18px; font-size: .85rem; font-weight: 600; cursor: pointer; }
+#send-btn:disabled { opacity: .5; cursor: not-allowed; }
+.credit-info { font-size: .75rem; color: #9ca3af; }
+
+/* 배포 패널 */
+#deploy-pane { flex: 1; display: none; flex-direction: column; padding: 16px; overflow-y: auto; }
+#deploy-log { background: #0d1117; color: #e6edf3; border-radius: 10px; padding: 12px; font-family: 'Courier New', monospace; font-size: .8rem; min-height: 200px; overflow-y: auto; white-space: pre-wrap; margin-bottom: 12px; }
+.deploy-url-box { background: #ecfdf5; border: 2px solid #34d399; border-radius: 10px; padding: 12px 16px; text-align: center; }
+
+/* 터미널 */
+#terminal-pane { flex: 1; display: none; flex-direction: column; }
+#terminal-output { flex: 1; background: #0d1117; color: #e6edf3; font-family: 'Courier New', monospace; font-size: .82rem; padding: 10px; overflow-y: auto; white-space: pre-wrap; }
+#terminal-input-row { display: flex; border-top: 1px solid #30363d; background: #161b22; padding: 6px 10px; gap: 6px; }
+#terminal-cmd { flex: 1; background: transparent; border: none; outline: none; color: #e6edf3; font-family: 'Courier New', monospace; font-size: .82rem; }
+#terminal-run { background: #238636; color: #fff; border: none; border-radius: 6px; padding: 4px 12px; font-size: .78rem; cursor: pointer; }
+
+/* 리사이저 */
+.resizer { width: 5px; background: #313244; cursor: col-resize; }
+.resizer:hover { background: #6c63ff; }
+</style>
+
+<div id="workbench">
+  <!-- ══ 사이드바 ══ -->
+  <div id="sidebar">
+    <div id="sidebar-header">
+      📁 {{ project.name }}
       {% if not credit.is_unlimited %}
-        <div class="badge bg-primary fs-6 px-3 py-2" id="credit-badge">💳 {{ credit.credits }} 크레딧</div>
+        <span id="credit-badge" style="margin-left:auto;background:#6c63ff;color:#fff;border-radius:8px;padding:1px 7px;font-size:.7rem;">💳 {{ credit.credits }}</span>
       {% else %}
-        <div class="badge bg-success fs-6 px-3 py-2">♾️ 무제한</div>
+        <span style="margin-left:auto;background:#10b981;color:#fff;border-radius:8px;padding:1px 7px;font-size:.7rem;">♾️</span>
       {% endif %}
-      <button class="btn btn-sm btn-outline-secondary" onclick="loadFiles()">📁 파일 새로고침</button>
+    </div>
+    <div id="file-tree"></div>
+    <div id="sidebar-actions">
+      <button onclick="newFile()" style="background:#313244;color:#cdd6f4;">+ 파일</button>
+      <button onclick="newFolder()" style="background:#313244;color:#cdd6f4;">+ 폴더</button>
+      <button onclick="refreshFiles()" style="background:#45475a;color:#cdd6f4;">🔄</button>
+      <button onclick="deleteActiveFile()" style="background:#f38ba8;color:#fff;">🗑</button>
     </div>
   </div>
 
-  <div class="row g-3" style="height:calc(100vh - 160px);">
-    <!-- 왼쪽: 파일 탐색기 -->
-    <div class="col-md-2" style="height:100%;">
-      <div class="card border-0 shadow-sm h-100" style="border-radius:14px;">
-        <div class="card-header bg-white border-0 py-2">
-          <small class="fw-bold text-muted">📁 파일 탐색기</small>
-        </div>
-        <div class="card-body p-2 overflow-auto" id="file-tree" style="font-size:.8rem;">
-          <div class="text-muted text-center py-3">파일 없음</div>
-        </div>
-      </div>
+  <div class="resizer" id="resizer-left"></div>
+
+  <!-- ══ 에디터 ══ -->
+  <div id="editor-pane">
+    <div id="editor-tabs">
+      <span style="color:#5a5a7a;font-size:.75rem;padding:0 8px;">파일을 선택하거나 AI에게 만들어달라고 요청하세요</span>
+    </div>
+    <div id="file-path-bar">
+      <span id="current-path" style="color:#6c6c8a;">편집 중인 파일 없음</span>
+      <button onclick="saveCurrentFile()" style="margin-left:auto;background:#0078d4;color:#fff;border:none;border-radius:4px;padding:2px 10px;font-size:.72rem;cursor:pointer;">💾 저장 (Ctrl+S)</button>
+    </div>
+    <textarea id="code-editor" spellcheck="false" placeholder="// 파일을 선택하거나 AI에게 코드 작성을 요청하세요"></textarea>
+    <div id="editor-footer">
+      <span id="editor-lang">텍스트</span>
+      <span id="editor-lines">0줄</span>
+      <span id="editor-size">0B</span>
+      <span style="margin-left:auto;">AI 웹개발 베타 | Syblog</span>
+    </div>
+  </div>
+
+  <div class="resizer" id="resizer-right"></div>
+
+  <!-- ══ 오른쪽 패널 ══ -->
+  <div id="right-panel">
+    <div id="right-tabs">
+      <button class="right-tab active" onclick="switchTab('chat')">💬 AI 채팅</button>
+      <button class="right-tab" onclick="switchTab('preview')">🖥 미리보기</button>
+      <button class="right-tab" onclick="switchTab('tool')">🔧 도구 로그</button>
+      <button class="right-tab" onclick="switchTab('terminal')">⚡ 터미널</button>
+      <button class="right-tab" onclick="switchTab('deploy')">🚀 배포</button>
     </div>
 
-    <!-- 가운데: 파일 에디터 -->
-    <div class="col-md-5" style="height:100%;">
-      <div class="card border-0 shadow-sm h-100" style="border-radius:14px;">
-        <div class="card-header bg-white border-0 py-2 d-flex justify-content-between">
-          <small class="fw-bold text-muted" id="editor-filename">📄 파일 에디터</small>
-          <div class="d-flex gap-1">
-            <input type="text" class="form-control form-control-sm" id="new-file-path" placeholder="경로 예: src/App.jsx" style="width:160px;font-size:.75rem;">
-            <button class="btn btn-sm btn-primary" onclick="saveFile()">💾 저장</button>
-          </div>
-        </div>
-        <div class="card-body p-0 d-flex flex-column" style="height:calc(100% - 50px);">
-          <textarea id="file-editor" class="flex-fill border-0 p-3" 
-                    style="resize:none;font-family:'Courier New',monospace;font-size:.85rem;outline:none;background:#1e1e1e;color:#d4d4d4;border-radius:0 0 14px 14px;"
-                    placeholder="파일을 선택하거나 AI에게 코드를 작성해달라고 요청하세요..."></textarea>
-        </div>
-      </div>
-    </div>
-
-    <!-- 오른쪽: AI 채팅 -->
-    <div class="col-md-5" style="height:100%;">
-      <div class="card border-0 shadow-sm h-100" style="border-radius:14px;">
-        <div class="card-header bg-white border-0 py-2">
-          <small class="fw-bold text-muted">🤖 AI 에이전트 (도구 실행 가능)</small>
-        </div>
-        
-        <!-- 채팅 메시지 -->
-        <div class="card-body overflow-auto p-3" id="chat-messages" style="height:calc(100% - 110px);flex:1;">
-          {% for session in sessions %}
-          <div class="mb-3 {% if session.role == 'user' %}text-end{% endif %}">
-            {% if session.role == 'user' %}
-              <div class="d-inline-block text-white px-3 py-2 rounded-3" style="background:#6c63ff;max-width:85%;text-align:left;">
-                {{ session.content }}
-              </div>
-            {% else %}
-              <div class="d-inline-block px-3 py-2 rounded-3" style="background:#f3f4f6;max-width:90%;text-align:left;">
-                <div class="ai-message-content">{{ session.content }}</div>
-                {% if session.tool_calls %}
-                <div class="mt-2 p-2 rounded" style="background:#fef3c7;font-size:.8rem;">
-                  🔧 도구 실행: {{ session.tool_calls|length }}개
-                </div>
-                {% endif %}
-              </div>
-            {% endif %}
-            <div class="text-muted mt-1" style="font-size:.7rem;">{{ session.created_at|date:"H:i" }}</div>
-          </div>
-          {% empty %}
-          <div class="text-center py-4 text-muted">
+    <!-- AI 채팅 탭 -->
+    <div id="chat-pane" class="tab-content" style="display:flex;">
+      <div id="chat-messages">
+        {% for session in sessions %}
+          {% if session.role == 'user' %}
+          <div class="msg-user"><div class="bubble">{{ session.content }}</div></div>
+          {% else %}
+          <div class="msg-ai"><div class="bubble ai-content">{{ session.content }}</div></div>
+          {% endif %}
+        {% empty %}
+          <div style="text-align:center;padding:40px 20px;color:#9ca3af;">
             <div style="font-size:3rem;">🤖</div>
             <p>AI에게 무엇을 만들지 말씀해주세요!<br>
-            <small>예: "React로 투두앱 만들어줘", "Flask API 서버 구축해줘"</small></p>
+            <small>예: "React 투두앱 만들어줘"<br>"Flask REST API 서버 만들어줘"<br>"Bootstrap 포트폴리오 사이트 만들어줘"</small></p>
           </div>
-          {% endfor %}
-        </div>
-
-        <!-- 도구 실행 로그 -->
-        <div id="tool-log" class="px-3 py-1 border-top" style="font-size:.75rem;max-height:80px;overflow-y:auto;background:#f9fafb;display:none;">
-        </div>
-
-        <!-- 입력 영역 -->
-        <div class="card-footer border-0 bg-white p-2" style="border-radius:0 0 14px 14px;">
-          <div class="input-group">
-            <textarea class="form-control border-0 bg-light" id="chat-input" rows="2" 
-                      placeholder="AI에게 요청... (Ctrl+Enter로 전송)"
-                      style="resize:none;border-radius:10px 0 0 10px;font-size:.9rem;"></textarea>
-            <button class="btn btn-primary" id="send-btn" onclick="sendMessage()" style="border-radius:0 10px 10px 0;">
-              <span id="send-icon">▶</span>
-            </button>
-          </div>
+        {% endfor %}
+      </div>
+      <div id="chat-input-area">
+        <textarea id="chat-input" rows="3" placeholder="AI에게 요청... (Ctrl+Enter 전송)"></textarea>
+        <div id="chat-send-row">
+          <span class="credit-info" id="credit-info">
+            {% if credit.is_unlimited %}♾️ 무제한{% else %}💳 {{ credit.credits }}크레딧 남음{% endif %}
+          </span>
+          <button id="send-btn" onclick="sendChat()">▶ 전송</button>
         </div>
       </div>
+    </div>
+
+    <!-- 미리보기 탭 -->
+    <div id="preview-pane" class="tab-content">
+      <div id="preview-toolbar">
+        <button onclick="refreshPreview()" style="font-size:.8rem;border:1px solid #d1d5db;border-radius:6px;padding:3px 8px;cursor:pointer;background:#fff;">🔄</button>
+        <span id="preview-url">index.html</span>
+        <button onclick="openExternal()" style="font-size:.8rem;border:1px solid #d1d5db;border-radius:6px;padding:3px 8px;cursor:pointer;background:#fff;">↗ 새탭</button>
+      </div>
+      <iframe id="preview-iframe" src="/blog/ai-webdev/{{ project.pk }}/preview/"></iframe>
+    </div>
+
+    <!-- 도구 로그 탭 -->
+    <div id="tool-pane" class="tab-content">
+      <div id="tool-log-area">
+        <div style="color:#58a6ff;font-weight:600;margin-bottom:8px;">🔧 도구 실행 로그</div>
+        <div style="color:#6e7681;">AI가 도구를 호출하면 여기에 실시간으로 표시됩니다.</div>
+      </div>
+    </div>
+
+    <!-- 터미널 탭 -->
+    <div id="terminal-pane" class="tab-content">
+      <div id="terminal-output">$ <span style="color:#58a6ff;">{{ project.name }}</span> 터미널 — 명령어를 입력하세요<br></div>
+      <div id="terminal-input-row">
+        <span style="color:#3fb950;font-family:monospace;font-size:.82rem;">$ </span>
+        <input id="terminal-cmd" placeholder="명령어 입력 (예: ls, node -v, pip install ...)" 
+               onkeydown="if(event.key==='Enter') runTerminal()">
+        <button id="terminal-run" onclick="runTerminal()">실행</button>
+      </div>
+    </div>
+
+    <!-- 배포 탭 -->
+    <div id="deploy-pane" class="tab-content">
+      <h5 style="font-weight:700;margin-bottom:12px;">🚀 원클릭 배포</h5>
+      
+      {% if project.deploy_url %}
+      <div class="deploy-url-box mb-3">
+        <div style="font-size:1.5rem;">🌐</div>
+        <p style="font-weight:700;color:#059669;margin:4px 0;">배포된 사이트</p>
+        <a href="{{ project.deploy_url }}" target="_blank" style="color:#2563eb;font-size:.9rem;word-break:break-all;">{{ project.deploy_url }}</a>
+      </div>
+      {% endif %}
+
+      <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:14px;margin-bottom:12px;">
+        <h6 style="font-weight:600;margin-bottom:8px;">📋 배포 방법</h6>
+        <ul style="font-size:.82rem;color:#6b7280;margin:0;padding-left:16px;line-height:1.8;">
+          <li>정적 HTML/CSS/JS → <strong>Netlify</strong> 자동 배포</li>
+          <li>React/Vue/Next.js → <strong>Vercel</strong> 자동 배포</li>
+          <li>무료 도메인 (.netlify.app / .vercel.app)</li>
+        </ul>
+      </div>
+
+      <button onclick="startDeploy()" 
+              style="width:100%;padding:14px;font-size:1rem;font-weight:700;
+                     background:linear-gradient(135deg,#6c63ff,#48cfad);
+                     color:#fff;border:none;border-radius:12px;cursor:pointer;margin-bottom:12px;">
+        🚀 지금 배포하기
+      </button>
+
+      <div id="deploy-log">배포 로그가 여기에 표시됩니다...</div>
     </div>
   </div>
 </div>
@@ -111,247 +248,496 @@
 const PROJECT_ID = {{ project.pk }};
 const CSRF = '{{ csrf_token }}';
 let chatHistory = [];
-let pendingToolCalls = [];
+let activeFile = null;
+let toolLogCount = 0;
+let pendingToolResults = [];
 
-// 파일 트리 로드
-async function loadFiles() {
-  const resp = await fetch(`/blog/ai-webdev/${PROJECT_ID}/files/`);
-  const data = await resp.json();
-  renderFileTree(data.files, document.getElementById('file-tree'));
+// ══ 탭 전환 ══
+function switchTab(tab) {
+  document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.right-tab').forEach(el => el.classList.remove('active'));
+  const pane = document.getElementById(tab + '-pane');
+  if (pane) pane.style.display = 'flex';
+  event.target.classList.add('active');
+  if (tab === 'preview') refreshPreview();
 }
 
-function renderFileTree(files, container) {
+// ══ 파일 트리 ══
+async function refreshFiles() {
+  const r = await fetch(`/blog/ai-webdev/${PROJECT_ID}/files/`);
+  const d = await r.json();
+  renderTree(d.files, document.getElementById('file-tree'), 0);
+}
+
+function renderTree(files, container, depth) {
   container.innerHTML = '';
-  if (!files || files.length === 0) {
-    container.innerHTML = '<div class="text-muted text-center py-3">파일 없음</div>';
+  if (!files || !files.length) {
+    container.innerHTML = '<div style="padding:10px;color:#585b70;font-size:.75rem;">파일 없음</div>';
     return;
   }
-  const ul = document.createElement('ul');
-  ul.style.listStyle = 'none';
-  ul.style.padding = '0';
-  ul.style.margin = '0';
   files.forEach(f => {
-    const li = document.createElement('li');
-    li.style.padding = '3px 0';
-    if (f.type === 'dir') {
-      li.innerHTML = `<span style="cursor:pointer;color:#6c63ff;">📁 ${f.name}</span>`;
-      if (f.children && f.children.length) {
-        const sub = document.createElement('div');
-        sub.style.paddingLeft = '12px';
-        renderFileTree(f.children, sub);
-        li.appendChild(sub);
-      }
-    } else {
-      li.innerHTML = `<span style="cursor:pointer;color:#374151;" onclick="openFile('${f.path}')">📄 ${f.name}</span>`;
+    const div = document.createElement('div');
+    div.className = 'tree-item ' + (f.type === 'dir' ? 'is-dir' : 'is-file');
+    div.style.paddingLeft = (10 + depth * 12) + 'px';
+    div.innerHTML = (f.type === 'dir' ? '📁 ' : getFileIcon(f.name)) + f.name;
+    if (f.type === 'file') {
+      div.onclick = () => openFile(f.path, f.name);
+    } else if (f.children) {
+      const sub = document.createElement('div');
+      renderTree(f.children, sub, depth + 1);
+      container.appendChild(div);
+      container.appendChild(sub);
+      return;
     }
-    ul.appendChild(li);
+    container.appendChild(div);
   });
-  container.appendChild(ul);
 }
 
-async function openFile(path) {
-  const resp = await fetch(`/blog/ai-webdev/${PROJECT_ID}/tool/`, {
+function getFileIcon(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const icons = {html:'🌐 ',css:'🎨 ',js:'⚡ ',jsx:'⚛️ ',ts:'🔷 ',tsx:'⚛️ ',py:'🐍 ',json:'📋 ',md:'📝 ',txt:'📄 ',png:'🖼 ',jpg:'🖼 ',svg:'🖼 ',sh:'⚡ '};
+  return icons[ext] || '📄 ';
+}
+
+async function openFile(path, name) {
+  try {
+    const r = await fetch(`/blog/ai-webdev/${PROJECT_ID}/file/read/?path=${encodeURIComponent(path)}`);
+    const d = await r.json();
+    document.getElementById('code-editor').value = d.content || '';
+    activeFile = path;
+    document.getElementById('current-path').textContent = path;
+    document.getElementById('editor-lang').textContent = getEditorLang(name);
+    updateEditorStats();
+    // 탭 표시
+    updateEditorTab(name, path);
+    document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('active'));
+    event.target.classList.add('active');
+  } catch(e) { alert('파일 로드 오류'); }
+}
+
+function updateEditorTab(name, path) {
+  const tabs = document.getElementById('editor-tabs');
+  tabs.innerHTML = `
+    <div class="editor-tab active">
+      ${getFileIcon(name)}${name}
+      <span class="tab-close" onclick="closeEditor()">✕</span>
+    </div>`;
+}
+
+function closeEditor() {
+  activeFile = null;
+  document.getElementById('code-editor').value = '';
+  document.getElementById('current-path').textContent = '편집 중인 파일 없음';
+  document.getElementById('editor-tabs').innerHTML = '<span style="color:#5a5a7a;font-size:.75rem;padding:0 8px;">파일 없음</span>';
+}
+
+function getEditorLang(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const langs = {html:'HTML',css:'CSS',js:'JavaScript',jsx:'JSX',ts:'TypeScript',tsx:'TSX',py:'Python',json:'JSON',md:'Markdown',sh:'Shell'};
+  return langs[ext] || '텍스트';
+}
+
+function updateEditorStats() {
+  const val = document.getElementById('code-editor').value;
+  const lines = val.split('\n').length;
+  document.getElementById('editor-lines').textContent = lines + '줄';
+  document.getElementById('editor-size').textContent = (val.length > 1024 ? (val.length/1024).toFixed(1)+'KB' : val.length+'B');
+}
+
+document.getElementById('code-editor').addEventListener('input', updateEditorStats);
+
+async function saveCurrentFile() {
+  if (!activeFile) { alert('파일을 먼저 선택하세요'); return; }
+  const content = document.getElementById('code-editor').value;
+  const r = await fetch(`/blog/ai-webdev/${PROJECT_ID}/file/write/`, {
     method: 'POST',
-    headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
-    body: JSON.stringify({project_id: PROJECT_ID, tool:'read_file', args:{path}})
+    headers: {'Content-Type':'application/json','X-CSRFToken':CSRF},
+    body: JSON.stringify({path: activeFile, content})
   });
-  const data = await resp.json();
-  if (data.result && data.result.content !== undefined) {
-    document.getElementById('file-editor').value = data.result.content;
-    document.getElementById('new-file-path').value = path;
-    document.getElementById('editor-filename').textContent = '📄 ' + path;
+  const d = await r.json();
+  if (d.ok) {
+    showToast('💾 저장됨: ' + activeFile);
+    if (document.getElementById('preview-pane').style.display !== 'none') refreshPreview();
   }
 }
 
-async function saveFile() {
-  const path = document.getElementById('new-file-path').value.trim();
-  const content = document.getElementById('file-editor').value;
-  if (!path) { alert('파일 경로를 입력하세요'); return; }
-  const resp = await fetch(`/blog/ai-webdev/${PROJECT_ID}/tool/`, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
-    body: JSON.stringify({project_id: PROJECT_ID, tool:'write_file', args:{path, content}})
-  });
-  const data = await resp.json();
-  if (data.ok) {
-    alert('✅ 파일 저장 완료');
-    loadFiles();
-  }
+// Ctrl+S 저장
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveCurrentFile(); }
+});
+
+function newFile() {
+  const path = prompt('새 파일 경로 (예: src/App.jsx):');
+  if (!path) return;
+  openFile(path, path.split('/').pop());
+  activeFile = path;
+  document.getElementById('code-editor').value = '';
+  document.getElementById('current-path').textContent = path;
 }
 
-// AI 채팅 (스트리밍)
-async function sendMessage() {
+function newFolder() {
+  const name = prompt('폴더 이름:');
+  if (!name) return;
+  // 폴더는 .gitkeep 파일로 생성
+  fetch(`/blog/ai-webdev/${PROJECT_ID}/file/write/`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+    body:JSON.stringify({path: name+'/.gitkeep', content:''})
+  }).then(() => refreshFiles());
+}
+
+async function deleteActiveFile() {
+  if (!activeFile) { alert('파일을 먼저 선택하세요'); return; }
+  if (!confirm(activeFile + ' 삭제?')) return;
+  await fetch(`/blog/ai-webdev/${PROJECT_ID}/tool/`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+    body:JSON.stringify({project_id:PROJECT_ID, tool:'delete_file', args:{path:activeFile}})
+  });
+  closeEditor();
+  refreshFiles();
+}
+
+// ══ 미리보기 ══
+function refreshPreview() {
+  const iframe = document.getElementById('preview-iframe');
+  const path = activeFile && activeFile.endsWith('.html') ? activeFile : 'index.html';
+  iframe.src = `/blog/ai-webdev/${PROJECT_ID}/preview/?path=${path}&t=${Date.now()}`;
+  document.getElementById('preview-url').textContent = path;
+}
+
+function openExternal() {
+  const path = activeFile && activeFile.endsWith('.html') ? activeFile : 'index.html';
+  window.open(`/blog/ai-webdev/${PROJECT_ID}/preview/?path=${path}`, '_blank');
+}
+
+// ══ 도구 로그 ══
+function addToolLog(msg, type='info') {
+  const area = document.getElementById('tool-log-area');
+  const div = document.createElement('div');
+  div.className = 'tool-log-entry ' + type;
+  div.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  area.appendChild(div);
+  area.scrollTop = area.scrollHeight;
+  toolLogCount++;
+  // 탭에 뱃지
+  const tabs = document.querySelectorAll('.right-tab');
+  tabs.forEach(t => { if (t.textContent.includes('도구')) t.textContent = `🔧 도구 로그 (${toolLogCount})`; });
+}
+
+// ══ 터미널 ══
+function runTerminal() {
+  const cmd = document.getElementById('terminal-cmd').value.trim();
+  if (!cmd) return;
+  const output = document.getElementById('terminal-output');
+  output.innerHTML += `<span style="color:#58a6ff;">$ ${cmd}</span>\n`;
+  document.getElementById('terminal-cmd').value = '';
+
+  const evtSource = new EventSource(`/blog/ai-webdev/${PROJECT_ID}/terminal/?_=${Date.now()}`);
+
+  // 실제로는 POST라서 fetch + ReadableStream 사용
+  fetch(`/blog/ai-webdev/${PROJECT_ID}/terminal/`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+    body:JSON.stringify({command:cmd})
+  }).then(async resp => {
+    if (!resp.ok) { output.innerHTML += `<span style="color:#f85149;">오류 발생</span>\n`; return; }
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    while(true) {
+      const {done, value} = await reader.read();
+      if(done) break;
+      const lines = decoder.decode(value).split('\n');
+      for(const line of lines) {
+        if(!line.startsWith('data:')) continue;
+        try {
+          const evt = JSON.parse(line.slice(5).trim());
+          if(evt.line) output.innerHTML += escHtml(evt.line);
+          if(evt.done) {
+            output.innerHTML += `<span style="color:#3fb950;">[완료 rc=${evt.returncode}]</span>\n`;
+            refreshFiles();
+          }
+          if(evt.error) output.innerHTML += `<span style="color:#f85149;">${escHtml(evt.error)}</span>\n`;
+        } catch(e){}
+      }
+    }
+    output.scrollTop = output.scrollHeight;
+  });
+}
+
+document.getElementById('terminal-cmd').addEventListener('keydown', e => {
+  if(e.key === 'Enter') runTerminal();
+});
+
+// ══ AI 채팅 (스트리밍 + 도구 실행) ══
+async function sendChat() {
   const input = document.getElementById('chat-input');
-  const message = input.value.trim();
-  if (!message) return;
-
+  const msg = input.value.trim();
+  if(!msg) return;
   input.value = '';
-  document.getElementById('send-btn').disabled = true;
-  document.getElementById('send-icon').textContent = '⏳';
 
-  // 사용자 메시지 표시
-  appendMessage('user', message);
-  chatHistory.push({role: 'user', content: message});
+  const btn = document.getElementById('send-btn');
+  btn.disabled = true; btn.textContent = '⏳';
 
-  // AI 응답 버블 생성
-  const aiDiv = appendMessage('ai', '');
-  const aiContent = aiDiv.querySelector('.ai-message-content');
+  appendMsg('user', msg);
+  chatHistory.push({role:'user', content:msg});
+
+  // AI 응답 버블 (스트리밍용)
+  const aiDiv = document.createElement('div');
+  aiDiv.className = 'msg-ai';
+  aiDiv.innerHTML = '<div class="bubble ai-content"><span class="spinner">⏳ 생각 중...</span></div>';
+  document.getElementById('chat-messages').appendChild(aiDiv);
+  const bubble = aiDiv.querySelector('.bubble');
+
+  addToolLog('💬 AI 요청: ' + msg.slice(0,60), 'info');
 
   try {
     const resp = await fetch(`/blog/ai-webdev/${PROJECT_ID}/chat/`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
-      body: JSON.stringify({
-        project_id: PROJECT_ID,
-        message,
-        history: chatHistory.slice(-10),
-        tool_results: pendingToolCalls,
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+      body:JSON.stringify({
+        project_id:PROJECT_ID,
+        message:msg,
+        history:chatHistory.slice(-12),
+        tool_results:pendingToolResults,
       })
     });
 
-    if (resp.status === 402) {
-      const data = await resp.json();
-      aiContent.innerHTML = `<span class="text-danger">❌ ${data.error}</span><br>
-        <a href="/blog/ai/credit/shop/" class="btn btn-sm btn-warning mt-2">💳 크레딧 구매</a>`;
+    if(resp.status === 402) {
+      const d = await resp.json();
+      bubble.innerHTML = `<span style="color:#ef4444;">❌ ${d.error}</span><br><a href="/blog/ai/credit/shop/" style="color:#6c63ff;">💳 크레딧 구매 →</a>`;
+      btn.disabled=false; btn.textContent='▶ 전송';
       return;
     }
 
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
     let fullText = '';
-    pendingToolCalls = [];
+    pendingToolResults = [];
+    let streaming = false;
 
-    while (true) {
+    while(true) {
       const {done, value} = await reader.read();
-      if (done) break;
+      if(done) break;
       const lines = decoder.decode(value).split('\n');
-      for (const line of lines) {
-        if (!line.startsWith('data:')) continue;
+      for(const line of lines) {
+        if(!line.startsWith('data:')) continue;
         try {
           const evt = JSON.parse(line.slice(5).trim());
-          if (evt.token) {
+          if(evt.token) {
+            if(!streaming) { bubble.innerHTML = ''; streaming = true; }
             fullText += evt.token;
-            aiContent.innerHTML = formatAiMessage(fullText);
-            // 도구 호출 감지 및 실행
-            await processToolCalls(fullText, aiContent);
+            bubble.innerHTML = formatAiText(fullText);
+            // 도구 호출 감지 → 자동 실행
+            await detectAndRunTools(fullText);
+            scrollChat();
           }
-          if (evt.done) {
-            chatHistory.push({role: 'ai', content: fullText});
-            // 크레딧 배지 업데이트
+          if(evt.done) {
+            chatHistory.push({role:'ai', content:fullText});
             updateCreditBadge();
-            loadFiles();
+            refreshFiles();
+            addToolLog('✅ AI 응답 완료', 'success');
           }
-          if (evt.error) {
-            aiContent.innerHTML = `<span class="text-danger">❌ ${evt.error}</span>`;
+          if(evt.error) {
+            bubble.innerHTML = `<span style="color:#ef4444;">❌ ${escHtml(evt.error)}</span>`;
           }
-        } catch(e) {}
+        } catch(e){}
       }
     }
   } catch(e) {
-    aiContent.innerHTML = '<span class="text-danger">연결 오류가 발생했습니다.</span>';
-  } finally {
-    document.getElementById('send-btn').disabled = false;
-    document.getElementById('send-icon').textContent = '▶';
+    bubble.innerHTML = '<span style="color:#ef4444;">연결 오류</span>';
+    addToolLog('❌ 연결 오류: '+e.message, 'error');
   }
 
-  // 스크롤 아래로
-  const msgs = document.getElementById('chat-messages');
-  msgs.scrollTop = msgs.scrollHeight;
+  btn.disabled=false; btn.textContent='▶ 전송';
+  scrollChat();
 }
 
-function formatAiMessage(text) {
-  // 코드블록 하이라이트
-  text = text.replace(/```(\w*)\n([\s\S]*?)```/g, (m, lang, code) => 
-    `<pre style="background:#1e1e1e;color:#d4d4d4;padding:10px;border-radius:8px;font-size:.8rem;overflow-x:auto;"><code>${escHtml(code)}</code></pre>`
-  );
-  // tool_call 태그 시각화
-  text = text.replace(/<tool_call>([\s\S]*?)<\/tool_call>/g, (m, json) => 
-    `<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;padding:6px;margin:4px 0;font-size:.8rem;">🔧 <strong>도구 호출</strong><pre style="margin:0;font-size:.75rem;">${escHtml(json)}</pre></div>`
-  );
+// 도구 자동 실행
+const executedToolHashes = new Set();
+async function detectAndRunTools(text) {
+  const regex = /<tool_call>([\s\S]*?)<\/tool_call>/g;
+  let match;
+  while((match = regex.exec(text)) !== null) {
+    const jsonStr = match[1].trim();
+    const hash = jsonStr.slice(0,80);
+    if(executedToolHashes.has(hash)) continue;
+    executedToolHashes.add(hash);
+
+    try {
+      const toolData = JSON.parse(jsonStr);
+      const toolName = toolData.tool || '?';
+      addToolLog(`🔧 실행: <strong>${toolName}</strong> ${JSON.stringify(toolData.args||{}).slice(0,80)}`, 'tool');
+
+      // 도구 탭 자동 전환 안 하고 뱃지만 표시
+      const r = await fetch(`/blog/ai-webdev/${PROJECT_ID}/tool/`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+        body:JSON.stringify({project_id:PROJECT_ID, tool:toolData.tool, args:toolData.args||{}})
+      });
+      const result = await r.json();
+
+      const resultStr = JSON.stringify(result.result||{});
+      if(result.result && result.result.error) {
+        addToolLog(`❌ ${toolName} 오류: ${result.result.error}`, 'error');
+      } else {
+        addToolLog(`✅ ${toolName} 완료: ${resultStr.slice(0,100)}`, 'success');
+        pendingToolResults.push({tool:toolData.tool, args:toolData.args, result:result.result});
+      }
+
+      // 파일 작성했으면 트리 갱신
+      if(toolName === 'write_file' || toolName === 'delete_file' || toolName === 'run_command') {
+        await refreshFiles();
+      }
+
+    } catch(e) {
+      addToolLog(`❌ 도구 파싱 오류: ${e.message}`, 'error');
+    }
+  }
+}
+
+function formatAiText(text) {
+  // 코드블록
+  text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (m,lang,code) =>
+    `<pre><code>${escHtml(code.trim())}</code></pre>`);
+  // tool_call 시각화
+  text = text.replace(/<tool_call>([\s\S]*?)<\/tool_call>/g, (m,json) =>
+    `<div class="tool-call-badge">🔧 ${escHtml(json.slice(0,60))}${json.length>60?'...':''}</div>`);
+  // 줄바꿈
   text = text.replace(/\n/g, '<br>');
   return text;
 }
 
 function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// 도구 호출 파싱 및 실행
-async function processToolCalls(text, aiContent) {
-  const regex = /<tool_call>([\s\S]*?)<\/tool_call>/g;
-  let match;
-  const executed = [];
-  while ((match = regex.exec(text)) !== null) {
-    const jsonStr = match[1].trim();
-    if (executed.includes(jsonStr)) continue;
-    executed.push(jsonStr);
-    try {
-      const toolData = JSON.parse(jsonStr);
-      showToolLog(`⚡ 실행 중: ${toolData.tool}...`);
-      const resp = await fetch(`/blog/ai-webdev/${PROJECT_ID}/tool/`, {
-        method: 'POST',
-        headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
-        body: JSON.stringify({project_id: PROJECT_ID, tool: toolData.tool, args: toolData.args || {}})
-      });
-      const result = await resp.json();
-      showToolLog(`✅ ${toolData.tool}: ${JSON.stringify(result.result).slice(0,100)}`);
-      pendingToolCalls.push({tool: toolData.tool, args: toolData.args, result: result.result});
-    } catch(e) {
-      showToolLog(`❌ 파싱 오류: ${e.message}`);
-    }
-  }
-}
-
-function showToolLog(msg) {
-  const log = document.getElementById('tool-log');
-  log.style.display = 'block';
-  log.innerHTML += `<div>${msg}</div>`;
-  log.scrollTop = log.scrollHeight;
-}
-
-async function updateCreditBadge() {
-  try {
-    const resp = await fetch('/blog/ai/credit/status/');
-    const data = await resp.json();
-    const badge = document.getElementById('credit-badge');
-    if (badge && !data.is_unlimited) {
-      badge.textContent = `💳 ${data.credits} 크레딧`;
-    }
-  } catch(e) {}
-}
-
-function appendMessage(role, content) {
+function appendMsg(role, content) {
   const msgs = document.getElementById('chat-messages');
   const div = document.createElement('div');
-  div.className = `mb-3 ${role === 'user' ? 'text-end' : ''}`;
-  if (role === 'user') {
-    div.innerHTML = `<div class="d-inline-block text-white px-3 py-2 rounded-3" style="background:#6c63ff;max-width:85%;text-align:left;">${content}</div>`;
-  } else {
-    div.innerHTML = `<div class="d-inline-block px-3 py-2 rounded-3" style="background:#f3f4f6;max-width:90%;text-align:left;"><div class="ai-message-content">${content || '<span class="spinner-border spinner-border-sm"></span> 생각 중...'}</div></div>`;
-  }
+  div.className = role === 'user' ? 'msg-user' : 'msg-ai';
+  div.innerHTML = `<div class="bubble">${escHtml(content)}</div>`;
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
-  return div;
 }
 
-// Ctrl+Enter로 전송
-document.getElementById('chat-input').addEventListener('keydown', function(e) {
-  if (e.ctrlKey && e.key === 'Enter') sendMessage();
+function scrollChat() {
+  const msgs = document.getElementById('chat-messages');
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+// Ctrl+Enter
+document.getElementById('chat-input').addEventListener('keydown', e => {
+  if(e.ctrlKey && e.key==='Enter') sendChat();
 });
 
-// 페이지 로드 시 파일 트리 로드
-loadFiles();
+// ══ 배포 ══
+async function startDeploy() {
+  const log = document.getElementById('deploy-log');
+  log.textContent = '배포 준비 중...\n';
+  switchTabDirect('deploy');
 
-// 채팅 히스토리 복원
+  const resp = await fetch(`/blog/ai-webdev/${PROJECT_ID}/deploy/`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+    body:JSON.stringify({})
+  });
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let deployUrl = '';
+
+  while(true) {
+    const {done, value} = await reader.read();
+    if(done) break;
+    const lines = decoder.decode(value).split('\n');
+    for(const line of lines) {
+      if(!line.startsWith('data:')) continue;
+      try {
+        const evt = JSON.parse(line.slice(5).trim());
+        if(evt.log) { log.textContent += evt.log + '\n'; log.scrollTop = log.scrollHeight; }
+        if(evt.url) {
+          deployUrl = evt.url;
+          log.textContent += `\n✅ 배포 완료!\n🌐 URL: ${deployUrl}\n`;
+          // 배포 URL 박스 표시
+          let box = document.querySelector('.deploy-url-box');
+          if(!box) {
+            box = document.createElement('div');
+            box.className = 'deploy-url-box';
+            document.getElementById('deploy-pane').insertBefore(box, document.getElementById('deploy-log'));
+          }
+          box.innerHTML = `<div style="font-size:1.5rem;">🎉</div>
+            <p style="font-weight:700;color:#059669;">배포 완료!</p>
+            <a href="${deployUrl}" target="_blank" style="color:#2563eb;word-break:break-all;">${deployUrl}</a>`;
+        }
+      } catch(e){}
+    }
+  }
+}
+
+function switchTabDirect(tab) {
+  document.querySelectorAll('.tab-content').forEach(el => el.style.display='none');
+  document.querySelectorAll('.right-tab').forEach(el => el.classList.remove('active'));
+  const pane = document.getElementById(tab+'-pane');
+  if(pane) pane.style.display='flex';
+  document.querySelectorAll('.right-tab').forEach(t => {
+    if(t.textContent.toLowerCase().includes(tab==='deploy'?'배포':tab==='preview'?'미리':tab==='tool'?'도구':tab==='terminal'?'터미널':'채팅'))
+      t.classList.add('active');
+  });
+}
+
+// ══ 크레딧 업데이트 ══
+async function updateCreditBadge() {
+  try {
+    const r = await fetch('/blog/ai/credit/status/');
+    const d = await r.json();
+    const badge = document.getElementById('credit-badge');
+    const info = document.getElementById('credit-info');
+    if(d.is_unlimited) {
+      if(badge) { badge.textContent='♾️'; badge.style.background='#10b981'; }
+      if(info) info.textContent='♾️ 무제한';
+    } else {
+      if(badge) { badge.textContent=`💳 ${d.credits}`; badge.style.background=d.credits<=5?'#ef4444':'#6c63ff'; }
+      if(info) info.textContent=`💳 ${d.credits}크레딧 남음`;
+    }
+  } catch(e){}
+}
+
+// ══ 리사이저 ══
+function makeResizer(id, leftEl, rightEl, isRight) {
+  const r = document.getElementById(id);
+  if(!r) return;
+  let x0, lw, rw;
+  r.addEventListener('mousedown', e => {
+    x0=e.clientX; lw=leftEl.offsetWidth; rw=rightEl.offsetWidth;
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', () => document.removeEventListener('mousemove', onMove));
+  });
+  function onMove(e) {
+    const dx = e.clientX - x0;
+    leftEl.style.width = Math.max(100, lw+dx) + 'px';
+    leftEl.style.flex = 'none';
+    rightEl.style.width = Math.max(100, rw-dx) + 'px';
+    rightEl.style.flex = 'none';
+  }
+}
+makeResizer('resizer-left', document.getElementById('sidebar'), document.getElementById('editor-pane'));
+makeResizer('resizer-right', document.getElementById('editor-pane'), document.getElementById('right-panel'));
+
+// ══ 초기화 ══
+refreshFiles();
+// 이전 히스토리 복원
 {% for session in sessions %}
-chatHistory.push({role: '{{ session.role }}', content: {{ session.content|escapejs|safe|stringformat:"'%s'" }}});
+chatHistory.push({role:'{{ session.role }}', content:`{{ session.content|escapejs }}`});
 {% endfor %}
+scrollChat();
 
-// 스크롤 맨 아래
-document.getElementById('chat-messages').scrollTop = 999999;
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#6c63ff;color:#fff;padding:8px 16px;border-radius:20px;font-size:.85rem;z-index:9999;box-shadow:0 4px 12px rgba(108,99,255,.4);';
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
 </script>
-
-<style>
-pre { max-height: 300px; overflow-y: auto; }
-</style>
 {% endblock %}
