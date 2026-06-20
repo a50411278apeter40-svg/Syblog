@@ -144,6 +144,8 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 SOCIALACCOUNT_STORE_TOKENS = False
+SOCIALACCOUNT_ADAPTER = 'accounts.adapter.SocialAccountAdapter'
+ACCOUNT_ADAPTER = 'accounts.adapter.AccountAdapter'
 
 LOGIN_REDIRECT_URL = '/blog/'
 LOGOUT_REDIRECT_URL = '/'
