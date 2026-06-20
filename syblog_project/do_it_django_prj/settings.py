@@ -147,6 +147,13 @@ SOCIALACCOUNT_STORE_TOKENS = False
 SOCIALACCOUNT_ADAPTER = 'accounts.adapter.SocialAccountAdapter'
 ACCOUNT_ADAPTER = 'accounts.adapter.AccountAdapter'
 
+# Render 프록시 HTTPS 인식 (OAuth redirect_uri 정상화)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SESSION_COOKIE_SECURE = True
+SESSION_COOKIE_SAMESITE = 'None'   # OAuth 콜백 시 cross-site 쿠키 허용
+CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_SAMESITE = 'None'
+
 LOGIN_REDIRECT_URL = '/blog/'
 LOGOUT_REDIRECT_URL = '/'
 
