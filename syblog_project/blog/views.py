@@ -1146,85 +1146,83 @@ def search_autocomplete(request):
     return JsonResponse({'results': results})
 
 
-# ── 12. AI 글쓰기 보조 (무료 API — pollinations.ai + 연속대화) ──────────────
+
+# ── 12. AI 글쓰기 보조 (g4f — GPT-4, API키 불필요, 무제한) ──────────────────
 def ai_writing_assist(request):
-    """API키 불필요한 무료 AI — pollinations.ai 텍스트 API
+    """
+    g4f(gpt4free) 라이브러리를 사용해 GPT-4 수준의 AI를 API키 없이 무제한 사용.
     mode: improve | summarize | title | spell | continue | comment_improve | comment_polite | custom
-    custom 모드일 때 history(list)를 받아 연속 대화 지원
+    custom 모드는 history(list)를 받아 연속 대화 지원.
     """
     if request.method != 'POST':
         return JsonResponse({'error': 'POST only'}, status=405)
-    import urllib.request as _ur
-    import urllib.error
 
     try:
         body = _json_mod.loads(request.body)
     except Exception:
         return JsonResponse({'error': '잘못된 요청'}, status=400)
 
-    mode    = body.get('mode', 'custom')
-    text    = body.get('text', '').strip()
-    history = body.get('history', [])  # [{"role":"user","content":"..."}, ...]
+    mode          = body.get('mode', 'custom')
+    text          = body.get('text', '').strip()
+    history       = body.get('history', [])
     custom_prompt = body.get('custom_prompt', '').strip()
 
-    # ── 모드별 시스템 프롬프트 빌드 ──────────────────────────────
+    # ── 모드별 프롬프트 빌드 ──────────────────────────────────────
     if mode == 'improve':
-        prompt = f"다음 글을 더 자연스럽고 읽기 좋게 다듬어줘 (한국어). 수정된 전체 글만 출력해줘:\n\n{text[:800]}"
+        prompt = f"다음 글을 더 자연스럽고 읽기 좋게 다듬어줘 (한국어). 수정된 전체 글만 출력해줘:\n\n{text[:1200]}"
     elif mode == 'summarize':
-        prompt = f"다음 글을 3~5문장으로 핵심만 요약해줘 (한국어):\n\n{text[:800]}"
+        prompt = f"다음 글을 3~5문장으로 핵심만 요약해줘 (한국어):\n\n{text[:1200]}"
     elif mode == 'title':
-        prompt = f"다음 내용에 어울리는 블로그 제목 5개를 한국어로 번호 목록으로 제안해줘:\n\n{text[:500]}"
+        prompt = f"다음 내용에 어울리는 블로그 제목 5개를 한국어로 번호 목록으로 제안해줘:\n\n{text[:800]}"
     elif mode == 'spell':
-        prompt = f"다음 글의 맞춤법과 어색한 표현을 교정해줘. 수정한 부분만 [원문 → 수정] 형태로 목록으로 보여줘 (없으면 '맞춤법 오류 없음' 출력):\n\n{text[:800]}"
+        prompt = f"다음 글의 맞춤법과 어색한 표현을 교정해줘. 수정한 부분만 [원문 → 수정] 형태로 목록으로 보여줘. 없으면 '맞춤법 오류 없음'이라고 출력해줘:\n\n{text[:1200]}"
     elif mode == 'continue':
-        prompt = f"다음 글에 이어서 자연스럽게 2~3문단 추가해줘 (한국어):\n\n{text[:800]}"
+        prompt = f"다음 글에 이어서 자연스럽게 2~3문단 추가해줘 (한국어):\n\n{text[:1200]}"
     elif mode == 'comment_improve':
-        prompt = f"다음 댓글을 더 자연스럽고 명확하게 다듬어줘 (한국어). 수정된 댓글만 출력해줘:\n\n{text[:400]}"
+        prompt = f"다음 댓글을 더 자연스럽고 명확하게 다듬어줘 (한국어). 수정된 댓글만 출력해줘:\n\n{text[:600]}"
     elif mode == 'comment_polite':
-        prompt = f"다음 댓글을 정중하고 예의 바른 표현으로 바꿔줘 (한국어). 수정된 댓글만 출력해줘:\n\n{text[:400]}"
+        prompt = f"다음 댓글을 정중하고 예의 바른 표현으로 바꿔줘 (한국어). 수정된 댓글만 출력해줘:\n\n{text[:600]}"
     elif mode == 'draft':
         prompt = f"다음 제목으로 한국어 블로그 글 초안을 3문단으로 작성해줘. 제목: {text}"
     elif mode == 'custom':
-        # 연속 대화: history 배열을 이어붙여 컨텍스트 구성
         if history:
             ctx_parts = []
-            for h in history[-6:]:  # 최근 6개만
-                role = "사용자" if h.get("role") == "user" else "AI"
-                ctx_parts.append(f"[{role}]: {h.get('content','')[:400]}")
+            for h in history[-6:]:
+                role_label = "사용자" if h.get("role") == "user" else "AI"
+                ctx_parts.append(f"[{role_label}]: {h.get('content','')[:500]}")
             context_str = "\n".join(ctx_parts)
-            prompt = f"이전 대화:\n{context_str}\n\n[사용자]: {custom_prompt}\n\n위 맥락을 이어받아 한국어로 답해줘."
+            prompt = f"이전 대화:\n{context_str}\n\n[사용자]: {custom_prompt}\n\n위 맥락을 이어받아 한국어로 자세하게 답해줘."
         else:
-            prompt = custom_prompt if custom_prompt else text
+            if text:
+                prompt = f"{custom_prompt}\n\n[현재 작성 중인 글]:\n{text[:800]}"
+            else:
+                prompt = custom_prompt
     else:
-        prompt = text
+        prompt = custom_prompt if custom_prompt else text
 
-    # ── pollinations.ai 호출 ──────────────────────────────────
+    # ── g4f 호출 (GPT-4, API키 불필요, 자동 provider 선택) ──────────
     try:
-        encoded = urllib.parse.quote(prompt, safe='')
-        url = f"https://text.pollinations.ai/{encoded}?model=openai&seed=42"
-        req = _ur.Request(url, headers={
-            'User-Agent': 'SyBlog/1.0',
-            'Accept': 'text/plain',
-        })
-        with _ur.urlopen(req, timeout=25) as resp:
-            result = resp.read().decode('utf-8').strip()
-        if not result:
+        from g4f.client import Client as G4FClient
+        client = G4FClient()
+        response = client.chat.completions.create(
+            model='gpt-4',
+            messages=[
+                {'role': 'system', 'content': '당신은 한국어 블로그 글쓰기를 도와주는 AI 보조자입니다. 항상 한국어로 답변하세요.'},
+                {'role': 'user', 'content': prompt}
+            ]
+        )
+        result = response.choices[0].message.content
+        if not result or not result.strip():
             raise ValueError("빈 응답")
-        return JsonResponse({'result': result, 'mode': mode})
+        return JsonResponse({'result': result.strip(), 'mode': mode})
     except Exception as e:
-        # fallback
-        fallback_map = {
-            'improve': text,
-            'summarize': f"[요약] {text[:120]}...",
-            'title': f"1. {text[:30]} 완벽 가이드\n2. 초보자도 쉽게 배우는 {text[:20]}\n3. {text[:20]}의 모든 것\n4. 실전에서 바로 쓰는 {text[:20]}\n5. {text[:20]} 핵심 정리",
-            'spell': "AI 연결이 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.",
-            'continue': f"\n\n이어서, {text[-50:]}...",
-            'comment_improve': text,
-            'comment_polite': text,
-            'draft': f"**{text}**\n\n안녕하세요! 오늘은 \'{text}\'에 대해 이야기해보려고 합니다.\n\n이 주제는 최근 많은 관심을 받고 있습니다.\n\n여러분도 한번 시도해보시길 추천드립니다!",
-            'custom': "AI 연결이 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.",
-        }
-        return JsonResponse({'result': fallback_map.get(mode, "AI 연결 오류"), 'mode': mode, 'fallback': True})
+        import logging
+        logging.getLogger(__name__).warning(f"g4f AI error: {e}")
+        return JsonResponse({
+            'result': f"AI 연결에 실패했습니다. 잠시 후 다시 시도해주세요.\n(오류: {str(e)[:80]})",
+            'mode': mode,
+            'error': True
+        }, status=200)
 
 
 def export_post_pdf(request, pk):
