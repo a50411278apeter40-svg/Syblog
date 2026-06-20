@@ -1146,9 +1146,12 @@ def search_autocomplete(request):
     return JsonResponse({'results': results})
 
 
-# ── 12. AI 글쓰기 보조 (무료 API - HuggingFace Inference) ─────────
+# ── 12. AI 글쓰기 보조 (무료 API — pollinations.ai + 연속대화) ──────────────
 def ai_writing_assist(request):
-    """API키 불필요한 무료 AI — HuggingFace serverless inference (mistral) 또는 pollinations.ai"""
+    """API키 불필요한 무료 AI — pollinations.ai 텍스트 API
+    mode: improve | summarize | title | spell | continue | comment_improve | comment_polite | custom
+    custom 모드일 때 history(list)를 받아 연속 대화 지원
+    """
     if request.method != 'POST':
         return JsonResponse({'error': 'POST only'}, status=405)
     import urllib.request as _ur
@@ -1159,20 +1162,18 @@ def ai_writing_assist(request):
     except Exception:
         return JsonResponse({'error': '잘못된 요청'}, status=400)
 
-    mode = body.get('mode', 'draft')   # draft | improve | title
-    text = body.get('text', '').strip()
+    mode    = body.get('mode', 'custom')
+    text    = body.get('text', '').strip()
+    history = body.get('history', [])  # [{"role":"user","content":"..."}, ...]
+    custom_prompt = body.get('custom_prompt', '').strip()
 
-    if not text:
-        return JsonResponse({'error': '텍스트를 입력하세요.'}, status=400)
-
-    if mode == 'draft':
-        prompt = f"다음 제목으로 한국어 블로그 글 초안을 3문단으로 작성해줘. 제목: {text}"
-    elif mode == 'improve':
-        prompt = f"다음 글을 더 자연스럽고 읽기 좋게 다듬어줘 (한국어). 수정된 전체 글을 출력해줘:\n\n{text[:800]}"
-    elif mode == 'title':
-        prompt = f"다음 내용에 어울리는 블로그 제목 5개를 한국어로 제안해줘. 번호 목록으로 출력해줘:\n\n{text[:500]}"
+    # ── 모드별 시스템 프롬프트 빌드 ──────────────────────────────
+    if mode == 'improve':
+        prompt = f"다음 글을 더 자연스럽고 읽기 좋게 다듬어줘 (한국어). 수정된 전체 글만 출력해줘:\n\n{text[:800]}"
     elif mode == 'summarize':
         prompt = f"다음 글을 3~5문장으로 핵심만 요약해줘 (한국어):\n\n{text[:800]}"
+    elif mode == 'title':
+        prompt = f"다음 내용에 어울리는 블로그 제목 5개를 한국어로 번호 목록으로 제안해줘:\n\n{text[:500]}"
     elif mode == 'spell':
         prompt = f"다음 글의 맞춤법과 어색한 표현을 교정해줘. 수정한 부분만 [원문 → 수정] 형태로 목록으로 보여줘 (없으면 '맞춤법 오류 없음' 출력):\n\n{text[:800]}"
     elif mode == 'continue':
@@ -1181,35 +1182,51 @@ def ai_writing_assist(request):
         prompt = f"다음 댓글을 더 자연스럽고 명확하게 다듬어줘 (한국어). 수정된 댓글만 출력해줘:\n\n{text[:400]}"
     elif mode == 'comment_polite':
         prompt = f"다음 댓글을 정중하고 예의 바른 표현으로 바꿔줘 (한국어). 수정된 댓글만 출력해줘:\n\n{text[:400]}"
+    elif mode == 'draft':
+        prompt = f"다음 제목으로 한국어 블로그 글 초안을 3문단으로 작성해줘. 제목: {text}"
+    elif mode == 'custom':
+        # 연속 대화: history 배열을 이어붙여 컨텍스트 구성
+        if history:
+            ctx_parts = []
+            for h in history[-6:]:  # 최근 6개만
+                role = "사용자" if h.get("role") == "user" else "AI"
+                ctx_parts.append(f"[{role}]: {h.get('content','')[:400]}")
+            context_str = "\n".join(ctx_parts)
+            prompt = f"이전 대화:\n{context_str}\n\n[사용자]: {custom_prompt}\n\n위 맥락을 이어받아 한국어로 답해줘."
+        else:
+            prompt = custom_prompt if custom_prompt else text
     else:
         prompt = text
 
-    # pollinations.ai — 완전 무료, API키 불필요
+    # ── pollinations.ai 호출 ──────────────────────────────────
     try:
-        encoded_prompt = urllib.parse.quote(prompt)
-        url = f"https://text.pollinations.ai/{encoded_prompt}?model=mistral&seed=42&json=false"
-        req = _ur.Request(url, headers={'User-Agent': 'SyBlog/1.0'})
-        with _ur.urlopen(req, timeout=20) as resp:
+        encoded = urllib.parse.quote(prompt, safe='')
+        url = f"https://text.pollinations.ai/{encoded}?model=openai&seed=42"
+        req = _ur.Request(url, headers={
+            'User-Agent': 'SyBlog/1.0',
+            'Accept': 'text/plain',
+        })
+        with _ur.urlopen(req, timeout=25) as resp:
             result = resp.read().decode('utf-8').strip()
+        if not result:
+            raise ValueError("빈 응답")
         return JsonResponse({'result': result, 'mode': mode})
     except Exception as e:
-        # fallback: 간단한 내장 템플릿
-        fallback = {
-            'draft': f"**{text}**\n\n안녕하세요! 오늘은 '{text}'에 대해 이야기해보려고 합니다.\n\n이 주제는 최근 많은 관심을 받고 있는데요, 실제로 경험해보니 생각보다 훨씬 흥미롭더라고요.\n\n여러분도 한번 시도해보시길 강력 추천드립니다!",
+        # fallback
+        fallback_map = {
             'improve': text,
-            'title': f"[추천 제목]\n1. '{text[:30]}' 완벽 가이드\n2. 초보자도 쉽게 배우는 {text[:20]}\n3. {text[:20]}의 모든 것\n4. 실전에서 바로 쓰는 {text[:20]}\n5. {text[:20]} 핵심 정리",
-            'summarize': f"[요약]\n이 글은 {text[:100]}...에 관한 내용입니다.",
-            'spell': "AI 연결이 불안정합니다. 잠시 후 다시 시도해주세요.",
-            'continue': f"\n\n이어서, {text[-50:] if len(text)>50 else text}에 대해 더 이야기하자면...",
+            'summarize': f"[요약] {text[:120]}...",
+            'title': f"1. {text[:30]} 완벽 가이드\n2. 초보자도 쉽게 배우는 {text[:20]}\n3. {text[:20]}의 모든 것\n4. 실전에서 바로 쓰는 {text[:20]}\n5. {text[:20]} 핵심 정리",
+            'spell': "AI 연결이 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.",
+            'continue': f"\n\n이어서, {text[-50:]}...",
             'comment_improve': text,
             'comment_polite': text,
+            'draft': f"**{text}**\n\n안녕하세요! 오늘은 \'{text}\'에 대해 이야기해보려고 합니다.\n\n이 주제는 최근 많은 관심을 받고 있습니다.\n\n여러분도 한번 시도해보시길 추천드립니다!",
+            'custom': "AI 연결이 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.",
         }
-        return JsonResponse({'result': fallback.get(mode, text), 'mode': mode, 'fallback': True})
+        return JsonResponse({'result': fallback_map.get(mode, "AI 연결 오류"), 'mode': mode, 'fallback': True})
 
 
-
-
-# ── 14. PDF 내보내기 ─────────────────────────────────────────────
 def export_post_pdf(request, pk):
     post = get_object_or_404(Post, pk=pk)
     html_content = f'''<!DOCTYPE html>
@@ -1301,3 +1318,55 @@ def posts_api(request):
         'has_more': page_obj.has_next(),
         'page': page,
     })
+
+
+from django.views.generic import DeleteView
+from django.urls import reverse_lazy
+
+class SeriesDelete(LoginRequiredMixin, DeleteView):
+    model = Series
+    success_url = reverse_lazy('blog:series_list')
+
+    def dispatch(self, request, *args, **kwargs):
+        obj = self.get_object()
+        if not (request.user == obj.author or request.user.is_superuser):
+            raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
+
+def search_view(request):
+    q = request.GET.get('q', '')
+    cat_slug = request.GET.get('category', '')
+    tag_slug = request.GET.get('tag', '')
+    sort = request.GET.get('sort', '-created_at')
+
+    post_list = Post.objects.all().distinct()
+
+    if q:
+        post_list = post_list.filter(
+            Q(title__icontains=q) |
+            Q(content__icontains=q) |
+            Q(author__username__icontains=q)
+        )
+    if cat_slug:
+        post_list = post_list.filter(category__slug=cat_slug)
+    if tag_slug:
+        post_list = post_list.filter(tags__slug=tag_slug)
+
+    if sort == 'views':
+        post_list = post_list.order_by('-view_count', '-created_at')
+    elif sort == 'likes':
+        post_list = post_list.order_by('-like_count', '-created_at')
+    else:
+        post_list = post_list.order_by('-created_at')
+
+    context = {
+        'post_list': post_list,
+        'q': q,
+        'selected_cat': cat_slug,
+        'selected_tag': tag_slug,
+        'sort': sort,
+        'categories': Category.objects.all(),
+        'tags': Tag.objects.all(),
+        'no_category_post_count': Post.objects.filter(category=None).count()
+    }
+    return render(request, 'blog/search.html', context)

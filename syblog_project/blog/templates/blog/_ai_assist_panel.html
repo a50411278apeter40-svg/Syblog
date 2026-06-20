@@ -1,12 +1,14 @@
 {% if user.is_authenticated %}
-<!-- ── AI 글쓰기 보조 패널 ──────────────────────────────── -->
+<!-- ── AI 글쓰기 보조 패널 v2 ──────────────────────────────── -->
 <div class="ai-assist-panel mt-3 mb-2" id="ai-panel-{{ panel_id }}"
      style="background:linear-gradient(135deg,rgba(108,99,255,0.07),rgba(72,207,173,0.07));
             border:1px solid rgba(108,99,255,0.22);border-radius:12px;padding:14px 16px;">
+
+  <!-- 헤더 -->
   <div class="d-flex align-items-center mb-2" style="gap:8px;flex-wrap:wrap;">
     <span style="font-size:1.15rem;">🤖</span>
     <strong style="color:#6c63ff;font-size:.97rem;">AI 글쓰기 보조</strong>
-    <small class="text-muted">클릭하면 AI가 도와드려요</small>
+    <small class="text-muted">AI가 글쓰기를 도와드려요</small>
     <button type="button"
             onclick="toggleAiPanel('ai-panel-{{ panel_id }}')"
             class="btn btn-sm btn-outline-secondary ml-auto"
@@ -14,115 +16,313 @@
   </div>
 
   <div id="ai-panel-body-{{ panel_id }}">
+
+    <!-- ── 빠른 버튼 탭 ── -->
     <div class="d-flex flex-wrap mb-2" style="gap:6px;">
       {% if panel_mode == 'post' %}
       <button type="button" class="btn btn-sm btn-outline-primary"
-              onclick="aiAssistPanel('{{ panel_id }}','improve', document.getElementById('{{ textarea_id }}').value)">
-        ✨ 내용 다듬기
-      </button>
+              onclick="aiQuick('{{ panel_id }}','improve','{{ textarea_id }}')">✨ 내용 다듬기</button>
       <button type="button" class="btn btn-sm btn-outline-success"
-              onclick="aiAssistPanel('{{ panel_id }}','summarize', document.getElementById('{{ textarea_id }}').value)">
-        📋 요약 생성
-      </button>
+              onclick="aiQuick('{{ panel_id }}','summarize','{{ textarea_id }}')">📋 요약 생성</button>
       <button type="button" class="btn btn-sm btn-outline-info"
-              onclick="aiAssistPanel('{{ panel_id }}','title', document.getElementById('{{ textarea_id }}').value)">
-        💡 제목 추천
-      </button>
+              onclick="aiQuick('{{ panel_id }}','title','{{ textarea_id }}')">💡 제목 추천</button>
       <button type="button" class="btn btn-sm btn-outline-warning"
-              onclick="aiAssistPanel('{{ panel_id }}','spell', document.getElementById('{{ textarea_id }}').value)">
-        🔍 맞춤법 검사
-      </button>
+              onclick="aiQuick('{{ panel_id }}','spell','{{ textarea_id }}')">🔍 맞춤법 검사</button>
       <button type="button" class="btn btn-sm btn-outline-secondary"
-              onclick="aiAssistPanel('{{ panel_id }}','continue', document.getElementById('{{ textarea_id }}').value)">
-        ➡️ 이어쓰기 제안
-      </button>
+              onclick="aiQuick('{{ panel_id }}','continue','{{ textarea_id }}')">➡️ 이어쓰기</button>
       {% elif panel_mode == 'comment' %}
       <button type="button" class="btn btn-sm btn-outline-primary"
-              onclick="aiAssistPanel('{{ panel_id }}','comment_improve', document.getElementById('{{ textarea_id }}').value)">
-        ✨ 댓글 다듬기
-      </button>
+              onclick="aiQuick('{{ panel_id }}','comment_improve','{{ textarea_id }}')">✨ 댓글 다듬기</button>
       <button type="button" class="btn btn-sm btn-outline-success"
-              onclick="aiAssistPanel('{{ panel_id }}','comment_polite', document.getElementById('{{ textarea_id }}').value)">
-        😊 정중하게 변환
-      </button>
+              onclick="aiQuick('{{ panel_id }}','comment_polite','{{ textarea_id }}')">😊 정중하게 변환</button>
       <button type="button" class="btn btn-sm btn-outline-warning"
-              onclick="aiAssistPanel('{{ panel_id }}','spell', document.getElementById('{{ textarea_id }}').value)">
-        🔍 맞춤법 검사
-      </button>
+              onclick="aiQuick('{{ panel_id }}','spell','{{ textarea_id }}')">🔍 맞춤법 검사</button>
       {% endif %}
+
+      <!-- AI 명령어 입력 토글 버튼 -->
+      <button type="button" class="btn btn-sm btn-primary"
+              onclick="toggleAiChat('{{ panel_id }}')"
+              style="margin-left:auto;background:linear-gradient(135deg,#6c63ff,#48cfad);border:none;">
+        💬 AI에게 명령하기
+      </button>
     </div>
 
-    <!-- 결과 박스 -->
-    <div id="ai-result-{{ panel_id }}"
-         style="display:none;background:rgba(255,255,255,0.85);border-radius:8px;
-                border:1px solid rgba(108,99,255,0.18);padding:12px;font-size:.88rem;
-                white-space:pre-wrap;max-height:220px;overflow-y:auto;position:relative;">
+    <!-- ── AI 채팅 입력 영역 (토글) ── -->
+    <div id="ai-chat-area-{{ panel_id }}" style="display:none;margin-bottom:10px;">
+      <div style="background:rgba(108,99,255,0.06);border:1px solid rgba(108,99,255,0.2);
+                  border-radius:10px;padding:12px;">
+        <label style="font-size:.82rem;font-weight:600;color:#6c63ff;margin-bottom:6px;display:block;">
+          💬 AI에게 직접 명령하기 <span style="font-weight:400;color:#888;">(연속 질문 가능)</span>
+        </label>
+        <div style="display:flex;gap:8px;align-items:flex-end;">
+          <textarea id="ai-chat-input-{{ panel_id }}"
+                    placeholder="예) 이 글을 뉴스 기사 형식으로 바꿔줘 / 더 전문적으로 써줘 / 결론 부분만 다시 써줘"
+                    style="flex:1;padding:9px 12px;border:1.5px solid rgba(108,99,255,0.3);
+                           border-radius:8px;font-size:.88rem;resize:vertical;min-height:60px;
+                           outline:none;font-family:inherit;"
+                    onkeydown="if(event.ctrlKey&&event.key==='Enter'){aiCustom('{{ panel_id }}','{{ textarea_id }}');}"
+                    onfocus="this.style.borderColor='#6c63ff'"
+                    onblur="this.style.borderColor='rgba(108,99,255,0.3)'"></textarea>
+          <button type="button"
+                  onclick="aiCustom('{{ panel_id }}','{{ textarea_id }}')"
+                  class="btn btn-sm btn-primary"
+                  style="background:linear-gradient(135deg,#6c63ff,#48cfad);border:none;
+                         padding:8px 16px;font-size:.85rem;white-space:nowrap;height:fit-content;">
+            전송 ↵
+          </button>
+        </div>
+        <div style="font-size:.75rem;color:#aaa;margin-top:4px;">
+          Ctrl+Enter로도 전송 가능 · 이전 대화 맥락이 유지됩니다
+        </div>
+      </div>
     </div>
+
+    <!-- ── 대화 히스토리 + 결과 박스 ── -->
+    <div id="ai-result-{{ panel_id }}" style="display:none;">
+      <div id="ai-history-{{ panel_id }}"
+           style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;
+                  padding:4px 0 4px 0;"></div>
+    </div>
+
   </div>
 </div>
 
 <script>
 (function(){
-  if(window._aiPanelReady) return;
-  window._aiPanelReady = true;
+  /* 중복 방지 */
+  if(window._aiPanelReady2) return;
+  window._aiPanelReady2 = true;
 
-  window.toggleAiPanel = function(panelId){
-    var body = document.getElementById('ai-panel-body-'+panelId);
-    var btn  = document.querySelector('#ai-panel-'+panelId+' .btn-outline-secondary');
-    if(!body) return;
-    if(body.style.display === 'none'){
-      body.style.display = '';
-      if(btn) btn.textContent = '접기 ▲';
-    } else {
-      body.style.display = 'none';
-      if(btn) btn.textContent = '펼치기 ▼';
-    }
-  };
+  /* ── 히스토리 저장소 (panelId → [{role,content}]) ── */
+  window._aiHistory = window._aiHistory || {};
 
-  window.aiAssistPanel = function(panelId, mode, text){
-    var resultEl = document.getElementById('ai-result-'+panelId);
-    if(!resultEl) return;
-    if(!text || text.trim().length < 2){
-      resultEl.style.display='block';
-      resultEl.innerHTML='<span style="color:#e74c3c;">⚠️ 내용을 먼저 입력해 주세요.</span>';
-      return;
-    }
-    resultEl.style.display='block';
-    resultEl.innerHTML='<i class="fas fa-spinner fa-spin" style="color:#6c63ff;"></i> <span style="color:#6c63ff;">AI가 분석 중입니다...</span>';
-
-    var csrfEl = document.querySelector('[name=csrfmiddlewaretoken]');
-    var csrf = csrfEl ? csrfEl.value : '';
-
-    fetch('/blog/ai-assist/', {
-      method:'POST',
-      headers:{'X-CSRFToken': csrf, 'Content-Type':'application/json'},
-      body: JSON.stringify({mode: mode, text: text.substring(0, 800)})
-    })
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      var res = d.result || d.error || '결과를 가져올 수 없습니다.';
-      resultEl.innerHTML =
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
-          '<strong style="color:#6c63ff;">🤖 AI 결과</strong>' +
-          '<div style="display:flex;gap:6px;">' +
-            '<button onclick="navigator.clipboard.writeText(document.getElementById(\'ai-result-'+panelId+'\').querySelector(\'pre\').textContent).then(function(){alert(\'복사됐어요!\');})" ' +
-            'class="btn btn-outline-secondary btn-sm" style="font-size:.72rem;padding:2px 8px;"><i class="fas fa-copy"></i> 복사</button>' +
-            '<button onclick="document.getElementById(\'ai-result-'+panelId+'\').style.display=\'none\'" ' +
-            'class="btn btn-outline-danger btn-sm" style="font-size:.72rem;padding:2px 8px;">✕ 닫기</button>' +
-          '</div>' +
-        '</div>' +
-        '<pre style="margin:0;white-space:pre-wrap;font-family:inherit;font-size:.88rem;">' + escapeHtml(res) + '</pre>';
-    })
-    .catch(function(){
-      resultEl.innerHTML='<span style="color:#e74c3c;">오류가 발생했습니다. 잠시 후 다시 시도해 주세요.</span>';
-    });
-  };
-
+  /* ── HTML 이스케이프 ── */
   window.escapeHtml = window.escapeHtml || function(t){
     var d=document.createElement('div');
     d.appendChild(document.createTextNode(t));
     return d.innerHTML;
   };
+
+  /* ── 패널 접기/펼치기 ── */
+  window.toggleAiPanel = function(panelId){
+    var body = document.getElementById('ai-panel-body-'+panelId);
+    var btn  = document.querySelector('#ai-panel-'+panelId+' .btn-outline-secondary');
+    if(!body) return;
+    if(body.style.display==='none'){ body.style.display=''; if(btn) btn.textContent='접기 ▲'; }
+    else { body.style.display='none'; if(btn) btn.textContent='펼치기 ▼'; }
+  };
+
+  /* ── AI 채팅 영역 토글 ── */
+  window.toggleAiChat = function(panelId){
+    var area = document.getElementById('ai-chat-area-'+panelId);
+    if(!area) return;
+    var isHidden = area.style.display==='none';
+    area.style.display = isHidden ? 'block' : 'none';
+    if(isHidden){
+      var inp = document.getElementById('ai-chat-input-'+panelId);
+      if(inp) setTimeout(function(){ inp.focus(); }, 50);
+    }
+  };
+
+  /* ── 버블 렌더링 헬퍼 ── */
+  function renderBubble(panelId, role, content){
+    var hist = document.getElementById('ai-history-'+panelId);
+    var result = document.getElementById('ai-result-'+panelId);
+    if(!hist || !result) return;
+    result.style.display='block';
+
+    var isUser = role==='user';
+    var bubble = document.createElement('div');
+    bubble.style.cssText = isUser
+      ? 'align-self:flex-end;background:linear-gradient(135deg,#6c63ff,#48cfad);color:#fff;border-radius:14px 14px 3px 14px;padding:9px 13px;max-width:85%;font-size:.88rem;white-space:pre-wrap;word-break:break-word;'
+      : 'align-self:flex-start;background:#fff;border:1px solid rgba(108,99,255,0.2);border-radius:14px 14px 14px 3px;padding:9px 13px;max-width:90%;font-size:.88rem;white-space:pre-wrap;word-break:break-word;position:relative;';
+
+    if(isUser){
+      bubble.innerHTML = '<strong style="font-size:.75rem;opacity:.8;">나</strong><br>' + escapeHtml(content);
+    } else {
+      /* AI 버블: 텍스트 + 복사 버튼 */
+      var textId = 'ai-text-'+panelId+'-'+Date.now();
+      bubble.innerHTML =
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">' +
+          '<strong style="font-size:.75rem;color:#6c63ff;">🤖 AI</strong>' +
+          '<div style="display:flex;gap:4px;">' +
+            '<button onclick="copyAiText(\''+textId+'\')" ' +
+            'class="btn btn-outline-secondary" ' +
+            'style="font-size:.7rem;padding:2px 7px;border-radius:6px;" ' +
+            'title="AI 답변 글만 복사">' +
+            '<i class="fas fa-copy"></i> 복사</button>' +
+          '</div>' +
+        '</div>' +
+        '<div id="'+textId+'" style="white-space:pre-wrap;word-break:break-word;">' + escapeHtml(content) + '</div>';
+    }
+    hist.appendChild(bubble);
+    /* 스크롤 아래로 */
+    setTimeout(function(){ hist.scrollTop = hist.scrollHeight; }, 50);
+  }
+
+  /* ── 로딩 버블 ── */
+  function renderLoading(panelId){
+    var hist = document.getElementById('ai-history-'+panelId);
+    var result = document.getElementById('ai-result-'+panelId);
+    if(!hist || !result) return null;
+    result.style.display='block';
+    var bubble = document.createElement('div');
+    bubble.id = 'ai-loading-'+panelId;
+    bubble.style.cssText = 'align-self:flex-start;background:#f0eeff;border-radius:14px;padding:9px 14px;font-size:.88rem;color:#6c63ff;';
+    bubble.innerHTML = '<i class="fas fa-spinner fa-spin"></i> AI가 답변 중...';
+    hist.appendChild(bubble);
+    setTimeout(function(){ hist.scrollTop = hist.scrollHeight; }, 50);
+    return bubble;
+  }
+
+  /* ── 텍스트만 복사 ── */
+  window.copyAiText = function(textId){
+    var el = document.getElementById(textId);
+    if(!el) return;
+    var text = el.innerText || el.textContent;
+    navigator.clipboard.writeText(text).then(function(){
+      /* 복사 완료 토스트 */
+      var toast = document.createElement('div');
+      toast.textContent = '✅ 복사됐어요!';
+      toast.style.cssText = 'position:fixed;bottom:30px;right:30px;background:#6c63ff;color:#fff;' +
+        'padding:10px 20px;border-radius:20px;font-size:.88rem;font-weight:600;z-index:9999;' +
+        'box-shadow:0 4px 16px rgba(108,99,255,0.35);';
+      document.body.appendChild(toast);
+      setTimeout(function(){ toast.remove(); }, 2000);
+    }).catch(function(){
+      /* fallback */
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+      alert('복사됐어요!');
+    });
+  };
+
+  /* ── 공통 fetch 함수 ── */
+  function callAi(panelId, payload, onSuccess, onError){
+    var csrfEl = document.querySelector('[name=csrfmiddlewaretoken]');
+    var csrf = csrfEl ? csrfEl.value : '';
+    fetch('/blog/ai-assist/', {
+      method:'POST',
+      headers:{'X-CSRFToken': csrf, 'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    })
+    .then(function(r){ return r.json(); })
+    .then(onSuccess)
+    .catch(onError);
+  }
+
+  /* ── 빠른 버튼 (기존 textarea 내용 → AI) ── */
+  window.aiQuick = function(panelId, mode, textareaId){
+    var ta = document.getElementById(textareaId);
+    var text = ta ? ta.value : '';
+    if(!text || text.trim().length < 2){
+      var result = document.getElementById('ai-result-'+panelId);
+      if(result){
+        result.style.display='block';
+        var hist = document.getElementById('ai-history-'+panelId);
+        if(hist){
+          var warn = document.createElement('div');
+          warn.style.cssText='align-self:center;color:#e74c3c;font-size:.88rem;padding:6px;';
+          warn.textContent='⚠️ 먼저 글 내용을 입력해주세요.';
+          hist.appendChild(warn);
+        }
+      }
+      return;
+    }
+
+    var modeLabel = {
+      'improve':'✨ 내용 다듬기','summarize':'📋 요약 생성','title':'💡 제목 추천',
+      'spell':'🔍 맞춤법 검사','continue':'➡️ 이어쓰기',
+      'comment_improve':'✨ 댓글 다듬기','comment_polite':'😊 정중하게 변환'
+    };
+    renderBubble(panelId, 'user', (modeLabel[mode]||mode) + '\n---\n' + text.substring(0,200) + (text.length>200?'...':''));
+    var loadBubble = renderLoading(panelId);
+
+    callAi(panelId, {mode:mode, text:text.substring(0,800)}, function(d){
+      if(loadBubble) loadBubble.remove();
+      var res = d.result || d.error || '결과를 가져올 수 없습니다.';
+      renderBubble(panelId, 'ai', res);
+      /* 히스토리에 저장 */
+      if(!window._aiHistory[panelId]) window._aiHistory[panelId]=[];
+      window._aiHistory[panelId].push({role:'user',content:(modeLabel[mode]||mode)});
+      window._aiHistory[panelId].push({role:'ai',content:res});
+    }, function(){
+      if(loadBubble) loadBubble.remove();
+      renderBubble(panelId, 'ai', '오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+    });
+  };
+
+  /* ── 커스텀 명령 (연속 대화 지원) ── */
+  window.aiCustom = function(panelId, textareaId){
+    var inp = document.getElementById('ai-chat-input-'+panelId);
+    if(!inp) return;
+    var cmd = inp.value.trim();
+    if(!cmd){
+      inp.focus();
+      inp.style.borderColor='#e74c3c';
+      setTimeout(function(){ inp.style.borderColor='rgba(108,99,255,0.3)'; }, 1500);
+      return;
+    }
+
+    /* 현재 글 내용 (선택적으로 컨텍스트로) */
+    var ta = document.getElementById(textareaId);
+    var currentText = ta ? ta.value.substring(0,600) : '';
+
+    /* 히스토리 */
+    if(!window._aiHistory[panelId]) window._aiHistory[panelId]=[];
+    var hist = window._aiHistory[panelId];
+
+    /* 처음 명령이고 글이 있으면 글 맥락 포함 */
+    var finalCmd = cmd;
+    if(hist.length===0 && currentText){
+      finalCmd = cmd + '\n\n[현재 작성 중인 글]\n' + currentText;
+    }
+
+    renderBubble(panelId, 'user', cmd);
+    inp.value = '';
+    var loadBubble = renderLoading(panelId);
+
+    callAi(panelId, {
+      mode: 'custom',
+      text: currentText,
+      custom_prompt: finalCmd,
+      history: hist.slice(-6)
+    }, function(d){
+      if(loadBubble) loadBubble.remove();
+      var res = d.result || d.error || '결과를 가져올 수 없습니다.';
+      renderBubble(panelId, 'ai', res);
+      hist.push({role:'user', content:cmd});
+      hist.push({role:'ai', content:res});
+    }, function(){
+      if(loadBubble) loadBubble.remove();
+      renderBubble(panelId, 'ai', '오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+    });
+  };
+
+  /* ── 이전 레거시 함수 호환 ── */
+  window.aiAssistPanel = function(panelId, mode, text){
+    if(!window._aiHistory[panelId]) window._aiHistory[panelId]=[];
+    renderBubble(panelId,'user', mode+'\n---\n'+String(text||'').substring(0,200));
+    var loadBubble = renderLoading(panelId);
+    var csrfEl = document.querySelector('[name=csrfmiddlewaretoken]');
+    var csrf = csrfEl ? csrfEl.value : '';
+    fetch('/blog/ai-assist/',{
+      method:'POST',
+      headers:{'X-CSRFToken':csrf,'Content-Type':'application/json'},
+      body: JSON.stringify({mode:mode, text:String(text||'').substring(0,800)})
+    }).then(function(r){return r.json();}).then(function(d){
+      if(loadBubble) loadBubble.remove();
+      renderBubble(panelId,'ai', d.result||d.error||'결과 없음');
+    }).catch(function(){
+      if(loadBubble) loadBubble.remove();
+      renderBubble(panelId,'ai','오류가 발생했습니다.');
+    });
+  };
+
 })();
 </script>
 {% endif %}

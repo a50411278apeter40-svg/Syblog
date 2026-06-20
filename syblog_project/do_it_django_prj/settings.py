@@ -34,7 +34,6 @@ INSTALLED_APPS = [
     'allauth.account',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
-    'allauth.socialaccount.providers.microsoft',
     'blog',
     'single_pages',
     'accounts',
@@ -138,8 +137,6 @@ SOCIALACCOUNT_EMAIL_REQUIRED = False
 # → DB에 SocialApp 레코드가 없어도 allauth가 이 값을 사용함
 _GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 _GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
-_MS_CLIENT_ID = os.environ.get('MICROSOFT_CLIENT_ID', '')
-_MS_CLIENT_SECRET = os.environ.get('MICROSOFT_CLIENT_SECRET', '')
 
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
@@ -149,16 +146,6 @@ SOCIALACCOUNT_PROVIDERS = {
         'APP': {
             'client_id': _GOOGLE_CLIENT_ID,
             'secret': _GOOGLE_CLIENT_SECRET,
-            'key': '',
-        },
-    },
-    'microsoft': {
-        'SCOPE': ['User.Read'],
-        'AUTH_PARAMS': {'prompt': 'select_account'},
-        'TENANT': 'common',   # 개인+조직 계정 모두 허용
-        'APP': {
-            'client_id': _MS_CLIENT_ID,
-            'secret': _MS_CLIENT_SECRET,
             'key': '',
         },
     },
