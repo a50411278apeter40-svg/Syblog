@@ -1718,12 +1718,39 @@ def admin_ai_credits(request):
             dj_messages.error(request, f'오류: {e}')
         return redirect('blog:admin_ai_credits')
 
-    credits_qs = AiCredit.objects.select_related('user').order_by('-updated_at')
+    # 전체 유저 일괄 지급
+    if request.method == 'POST':
+        action = request.POST.get('action', '')
+        if action == 'bulk_add':
+            try:
+                amount = int(request.POST.get('bulk_value', 0))
+                if amount > 0:
+                    all_u = AuthUser.objects.filter(is_active=True)
+                    count = 0
+                    for u in all_u:
+                        c = _get_or_create_credit(u)
+                        if not c.is_unlimited:
+                            c.add(amount)
+                            _log_credit(u, 'admin', amount, c.credits,
+                                        note=f'관리자({request.user.username}) 일괄지급')
+                            count += 1
+                    from django.contrib import messages as dj_messages
+                    dj_messages.success(request, f'{count}명에게 {amount}크레딧씩 지급했습니다.')
+            except Exception as e:
+                from django.contrib import messages as dj_messages
+                dj_messages.error(request, f'오류: {e}')
+            return redirect('blog:admin_ai_credits')
+
+    # 모든 활성 유저에 대해 크레딧 레코드 자동 생성
     all_users = AuthUser.objects.filter(is_active=True).order_by('username')
+    for u in all_users:
+        _get_or_create_credit(u)
+
+    credits_qs = AiCredit.objects.select_related('user').order_by('-updated_at')
     credit_map = {c.user_id: c for c in credits_qs}
     user_credits = []
     for u in all_users:
-        c = credit_map.get(u.pk)
+        c = credit_map.get(u.pk) or _get_or_create_credit(u)
         user_credits.append({'user': u, 'credit': c})
 
     recent_logs = AiCreditLog.objects.select_related('user').order_by('-created_at')[:50]
@@ -1731,6 +1758,9 @@ def admin_ai_credits(request):
     return render(request, 'blog/admin_ai_credits.html', {
         'user_credits': user_credits,
         'recent_logs': recent_logs,
+        'total_users': len(user_credits),
+        'unlimited_users': sum(1 for x in user_credits if x['credit'] and x['credit'].is_unlimited),
+        'total_credits': sum(x['credit'].credits for x in user_credits if x['credit'] and not x['credit'].is_unlimited),
     })
 
 
