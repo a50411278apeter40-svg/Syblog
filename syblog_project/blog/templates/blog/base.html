@@ -401,46 +401,49 @@ function refreshNotifBadge(){
 refreshNotifBadge();
 setInterval(refreshNotifBadge, 30000);
 
-// ── AI 크레딧 배지 실시간 업데이트 ──────────────────────────
-function refreshCreditBadge(){
+// ── AI 크레딧 배지 실시간 업데이트 (모바일 + 데스크탑 동시) ──
+function _applyBadgeStyle(badge, d) {
+    if (!badge) return;
+    if (d.is_unlimited) {
+        badge.innerHTML = '💳 ♾️';
+        badge.style.background = '#10b981';
+        badge.style.animation = '';
+        badge.title = '무제한 크레딧';
+    } else {
+        var c = d.credits;
+        badge.innerHTML = '💳 ' + c;
+        badge.title = c + '크레딧 남음';
+        if (c <= 3) {
+            badge.style.background = '#ef4444';
+            badge.style.animation = 'pulse 1s infinite';
+            if (!window._creditAlerted) {
+                window._creditAlerted = true;
+                if (typeof showToast === 'function') showToast('⚠️ AI 크레딧이 ' + c + '개뿐! 충전하세요.', 'error');
+            }
+        } else if (c <= 10) {
+            badge.style.background = '#f59e0b';
+            badge.style.animation = '';
+        } else {
+            badge.style.background = '#6c63ff';
+            badge.style.animation = '';
+            window._creditAlerted = false;
+        }
+    }
+}
+function refreshCreditBadge() {
     fetch('/blog/ai/credit/info/')
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (!d) return;
-        var badge = document.getElementById('ai-credit-badge');
-        if(!badge) return;
-        if(d.is_unlimited){
-            badge.innerHTML = '💳 ♾️';
-            badge.style.background = '#10b981';
-            badge.classList.remove('credit-low');
-            badge.title = '무제한 크레딧';
-        } else {
-            var c = d.credits;
-            badge.innerHTML = '💳 ' + c;
-            badge.title = c + '크레딧 남음';
-            if(c <= 3) {
-                badge.style.background = '#ef4444';
-                badge.classList.add('credit-low');
-                // 크레딧 위급 알림 (한 세션에 한 번)
-                if (!window._creditAlerted) {
-                    window._creditAlerted = true;
-                    if(typeof showToast === 'function') showToast('⚠️ AI 크레딧이 ' + c + '개 남았습니다! 충전하세요.', 'warn');
-                }
-            } else if(c <= 10) {
-                badge.style.background = '#f59e0b';
-                badge.classList.remove('credit-low');
-            } else {
-                badge.style.background = '#6c63ff';
-                badge.classList.remove('credit-low');
-                window._creditAlerted = false;
-            }
-        }
-    }).catch(()=>{});
+        // 데스크탑 배지
+        _applyBadgeStyle(document.getElementById('ai-credit-badge'), d);
+        // 모바일 배지
+        _applyBadgeStyle(document.getElementById('ai-credit-badge-mobile'), d);
+      }).catch(() => {});
 }
-// 페이지 로드 시 즉시 + 30초마다 자동 갱신
+// 페이지 로드 즉시 + 30초마다
 refreshCreditBadge();
 setInterval(refreshCreditBadge, 30000);
-// 전역 노출 (AI 웹빌더 등 다른 페이지에서 호출)
 window.refreshCreditBadge = refreshCreditBadge;
 {% endif %}
 

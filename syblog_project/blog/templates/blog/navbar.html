@@ -2,19 +2,21 @@
 <nav class="navbar navbar-expand-lg navbar-dark sticky-top" style="z-index:1030;">
     <div class="container">
         <a class="navbar-brand" href="/"><i class="fas fa-code"></i> SyBlog</a>
+
+        <!-- 모바일 우측 아이콘들 -->
         <div class="d-flex align-items-center order-lg-last ml-auto mr-2 d-lg-none" style="gap:6px;">
             {% if user.is_authenticated %}
-            <!-- 모바일: 크레딧 미니 배지 -->
             <a href="/blog/ai/credit/shop/" style="text-decoration:none;">
-                <span id="ai-credit-badge" style="background:#6c63ff;color:#fff;border-radius:12px;padding:3px 8px;font-size:.72rem;font-weight:600;">💳 로딩중</span>
+                <span id="ai-credit-badge-mobile" class="ai-credit-badge-shared"
+                      style="background:#6c63ff;color:#fff;border-radius:12px;padding:3px 8px;font-size:.72rem;font-weight:600;display:inline-flex;align-items:center;gap:2px;">💳 ...</span>
             </a>
-            <!-- 모바일: 알림 -->
             <a href="/blog/notifications/" class="nav-link p-1" style="position:relative;">
                 <i class="fas fa-bell" style="font-size:1rem;"></i>
                 <span id="notif-badge" class="nav-badge" style="display:none;position:absolute;top:0;right:0;font-size:.6rem;"></span>
             </a>
             {% endif %}
         </div>
+
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-label="메뉴">
             <span class="navbar-toggler-icon"></span>
         </button>
@@ -28,6 +30,7 @@
                 <li class="nav-item"><a class="nav-link" href="/challenges/"><i class="fas fa-gamepad"></i> 챌린지</a></li>
                 <li class="nav-item"><a class="nav-link" href="/user/leaderboard/"><i class="fas fa-trophy"></i> 리더보드</a></li>
             </ul>
+
             <ul class="navbar-nav ml-auto">
                 {% if user.is_authenticated %}
                     {% if user.is_staff or user.is_superuser %}
@@ -47,10 +50,11 @@
                         </a>
                     </li>
 
-                    <!-- 크레딧 (데스크탑만) -->
+                    <!-- 크레딧 배지 (데스크탑만) -->
                     <li class="nav-item d-none d-lg-flex align-items-center">
-                        <a class="nav-link" href="/blog/ai/credit/shop/" title="AI 크레딧" id="nav-credit-link">
-                            <span id="ai-credit-badge" style="background:#6c63ff;color:#fff;border-radius:12px;padding:2px 8px;font-size:.78rem;font-weight:600;">💳 로딩중</span>
+                        <a class="nav-link" href="/blog/ai/credit/shop/" title="AI 크레딧">
+                            <span id="ai-credit-badge" class="ai-credit-badge-shared"
+                                  style="background:#6c63ff;color:#fff;border-radius:12px;padding:2px 8px;font-size:.78rem;font-weight:600;display:inline-flex;align-items:center;gap:2px;transition:all .3s;">💳 로딩중</span>
                         </a>
                     </li>
 
@@ -66,11 +70,11 @@
                     <li class="nav-item d-none d-lg-block">
                         <a class="nav-link" href="/blog/notifications/" title="알림" style="position:relative;">
                             <i class="fas fa-bell"></i>
-                            <span id="notif-badge" class="nav-badge" style="display:none;position:absolute;top:4px;right:2px;"></span>
+                            <span id="notif-badge-desktop" class="nav-badge" style="display:none;position:absolute;top:4px;right:2px;"></span>
                         </a>
                     </li>
 
-                    <!-- 다크모드 토글 -->
+                    <!-- 다크모드 -->
                     <li class="nav-item">
                         <a class="nav-link dark-toggle" id="dark-toggle-btn" onclick="toggleDarkMode()" title="다크모드">🌙</a>
                     </li>
@@ -130,28 +134,36 @@
 <!-- ══ 로그인 모달 ══ -->
 <div class="modal fade" id="loginModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-dialog-centered" role="document" style="max-width:360px;">
-        <div class="modal-content" style="border-radius: 16px; overflow: hidden;">
-            <div class="modal-header" style="background: linear-gradient(135deg, #6c63ff, #48cfad); color: white; padding:16px 20px;">
+        <div class="modal-content" style="border-radius:16px;overflow:hidden;">
+            <div class="modal-header" style="background:linear-gradient(135deg,#6c63ff,#48cfad);color:white;padding:16px 20px;">
                 <h5 class="modal-title" style="font-size:1rem;"><i class="fas fa-sign-in-alt"></i> 로그인</h5>
                 <button type="button" class="close text-white" data-dismiss="modal" style="font-size:1.2rem;"><span>&times;</span></button>
             </div>
             <div class="modal-body" style="padding:20px;">
-                <a href="/accounts/google/login/?process=login" class="btn btn-block d-flex align-items-center justify-content-center mb-3" style="background:#fff;border:2px solid #ddd;border-radius:10px;font-weight:600;color:#444;gap:10px;padding:12px;">
-                    <img src="https://developers.google.com/identity/images/g-logo.png" width="18"> Google 계정으로 로그인
+                <a href="/accounts/google/login/?process=login"
+                   class="btn btn-block d-flex align-items-center justify-content-center mb-3"
+                   style="background:#fff;border:2px solid #ddd;border-radius:10px;font-weight:600;color:#444;gap:10px;padding:12px;">
+                    <img src="https://developers.google.com/identity/images/g-logo.png" width="20" alt="Google">
+                    Google로 로그인
                 </a>
-                <div class="text-center text-muted my-2" style="font-size:.8rem;">── 또는 ──</div>
-                <a role="button" class="btn btn-outline-dark btn-block mb-2" href="/accounts/login/" style="border-radius:8px;padding:10px;"><i class="far fa-user"></i> 아이디로 로그인</a>
-                <a role="button" class="btn btn-outline-primary btn-block" href="/accounts/signup/" style="border-radius:8px;padding:10px;"><i class="fas fa-user-plus"></i> 회원가입 (무료)</a>
+                <hr class="my-3">
+                <form method="post" action="/accounts/login/" id="modal-login-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.path }}">
+                    <div class="form-group mb-3">
+                        <input type="text" name="login" class="form-control" placeholder="이메일 또는 아이디" required autocomplete="username" style="border-radius:8px;padding:10px 14px;">
+                    </div>
+                    <div class="form-group mb-3">
+                        <input type="password" name="password" class="form-control" placeholder="비밀번호" required autocomplete="current-password" style="border-radius:8px;padding:10px 14px;">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block" style="border-radius:8px;padding:10px;font-weight:600;">
+                        <i class="fas fa-sign-in-alt"></i> 로그인
+                    </button>
+                </form>
+                <div class="text-center mt-3">
+                    <small><a href="/accounts/signup/" class="text-primary">회원가입</a> · <a href="/accounts/password/reset/" class="text-muted">비밀번호 찾기</a></small>
+                </div>
             </div>
         </div>
     </div>
 </div>
-
-<script>
-// 다크모드 버튼 초기 아이콘
-(function(){
-    var isDark = localStorage.getItem('syblog_dark') === 'true';
-    var btn = document.getElementById('dark-toggle-btn');
-    if(btn) btn.innerHTML = isDark ? '☀️' : '🌙';
-})();
-</script>
