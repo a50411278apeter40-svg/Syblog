@@ -1,34 +1,208 @@
 <script>
+// ════════════════════════════════════════════════
+// 전역 변수
+// ════════════════════════════════════════════════
 const PROJECT_ID = {{ project.pk }};
 const CSRF = '{{ csrf_token }}';
 let activeFile = null;
 let toolLogCount = 0;
 let isSending = false;
+let bgCancelFlag = false;
+let bgTaskActive = false;
+let autosaveTimer = null;
+let lastSavedContent = '';
 
-// ══════════════════════════════════════════════
-// 탭 전환
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
+// 모바일 감지
+// ════════════════════════════════════════════════
+const isMobile = () => window.innerWidth <= 768;
+
+// ════════════════════════════════════════════════
+// 탭 전환 (오른쪽 패널)
+// ════════════════════════════════════════════════
 function switchTab(tab) {
   document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.right-tab').forEach(el => el.classList.remove('active'));
   const pane = document.getElementById(tab + '-pane');
   if (pane) pane.style.display = 'flex';
-  const btn = document.querySelector(`.right-tab[onclick*="${tab}"]`);
+  const btn = document.querySelector(`.right-tab[onclick*="'${tab}'"]`) ||
+              document.querySelector(`.right-tab[onclick*='"${tab}"']`);
   if (btn) btn.classList.add('active');
   if (tab === 'preview') refreshPreview();
 }
-function switchTabDirect(tab) {
-  document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
-  document.querySelectorAll('.right-tab').forEach(el => el.classList.remove('active'));
-  const pane = document.getElementById(tab + '-pane');
-  if (pane) pane.style.display = 'flex';
-  const btn = document.querySelector(`.right-tab[onclick*="${tab}"]`);
+function switchTabDirect(tab) { switchTab(tab); }
+
+// ════════════════════════════════════════════════
+// 모바일 탭 전환
+// ════════════════════════════════════════════════
+function setMobileTabActive(id) {
+  document.querySelectorAll('#mobile-tab-bar button').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById(id);
   if (btn) btn.classList.add('active');
 }
 
-// ══════════════════════════════════════════════
+function mobileTabFiles() {
+  setMobileTabActive('mtab-files');
+  openMobileSidebar();
+}
+
+function mobileTabEditor() {
+  setMobileTabActive('mtab-editor');
+  closeMobileSidebar();
+  if (isMobile()) {
+    document.getElementById('editor-pane').classList.add('mobile-active');
+    document.getElementById('right-panel').classList.remove('mobile-active');
+  }
+}
+
+function mobileTabChat() {
+  setMobileTabActive('mtab-chat');
+  closeMobileSidebar();
+  if (isMobile()) {
+    document.getElementById('editor-pane').classList.remove('mobile-active');
+    document.getElementById('right-panel').classList.add('mobile-active');
+    switchTab('chat');
+  }
+}
+
+function mobileTabPreview() {
+  setMobileTabActive('mtab-preview');
+  closeMobileSidebar();
+  if (isMobile()) {
+    document.getElementById('editor-pane').classList.remove('mobile-active');
+    document.getElementById('right-panel').classList.add('mobile-active');
+    switchTab('preview');
+  }
+}
+
+function mobileTabMore() {
+  setMobileTabActive('mtab-more');
+  closeMobileSidebar();
+  if (isMobile()) {
+    document.getElementById('editor-pane').classList.remove('mobile-active');
+    document.getElementById('right-panel').classList.add('mobile-active');
+    switchTab('tool');
+  }
+}
+
+function openMobileSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  const closeBtn = document.getElementById('sidebar-close-btn');
+  if (sidebar) sidebar.classList.add('open');
+  if (overlay) overlay.classList.add('visible');
+  if (closeBtn) closeBtn.style.display = 'inline';
+}
+
+function closeMobileSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  const closeBtn = document.getElementById('sidebar-close-btn');
+  if (sidebar) sidebar.classList.remove('open');
+  if (overlay) overlay.classList.remove('visible');
+  if (closeBtn) closeBtn.style.display = 'none';
+}
+
+window.addEventListener('resize', () => {
+  if (!isMobile()) {
+    closeMobileSidebar();
+    document.getElementById('editor-pane').classList.add('mobile-active');
+    document.getElementById('right-panel').classList.add('mobile-active');
+  }
+}, { passive: true });
+
+// ════════════════════════════════════════════════
+// 백그라운드 진행 표시기
+// ════════════════════════════════════════════════
+function showBgProgress(text, pct) {
+  const el = document.getElementById('bg-progress');
+  if (el) {
+    el.style.display = 'flex';
+    const textEl = document.getElementById('bg-progress-text');
+    if (textEl) textEl.textContent = text || 'AI 작업 중...';
+    if (pct !== undefined) {
+      const bar = document.getElementById('bg-progress-bar-inner');
+      if (bar) bar.style.width = Math.min(pct, 98) + '%';
+    }
+  }
+  bgTaskActive = true;
+  bgCancelFlag = false;
+}
+
+function updateBgProgress(text, pct) {
+  if (!bgTaskActive) return;
+  const textEl = document.getElementById('bg-progress-text');
+  if (textEl) textEl.textContent = text;
+  if (pct !== undefined) {
+    const bar = document.getElementById('bg-progress-bar-inner');
+    if (bar) bar.style.width = Math.min(pct, 98) + '%';
+  }
+}
+
+function hideBgProgress() {
+  const bar = document.getElementById('bg-progress-bar-inner');
+  if (bar) bar.style.width = '100%';
+  setTimeout(() => {
+    const el = document.getElementById('bg-progress');
+    if (el) el.style.display = 'none';
+    if (bar) bar.style.width = '0%';
+  }, 500);
+  bgTaskActive = false;
+  bgCancelFlag = false;
+}
+
+function cancelBgTask() {
+  bgCancelFlag = true;
+  hideBgProgress();
+  showToast('⚠️ 작업을 중단했습니다.', 'warn');
+}
+
+// ════════════════════════════════════════════════
+// 자동저장 로직
+// ════════════════════════════════════════════════
+function setAutosaveStatus(status) {
+  const dot = document.getElementById('autosave-dot2');
+  const text = document.getElementById('autosave-text2');
+  if (!dot || !text) return;
+  if (status === 'saved') {
+    dot.style.background = '#4ade80';
+    dot.style.animation = '';
+    text.textContent = '저장됨';
+  } else if (status === 'saving') {
+    dot.style.background = '#fbbf24';
+    dot.style.animation = 'blink 0.6s infinite';
+    text.textContent = '저장중...';
+  } else if (status === 'error') {
+    dot.style.background = '#f87171';
+    dot.style.animation = '';
+    text.textContent = '저장오류';
+  } else if (status === 'modified') {
+    dot.style.background = '#fbbf24';
+    dot.style.animation = '';
+    text.textContent = '수정됨*';
+  }
+}
+
+async function doAutosave() {
+  if (!activeFile) return;
+  const content = document.getElementById('code-editor').value;
+  if (content === lastSavedContent) return;
+  setAutosaveStatus('saving');
+  try {
+    const r = await fetch(`/blog/ai-webdev/${PROJECT_ID}/file/write/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({ path: activeFile, content })
+    });
+    const d = await r.json();
+    if (d.ok) { lastSavedContent = content; setAutosaveStatus('saved'); }
+    else setAutosaveStatus('error');
+  } catch (e) { setAutosaveStatus('error'); }
+}
+
+// ════════════════════════════════════════════════
 // 파일 트리
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
 async function refreshFiles() {
   try {
     const r = await fetch(`/blog/ai-webdev/${PROJECT_ID}/files/`);
@@ -50,14 +224,16 @@ function renderTree(files, container, depth) {
     const icon = f.type === 'dir' ? '📁' : getFileIcon(f.name);
     div.innerHTML = `${icon} ${escHtml(f.name)}`;
     if (f.type === 'file') {
-      div.onclick = () => loadFile(f.path, f.name);
+      div.onclick = () => {
+        loadFile(f.path, f.name);
+        if (isMobile()) closeMobileSidebar();
+      };
     } else if (f.children && f.children.length) {
       let open = false;
       const sub = document.createElement('div');
       div.onclick = () => {
         open = !open;
         sub.style.display = open ? 'block' : 'none';
-        div.querySelector('span') && (div.querySelector('span').textContent = open ? '▼' : '▶');
       };
       renderTree(f.children, sub, depth + 1);
       sub.style.display = 'none';
@@ -70,7 +246,7 @@ function renderTree(files, container, depth) {
 }
 
 function getFileIcon(name) {
-  const ext = name.split('.').pop().toLowerCase();
+  const ext = (name.split('.').pop() || '').toLowerCase();
   const map = { html:'🌐', css:'🎨', js:'📜', jsx:'⚛️', ts:'📘', tsx:'⚛️',
                 py:'🐍', json:'📋', md:'📝', txt:'📄', png:'🖼', jpg:'🖼',
                 gif:'🖼', svg:'🖼', sh:'⚡', yml:'⚙️', yaml:'⚙️' };
@@ -82,14 +258,15 @@ async function loadFile(path, name) {
   event && event.target && event.target.classList.add('active');
   activeFile = path;
   document.getElementById('current-path').textContent = path;
-  // 탭 추가
-  let tab = document.querySelector(`.editor-tab[data-path="${path}"]`);
+  let tab = document.querySelector(`.editor-tab[data-path="${CSS.escape(path)}"]`);
   if (!tab) {
     tab = document.createElement('div');
     tab.className = 'editor-tab';
     tab.dataset.path = path;
-    tab.innerHTML = `${escHtml(name)} <span class="tab-close" onclick="closeTab(this,'${escHtml(path)}')">×</span>`;
+    tab.innerHTML = `${getFileIcon(name)} ${escHtml(name)} <span class="tab-close" onclick="closeTab(this,'${escHtml(path)}')">×</span>`;
     tab.onclick = (e) => { if (!e.target.classList.contains('tab-close')) activateTab(path); };
+    const hint = document.getElementById('editor-tabs').querySelector('span:not(.editor-tab)');
+    if (hint) hint.remove();
     document.getElementById('editor-tabs').appendChild(tab);
   }
   activateTab(path);
@@ -98,7 +275,10 @@ async function loadFile(path, name) {
     const d = await r.json();
     document.getElementById('code-editor').value = d.content || '';
     document.getElementById('code-editor').dataset.path = path;
+    lastSavedContent = d.content || '';
+    setAutosaveStatus('saved');
     updateEditorStats();
+    if (isMobile()) mobileTabEditor();
   } catch(e) {
     document.getElementById('code-editor').value = '';
   }
@@ -106,7 +286,7 @@ async function loadFile(path, name) {
 
 function activateTab(path) {
   document.querySelectorAll('.editor-tab').forEach(t => t.classList.remove('active'));
-  const tab = document.querySelector(`.editor-tab[data-path="${path}"]`);
+  const tab = document.querySelector(`.editor-tab[data-path="${CSS.escape(path)}"]`);
   if (tab) tab.classList.add('active');
   activeFile = path;
   document.getElementById('current-path').textContent = path;
@@ -120,43 +300,58 @@ function closeTab(closeBtn, path) {
     if (remaining.length > 0) {
       const lastPath = remaining[remaining.length-1].dataset.path;
       loadFile(lastPath, lastPath.split('/').pop());
-    } else {
-      activeFile = null;
-      document.getElementById('code-editor').value = '';
-      document.getElementById('current-path').textContent = '파일을 선택하세요';
-    }
+    } else { closeEditor(); }
   }
 }
 
 function closeEditor() {
   activeFile = null;
   document.getElementById('code-editor').value = '';
-  document.getElementById('editor-tabs').innerHTML = '';
-  document.getElementById('current-path').textContent = '파일을 선택하세요';
+  document.getElementById('editor-tabs').innerHTML =
+    '<span style="color:#5a5a7a;font-size:.75rem;padding:0 8px;">파일을 선택하거나 AI에게 요청하세요</span>';
+  document.getElementById('current-path').textContent = '편집 중인 파일 없음';
+  setAutosaveStatus('saved');
 }
 
 function updateEditorStats() {
   const val = document.getElementById('code-editor').value;
   const lines = val.split('\n').length;
-  document.getElementById('editor-lines').textContent = lines + '줄';
-  document.getElementById('editor-size').textContent =
-    val.length > 1024 ? (val.length/1024).toFixed(1)+'KB' : val.length+'B';
+  const lang = activeFile ? (activeFile.split('.').pop() || '텍스트').toUpperCase() : '텍스트';
+  const langEl = document.getElementById('editor-lang');
+  if (langEl) langEl.textContent = lang;
+  const lineEl = document.getElementById('editor-lines');
+  if (lineEl) lineEl.textContent = lines + '줄';
+  const sizeEl = document.getElementById('editor-size');
+  if (sizeEl) sizeEl.textContent = val.length > 1024 ? (val.length/1024).toFixed(1)+'KB' : val.length+'B';
 }
-document.getElementById('code-editor').addEventListener('input', updateEditorStats);
+
+// 에디터 입력 감지 → 3초 후 자동저장
+document.getElementById('code-editor').addEventListener('input', () => {
+  setAutosaveStatus('modified');
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(doAutosave, 3000);
+  updateEditorStats();
+});
 
 async function saveCurrentFile() {
   if (!activeFile) { showToast('⚠️ 파일을 먼저 선택하세요', 'warn'); return; }
+  clearTimeout(autosaveTimer);
+  setAutosaveStatus('saving');
   const content = document.getElementById('code-editor').value;
-  const r = await fetch(`/blog/ai-webdev/${PROJECT_ID}/file/write/`, {
-    method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
-    body: JSON.stringify({path: activeFile, content})
-  });
-  const d = await r.json();
-  if (d.ok) {
-    showToast('💾 저장: ' + activeFile);
-    const previewPane = document.getElementById('preview-pane');
-    if (previewPane && previewPane.style.display !== 'none') refreshPreview();
-  }
+  try {
+    const r = await fetch(`/blog/ai-webdev/${PROJECT_ID}/file/write/`, {
+      method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+      body: JSON.stringify({path: activeFile, content})
+    });
+    const d = await r.json();
+    if (d.ok) {
+      lastSavedContent = content;
+      setAutosaveStatus('saved');
+      showToast('💾 ' + activeFile + ' 저장됨', 'success');
+      const pp = document.getElementById('preview-pane');
+      if (pp && pp.style.display !== 'none') refreshPreview();
+    } else { setAutosaveStatus('error'); }
+  } catch(e) { setAutosaveStatus('error'); }
 }
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveCurrentFile(); }
@@ -167,18 +362,23 @@ function newFile() {
   if (!path) return;
   activeFile = path;
   document.getElementById('code-editor').value = '';
+  lastSavedContent = '';
   document.getElementById('current-path').textContent = path;
   const name = path.split('/').pop();
-  let tab = document.querySelector(`.editor-tab[data-path="${path}"]`);
+  let tab = document.querySelector(`.editor-tab[data-path="${CSS.escape(path)}"]`);
   if (!tab) {
     tab = document.createElement('div');
     tab.className = 'editor-tab active';
     tab.dataset.path = path;
-    tab.innerHTML = `${escHtml(name)} <span class="tab-close" onclick="closeTab(this,'${escHtml(path)}')">×</span>`;
+    tab.innerHTML = `${getFileIcon(name)} ${escHtml(name)} <span class="tab-close" onclick="closeTab(this,'${escHtml(path)}')">×</span>`;
     tab.onclick = (e) => { if (!e.target.classList.contains('tab-close')) activateTab(path); };
+    const hint = document.getElementById('editor-tabs').querySelector('span:not(.editor-tab)');
+    if (hint) hint.remove();
     document.getElementById('editor-tabs').appendChild(tab);
   }
+  setAutosaveStatus('modified');
   document.getElementById('code-editor').focus();
+  if (isMobile()) mobileTabEditor();
 }
 
 function newFolder() {
@@ -199,11 +399,12 @@ async function deleteActiveFile() {
   });
   closeEditor();
   refreshFiles();
+  showToast('🗑️ 삭제됨', 'success');
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
 // 미리보기
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
 function refreshPreview() {
   const iframe = document.getElementById('preview-iframe');
   const path = activeFile && activeFile.endsWith('.html') ? activeFile : 'index.html';
@@ -215,9 +416,9 @@ function openExternal() {
   window.open(`/blog/ai-webdev/${PROJECT_ID}/preview/?path=${encodeURIComponent(path)}`, '_blank');
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
 // 도구 로그
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
 function addToolLog(msg, type='info') {
   const area = document.getElementById('tool-log-area');
   if (!area) return;
@@ -228,12 +429,12 @@ function addToolLog(msg, type='info') {
   area.scrollTop = area.scrollHeight;
   toolLogCount++;
   const toolTab = document.querySelector('.right-tab[onclick*="tool"]');
-  if (toolTab) toolTab.innerHTML = `🔧 도구 로그 <span style="background:#6c63ff;color:#fff;border-radius:10px;padding:1px 6px;font-size:.7rem;">${toolLogCount}</span>`;
+  if (toolTab) toolTab.innerHTML = `🔧 로그 <span style="background:#6c63ff;color:#fff;border-radius:10px;padding:1px 6px;font-size:.7rem;">${toolLogCount}</span>`;
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
 // 터미널
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
 function runTerminal() {
   const cmd = document.getElementById('terminal-cmd').value.trim();
   if (!cmd) return;
@@ -266,16 +467,16 @@ function runTerminal() {
     }
     output.scrollTop = output.scrollHeight;
   }).catch(e => {
-    output.innerHTML += `<span style="color:#f85149;">연결 오류: ${escHtml(e.message)}</span>\n`;
+    output.innerHTML += `<span style="color:#f85149;">오류: ${escHtml(e.message)}</span>\n`;
   });
 }
 document.getElementById('terminal-cmd').addEventListener('keydown', e => {
   if(e.key === 'Enter') runTerminal();
 });
 
-// ══════════════════════════════════════════════
-// 대화 이력 로딩 (페이지 초기화 시 DB에서)
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
+// 대화 이력 (DB 로딩)
+// ════════════════════════════════════════════════
 async function loadChatHistory() {
   try {
     const r = await fetch(`/blog/ai-webdev/${PROJECT_ID}/history/`);
@@ -284,34 +485,30 @@ async function loadChatHistory() {
     msgs.innerHTML = '';
     if (!d.history || d.history.length === 0) {
       msgs.innerHTML = `
-        <div style="text-align:center;padding:40px 20px;color:#9ca3af;">
-          <div style="font-size:3rem;">🤖</div>
-          <p style="margin-top:12px;">AI에게 무엇을 만들지 말씀해주세요!<br>
-          <small>예: "React 투두앱 만들어줘"<br>"Flask REST API 서버"<br>"Bootstrap 포트폴리오"</small></p>
+        <div style="text-align:center;padding:30px 16px;color:#9ca3af;">
+          <div style="font-size:2.5rem;">🤖</div>
+          <p style="margin-top:10px;font-size:.9rem;line-height:1.8;">
+            AI에게 무엇을 만들지 말씀해주세요!<br>
+            <small>"React 투두앱 만들어줘"<br>"Bootstrap 포트폴리오"<br>"Flask REST API"</small>
+          </p>
         </div>`;
       return;
     }
-    d.history.forEach(s => {
-      renderMsg(s.role, s.content, s.tool_calls || []);
-    });
+    d.history.forEach(s => renderMsg(s.role, s.content, s.tool_calls || []));
     msgs.scrollTop = msgs.scrollHeight;
-  } catch(e) {
-    console.error('대화 이력 로딩 실패:', e);
-  }
+  } catch(e) { console.error('이력 로딩 실패:', e); }
 }
 
 async function clearHistory() {
   if (!confirm('대화 이력을 모두 삭제할까요?')) return;
-  await fetch(`/blog/ai-webdev/${PROJECT_ID}/clear-history/`, {
-    method:'POST', headers:{'X-CSRFToken':CSRF}
-  });
+  await fetch(`/blog/ai-webdev/${PROJECT_ID}/clear-history/`, {method:'POST',headers:{'X-CSRFToken':CSRF}});
   loadChatHistory();
   showToast('🗑️ 대화 이력 삭제됨');
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
 // 메시지 렌더링
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
 function renderMsg(role, content, toolCalls) {
   const msgs = document.getElementById('chat-messages');
   const div = document.createElement('div');
@@ -322,7 +519,6 @@ function renderMsg(role, content, toolCalls) {
     bubble.textContent = content;
   } else {
     bubble.innerHTML = formatAiText(content);
-    // 도구 호출 뱃지
     if (toolCalls && toolCalls.length > 0) {
       toolCalls.forEach(tc => {
         const badge = document.createElement('div');
@@ -339,7 +535,6 @@ function renderMsg(role, content, toolCalls) {
 
 function appendUserMsg(content) {
   const msgs = document.getElementById('chat-messages');
-  // 빈 상태 메시지 제거
   const empty = msgs.querySelector('div[style*="text-align:center"]');
   if (empty) empty.remove();
   const div = document.createElement('div');
@@ -359,12 +554,13 @@ function createAiBubble() {
   return div.querySelector('.bubble');
 }
 
-// ══════════════════════════════════════════════
-// 도구 실행 (클라이언트 측)
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
+// 도구 실행 (클라이언트)
+// ════════════════════════════════════════════════
 const executedToolHashes = new Set();
 
 async function executeToolCall(toolData) {
+  if (bgCancelFlag) return null;
   const toolName = toolData.tool || '?';
   const argsStr = JSON.stringify(toolData.args || {});
   const hash = toolName + argsStr.slice(0, 100);
@@ -372,6 +568,7 @@ async function executeToolCall(toolData) {
   executedToolHashes.add(hash);
 
   addToolLog(`🔧 <strong>${toolName}</strong> ${argsStr.slice(0,80)}`, 'tool');
+  updateBgProgress(`🔧 ${toolName} 실행 중...`);
 
   try {
     const r = await fetch(`/blog/ai-webdev/${PROJECT_ID}/tool/`, {
@@ -381,13 +578,18 @@ async function executeToolCall(toolData) {
     });
     const result = await r.json();
     const res = result.result || {};
-    if (res.error) {
-      addToolLog(`❌ ${toolName}: ${res.error}`, 'error');
-    } else {
-      addToolLog(`✅ ${toolName} 완료`, 'success');
-    }
+    if (res.error) { addToolLog(`❌ ${toolName}: ${res.error}`, 'error'); }
+    else { addToolLog(`✅ ${toolName} 완료`, 'success'); }
+
     if (['write_file','delete_file','run_command'].includes(toolName)) {
       await refreshFiles();
+      // AI가 현재 편집 중인 파일을 write_file 했다면 에디터 내용도 갱신
+      if (toolName === 'write_file' && toolData.args && toolData.args.path === activeFile) {
+        document.getElementById('code-editor').value = toolData.args.content || '';
+        lastSavedContent = toolData.args.content || '';
+        setAutosaveStatus('saved');
+        updateEditorStats();
+      }
     }
     return {tool: toolData.tool, args: toolData.args, result: res};
   } catch(e) {
@@ -401,17 +603,14 @@ function extractToolCalls(text) {
   const calls = [];
   let match;
   while((match = regex.exec(text)) !== null) {
-    try {
-      const data = JSON.parse(match[1].trim());
-      calls.push(data);
-    } catch(e) {}
+    try { calls.push(JSON.parse(match[1].trim())); } catch(e) {}
   }
   return calls;
 }
 
-// ══════════════════════════════════════════════
-// 핵심: 채팅 전송 (스트리밍 + 도구 실행 루프)
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
+// 핵심: AI 채팅 전송 (스트리밍 + 도구 루프 + 백그라운드)
+// ════════════════════════════════════════════════
 async function sendChat() {
   if (isSending) return;
   const input = document.getElementById('chat-input');
@@ -419,21 +618,23 @@ async function sendChat() {
   if (!msg) return;
 
   isSending = true;
+  bgCancelFlag = false;
   input.value = '';
   const btn = document.getElementById('send-btn');
   btn.disabled = true;
   btn.textContent = '⏳';
 
   appendUserMsg(msg);
-  addToolLog(`💬 전송: ${msg.slice(0,60)}`, 'info');
+  addToolLog(`💬 전송: ${msg.slice(0, 60)}`, 'info');
+  showBgProgress('AI가 응답 생성 중...', 5);
 
   let toolResultsToSend = [];
-  let continueLoop = true;
   let currentMsg = msg;
+  let continueLoop = true;
   let loopCount = 0;
-  const MAX_LOOPS = 6; // 도구 자동실행 최대 반복
+  const MAX_LOOPS = 6;
 
-  while (continueLoop && loopCount < MAX_LOOPS) {
+  while (continueLoop && loopCount < MAX_LOOPS && !bgCancelFlag) {
     loopCount++;
     continueLoop = false;
 
@@ -442,9 +643,12 @@ async function sendChat() {
     let streaming = false;
 
     try {
+      updateBgProgress(`AI 응답 중 (단계 ${loopCount})...`, 10 + loopCount * 12);
+
+      // ★ 올바른 URL: /blog/ai-webdev/{PROJECT_ID}/chat/
       const resp = await fetch(`/blog/ai-webdev/${PROJECT_ID}/chat/`, {
-        method:'POST',
-        headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
         body: JSON.stringify({
           project_id: PROJECT_ID,
           message: currentMsg,
@@ -452,15 +656,24 @@ async function sendChat() {
         })
       });
 
+      // 402: 크레딧 부족
       if (resp.status === 402) {
-        const d = await resp.json();
-        bubble.innerHTML = `<span style="color:#ef4444;">❌ ${escHtml(d.error)}</span><br>
+        const d = await resp.json().catch(() => ({error: '크레딧 부족'}));
+        bubble.innerHTML = `<span style="color:#ef4444;">❌ ${escHtml(d.error || '크레딧 부족')}</span><br>
           <a href="/blog/ai/credit/shop/" style="color:#6c63ff;">💳 크레딧 구매 →</a>`;
+        updateCreditBadge();
         break;
       }
 
+      // 기타 서버 오류
       if (!resp.ok) {
-        bubble.innerHTML = `<span style="color:#ef4444;">서버 오류 (${resp.status})</span>`;
+        let errMsg = `서버 오류 (HTTP ${resp.status})`;
+        try {
+          const errData = await resp.json();
+          errMsg = errData.error || errMsg;
+        } catch(e) {}
+        bubble.innerHTML = `<span style="color:#ef4444;">❌ ${escHtml(errMsg)}</span>`;
+        addToolLog(`❌ ${errMsg}`, 'error');
         break;
       }
 
@@ -469,45 +682,54 @@ async function sendChat() {
       const decoder = new TextDecoder();
       let buffer = '';
 
-      while(true) {
-        const {done, value} = await reader.read();
-        if(done) break;
-        buffer += decoder.decode(value, {stream:true});
+      while (true) {
+        if (bgCancelFlag) { reader.cancel(); break; }
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
-        buffer = lines.pop(); // 마지막 불완전한 줄은 버퍼에
+        buffer = lines.pop(); // 마지막 불완전한 줄은 버퍼 유지
 
-        for(const line of lines) {
-          if(!line.startsWith('data:')) continue;
+        for (const line of lines) {
+          if (!line.startsWith('data:')) continue;
           try {
             const evt = JSON.parse(line.slice(5).trim());
-            if(evt.token) {
-              if(!streaming) { bubble.innerHTML = ''; streaming = true; }
+            if (evt.token) {
+              if (!streaming) { bubble.innerHTML = ''; streaming = true; }
               fullText += evt.token;
-              bubble.innerHTML = formatAiText(fullText);
+              bubble.innerHTML = formatAiText(fullText) + '<span style="opacity:.5;">▋</span>';
               document.getElementById('chat-messages').scrollTop = 9999;
             }
-            if(evt.done) {
+            if (evt.done) {
               updateCreditBadge();
             }
-            if(evt.error) {
+            if (evt.error) {
               bubble.innerHTML = `<span style="color:#ef4444;">❌ ${escHtml(evt.error)}</span>`;
+              addToolLog(`❌ AI 오류: ${evt.error}`, 'error');
             }
-          } catch(e){}
+          } catch (e) {}
         }
       }
 
-      // 스트리밍 완료 후 도구 호출 감지 및 실행
+      // 스트리밍 완료 후 최종 텍스트 정리
       if (fullText) {
+        bubble.innerHTML = formatAiText(fullText);
+      }
+      document.getElementById('chat-messages').scrollTop = 9999;
+
+      // 도구 호출 감지 및 실행
+      if (fullText && !bgCancelFlag) {
         const toolCalls = extractToolCalls(fullText);
         if (toolCalls.length > 0) {
           addToolLog(`🔍 도구 ${toolCalls.length}개 감지 → 실행 중...`, 'info');
+          updateBgProgress(`🔧 도구 ${toolCalls.length}개 실행 중...`, 60);
           toolResultsToSend = [];
           for (const tc of toolCalls) {
+            if (bgCancelFlag) break;
             const result = await executeToolCall(tc);
             if (result) toolResultsToSend.push(result);
           }
-          if (toolResultsToSend.length > 0) {
-            // 도구 실행 결과를 AI에게 다시 전달
+          if (toolResultsToSend.length > 0 && !bgCancelFlag) {
             currentMsg = '도구 실행이 완료됐습니다. 결과를 확인하고 다음 작업을 이어서 진행해주세요.';
             continueLoop = true;
             addToolLog(`♻️ 도구 결과 전달 중 (루프 ${loopCount})...`, 'info');
@@ -515,46 +737,33 @@ async function sendChat() {
         }
       }
 
-      // 마지막 AI 버블 완성
-      if (!streaming && fullText) {
-        bubble.innerHTML = formatAiText(fullText);
-      }
-      document.getElementById('chat-messages').scrollTop = 9999;
-
-    } catch(e) {
+    } catch (e) {
       bubble.innerHTML = `<span style="color:#ef4444;">연결 오류: ${escHtml(e.message)}</span>`;
       addToolLog(`❌ 오류: ${e.message}`, 'error');
       break;
     }
   }
 
-  if (loopCount >= MAX_LOOPS) {
-    addToolLog('⚠️ 도구 실행 루프 최대 횟수 도달', 'error');
-  }
-
-  addToolLog('✅ 완료', 'success');
-  executedToolHashes.clear(); // 다음 메시지를 위해 초기화
+  if (loopCount >= MAX_LOOPS) addToolLog('⚠️ 도구 실행 루프 최대 횟수 도달', 'error');
+  addToolLog('✅ 작업 완료', 'success');
+  executedToolHashes.clear();
   isSending = false;
   btn.disabled = false;
   btn.textContent = '▶ 전송';
+  hideBgProgress();
   await refreshFiles();
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
 // 텍스트 포맷
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
 function formatAiText(text) {
-  // 코드블록
   text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (m, lang, code) =>
     `<pre><code>${escHtml(code.trim())}</code></pre>`);
-  // tool_call 뱃지
   text = text.replace(/<tool_call>([\s\S]*?)<\/tool_call>/g, (m, json) =>
     `<div class="tool-call-badge">🔧 ${escHtml(json.slice(0,70))}${json.length>70?'...':''}</div>`);
-  // 인라인 코드
   text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
-  // **굵게**
   text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  // 줄바꿈
   text = text.replace(/\n/g, '<br>');
   return text;
 }
@@ -565,36 +774,41 @@ function escHtml(s) {
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
 // 크레딧 배지 업데이트
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
 async function updateCreditBadge() {
   try {
     const r = await fetch('/blog/ai/credit/info/');
     const d = await r.json();
     const el = document.getElementById('credit-info');
-    if (el) {
-      el.textContent = d.is_unlimited ? '♾️ 무제한' : `💳 ${d.credits}크레딧`;
+    const badge = document.getElementById('credit-badge');
+    if (el) el.textContent = d.is_unlimited ? '♾️ 무제한' : `💳 ${d.credits}크레딧`;
+    if (badge && !d.is_unlimited) {
+      badge.textContent = `💳 ${d.credits}`;
+      badge.style.background = d.credits <= 5 ? '#ef4444' : '#6c63ff';
     }
+    // 네비바 크레딧 배지도 갱신
+    if (window.refreshCreditBadge) window.refreshCreditBadge();
   } catch(e) {}
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
 // 배포
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
 async function startDeploy() {
   const log = document.getElementById('deploy-log');
   log.textContent = '배포 준비 중...\n';
   switchTabDirect('deploy');
+  showBgProgress('🚀 배포 중...', 10);
 
   const resp = await fetch(`/blog/ai-webdev/${PROJECT_ID}/deploy/`, {
     method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
-    body:JSON.stringify({project_id:PROJECT_ID})
+    body: JSON.stringify({project_id: PROJECT_ID})
   });
 
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
-  let deployUrl = null;
 
   while(true) {
     const {done, value} = await reader.read();
@@ -604,52 +818,103 @@ async function startDeploy() {
       if(!line.startsWith('data:')) continue;
       try {
         const evt = JSON.parse(line.slice(5).trim());
-        if(evt.log) log.textContent += evt.log + '\n';
+        if(evt.log) { log.textContent += evt.log + '\n'; log.scrollTop = log.scrollHeight; }
         if(evt.url) {
-          deployUrl = evt.url;
-          const box = document.querySelector('.deploy-url-box');
-          if(box) box.innerHTML = `
-            <p style="font-weight:700;color:#059669;margin:0;">🎉 배포 완료!</p>
-            <a href="${escHtml(deployUrl)}" target="_blank" style="color:#6c63ff;word-break:break-all;">${escHtml(deployUrl)}</a>`;
+          const box = document.getElementById('deploy-url-box') || document.querySelector('.deploy-url-box');
+          if(box) {
+            box.style.display = 'block';
+            box.innerHTML = `<p style="font-weight:700;color:#059669;margin:0;">🎉 배포 완료!</p>
+              <a href="${escHtml(evt.url)}" target="_blank" style="color:#6c63ff;word-break:break-all;">${escHtml(evt.url)}</a>`;
+          }
+          showToast('🎉 배포 완료!', 'success');
         }
         if(evt.error) log.textContent += '❌ ' + evt.error + '\n';
+        if(evt.progress) updateBgProgress('배포 중...', evt.progress);
       } catch(e){}
     }
-    log.scrollTop = log.scrollHeight;
   }
+  hideBgProgress();
 }
 
-// ══════════════════════════════════════════════
-// 토스트 알림
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
+// 토스트 알림 (전역 사용 가능)
+// ════════════════════════════════════════════════
 function showToast(msg, type) {
+  // base.html의 showToast 함수가 있으면 그것 사용
+  if (window.showToast && window.showToast !== showToast) {
+    window.showToast(msg, type);
+    return;
+  }
+  const container = document.getElementById('toast-container') || document.body;
   const t = document.createElement('div');
+  const bg = type === 'error' ? '#ef4444' : type === 'warn' ? '#f59e0b' : type === 'success' ? '#10b981' : '#1e1e2e';
   t.style.cssText = `
-    position:fixed;bottom:20px;right:20px;
-    background:${type==='warn'?'#f59e0b':'#1e1e2e'};
-    color:#fff;padding:10px 18px;border-radius:10px;
-    font-size:.85rem;z-index:9999;
+    position:fixed; bottom:20px; right:20px; z-index:9999;
+    background:${bg}; color:#fff; padding:10px 18px;
+    border-radius:10px; font-size:.85rem;
     box-shadow:0 4px 12px rgba(0,0,0,.3);
-    animation:fadeIn .2s ease;
+    max-width:300px; word-break:break-word;
   `;
   t.textContent = msg;
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), 2500);
+  setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity 0.3s'; setTimeout(()=>t.remove(), 300); }, 2500);
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
+// 리사이저 (데스크탑)
+// ════════════════════════════════════════════════
+function initResizer(resizerId, leftEl, rightEl) {
+  const resizer = document.getElementById(resizerId);
+  if (!resizer) return;
+  let isResizing = false, startX, startLeftW, startRightW;
+  resizer.addEventListener('mousedown', e => {
+    if (isMobile()) return;
+    isResizing = true; startX = e.clientX;
+    startLeftW = leftEl.offsetWidth; startRightW = rightEl.offsetWidth;
+    document.body.style.userSelect = 'none';
+  });
+  document.addEventListener('mousemove', e => {
+    if (!isResizing) return;
+    const dx = e.clientX - startX;
+    const newLeft = startLeftW + dx;
+    const newRight = startRightW - dx;
+    if (newLeft > 100 && newRight > 200) {
+      leftEl.style.width = newLeft + 'px'; leftEl.style.flex = 'none';
+      rightEl.style.width = newRight + 'px'; rightEl.style.flex = 'none';
+    }
+  });
+  document.addEventListener('mouseup', () => { isResizing = false; document.body.style.userSelect = ''; });
+}
+
+// ════════════════════════════════════════════════
 // 키보드 단축키
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
 document.getElementById('chat-input').addEventListener('keydown', e => {
-  if(e.ctrlKey && e.key === 'Enter') { e.preventDefault(); sendChat(); }
+  if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); sendChat(); }
 });
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
 // 초기화
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', async () => {
-  await loadChatHistory();  // DB에서 대화 이력 로딩
-  await refreshFiles();     // 파일 트리 로딩
+  document.body.classList.add('webbuilder-page');
+
+  // 리사이저 초기화
+  initResizer('resizer-left', document.getElementById('sidebar'), document.getElementById('editor-pane'));
+  initResizer('resizer-right', document.getElementById('editor-pane'), document.getElementById('right-panel'));
+
+  // 대화 이력 + 파일 트리 로딩
+  await loadChatHistory();
+  await refreshFiles();
+  updateCreditBadge();
+
+  // 모바일 초기 상태: AI 채팅 패널 표시
+  if (isMobile()) {
+    document.getElementById('right-panel').classList.add('mobile-active');
+    document.getElementById('editor-pane').classList.remove('mobile-active');
+    setMobileTabActive('mtab-chat');
+    switchTab('chat');
+  }
 });
 </script>
 {% endblock %}

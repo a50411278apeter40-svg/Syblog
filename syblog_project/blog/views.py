@@ -1983,10 +1983,13 @@ def ai_webdev_chat(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'POST only'}, status=405)
 
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': '로그인이 필요합니다.', 'no_credit': False}, status=401)
+
     credit = _get_or_create_credit(request.user)
     if not credit.can_use(1):
         return JsonResponse({
-            'error': '크레딧이 부족합니다.',
+            'error': '크레딧이 부족합니다. 크레딧을 구매해주세요.',
             'credits': credit.credits,
             'no_credit': True,
         }, status=402)
@@ -1994,16 +1997,22 @@ def ai_webdev_chat(request):
     try:
         body = _json_mod.loads(request.body)
         project_id   = body.get('project_id')
-        message      = body.get('message', '').strip()
-        tool_results = body.get('tool_results', [])  # 클라이언트가 실행한 도구 결과
-    except Exception:
-        return JsonResponse({'error': '잘못된 요청'}, status=400)
+        message      = (body.get('message') or '').strip()
+        tool_results = body.get('tool_results', [])
+    except Exception as parse_err:
+        return JsonResponse({'error': f'잘못된 요청: {str(parse_err)[:80]}'}, status=400)
 
     if not message:
         return JsonResponse({'error': '메시지를 입력하세요'}, status=400)
 
-    from blog.models import AiWebProject, AiWebSession
-    project = get_object_or_404(AiWebProject, pk=project_id, user=request.user)
+    if not project_id:
+        return JsonResponse({'error': '프로젝트 ID가 없습니다.'}, status=400)
+
+    try:
+        from blog.models import AiWebProject, AiWebSession
+        project = AiWebProject.objects.get(pk=project_id, user=request.user)
+    except Exception:
+        return JsonResponse({'error': '프로젝트를 찾을 수 없습니다.'}, status=404)
 
     # ── DB에서 최근 대화 이력 자동 로딩 ──
     db_sessions = AiWebSession.objects.filter(project=project).order_by('created_at')
