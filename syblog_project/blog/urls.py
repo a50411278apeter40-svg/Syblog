@@ -78,6 +78,9 @@ urlpatterns = [
     path('ai-webdev/<int:pk>/terminal/', views.ai_webdev_terminal_stream, name='ai_webdev_terminal'),
     path('ai-webdev/<int:pk>/file/read/', views.ai_webdev_file_read, name='ai_webdev_file_read'),
     path('ai-webdev/<int:pk>/file/write/', views.ai_webdev_file_write, name='ai_webdev_file_write'),
+    path('ai-webdev/<int:pk>/history/', views.ai_webdev_history, name='ai_webdev_history'),
+    path('ai-webdev/<int:pk>/clear-history/', views.ai_webdev_clear_history, name='ai_webdev_clear_history'),
+    path('ai/credit/info/', views.ai_credit_info, name='ai_credit_info'),
 ]
 
     # ── AI 크레딧 & 스트리밍 & 웹개발 ─────────────────────────────
