@@ -263,7 +263,7 @@ function buyCredit(type, amount) {
       document.getElementById('buyModalBody').innerHTML =
         `<div style="font-size:3rem;">✅</div>
          <h5 class="mt-2 fw-bold">구매 완료!</h5>
-         <p class="text-muted">💳 +${data.added} 크레딧이 추가됐습니다.<br>
+         <p class="text-muted">💳 +${data.gained} 크레딧이 추가됐습니다.<br>
          잔여: <strong class="text-primary" style="font-size:1.3rem;">${data.credits}</strong>크레딧<br>
          <small>잔여 포인트: ${data.points}pt</small></p>
          <button class="btn btn-primary px-4" onclick="$('#buyModal').modal('hide')">✓ 확인</button>`;
@@ -302,7 +302,7 @@ function animateValue(el) {
 // 실시간 크레딧/포인트 폴링 (30초마다)
 {% if not credit.is_unlimited %}
 function refreshCreditStatus() {
-  fetch('/blog/ai/credit/status/')
+  fetch('/blog/ai/credit/info/')
     .then(r => r.json())
     .then(d => {
       const cd = document.getElementById('credit-display');

@@ -2057,18 +2057,34 @@ def ai_webdev_chat(request):
     # ── 사용자 메시지 DB 저장 ──
     AiWebSession.objects.create(project=project, role='user', content=message)
 
+    # ── g4f 모델 폴백 목록 ──
+    _G4F_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-3.5-turbo']
+
     # ── 스트리밍 생성기 ──
     def stream_response():
+        import time as _time
         full_text = ''
-        saved = False
         try:
             from g4f.client import Client as G4FClient
             client = G4FClient()
-            response = client.chat.completions.create(
-                model='gpt-4o',
-                messages=messages,
-                stream=True,
-            )
+
+            # 스트리밍 시도 (모델 폴백)
+            response = None
+            last_err = None
+            for _model in _G4F_MODELS:
+                try:
+                    response = client.chat.completions.create(
+                        model=_model, messages=messages, stream=True,
+                    )
+                    break
+                except Exception as _me:
+                    last_err = _me
+                    _time.sleep(0.3)
+                    continue
+
+            if response is None:
+                raise Exception(f'모든 모델 실패: {last_err}')
+
             for chunk in response:
                 if hasattr(chunk, 'choices') and chunk.choices:
                     delta = chunk.choices[0].delta
@@ -2079,30 +2095,48 @@ def ai_webdev_chat(request):
 
             # AI 응답 DB 저장
             if full_text.strip():
-                AiWebSession.objects.create(project=project, role='ai', content=full_text)
-                saved = True
+                try:
+                    AiWebSession.objects.create(project=project, role='ai', content=full_text)
+                except Exception:
+                    pass
             yield f"data: {_json_stdlib.dumps({'done': True, 'full': full_text, 'saved': True})}\n\n"
 
         except Exception as e1:
-            # 스트리밍 실패 시 일반 요청으로 폴백
+            # 스트리밍 실패 → 논스트리밍 폴백
             try:
                 from g4f.client import Client as G4FClient
                 client = G4FClient()
-                resp2 = client.chat.completions.create(
-                    model='gpt-4',
-                    messages=messages,
-                )
+                resp2 = None
+                last_err2 = None
+                for _model in _G4F_MODELS:
+                    try:
+                        resp2 = client.chat.completions.create(
+                            model=_model, messages=messages, stream=False,
+                        )
+                        break
+                    except Exception as _me2:
+                        last_err2 = _me2
+                        continue
+
+                if resp2 is None:
+                    raise ValueError(f'모든 모델 응답 실패: {last_err2}')
+
                 full_text = (resp2.choices[0].message.content or '').strip()
                 if not full_text:
                     raise ValueError('빈 응답')
-                # 토큰 단위로 yield (청크처럼)
+
                 chunk_size = 80
                 for i in range(0, len(full_text), chunk_size):
                     yield f"data: {_json_stdlib.dumps({'token': full_text[i:i+chunk_size]})}\n\n"
-                AiWebSession.objects.create(project=project, role='ai', content=full_text)
+
+                try:
+                    AiWebSession.objects.create(project=project, role='ai', content=full_text)
+                except Exception:
+                    pass
                 yield f"data: {_json_stdlib.dumps({'done': True, 'full': full_text, 'saved': True})}\n\n"
+
             except Exception as e2:
-                err_msg = f'AI 응답 오류: {str(e2)[:120]}'
+                err_msg = f'AI 응답 오류: {str(e2)[:200]}'
                 yield f"data: {_json_stdlib.dumps({'error': err_msg, 'done': True})}\n\n"
 
     # ── 크레딧 차감 ──
@@ -2149,13 +2183,19 @@ def ai_webdev_clear_history(request, pk):
 
 
 @login_required
+@login_required
 def ai_credit_info(request):
     """크레딧 현황 JSON (클라이언트 실시간 업데이트용)"""
+    if not request.user.is_authenticated:
+        return JsonResponse({'credits': 0, 'is_unlimited': False, 'total_used': 0})
     credit = _get_or_create_credit(request.user)
+    profile = getattr(request.user, 'profile', None)
     return JsonResponse({
-        'credits': credit.credits,
+        'credits': -1 if credit.is_unlimited else credit.credits,
         'is_unlimited': credit.is_unlimited,
         'total_used': credit.total_used,
+        'points': profile.points if profile else 0,
+        'low': (not credit.is_unlimited) and credit.credits <= 5,
     })
 
 
