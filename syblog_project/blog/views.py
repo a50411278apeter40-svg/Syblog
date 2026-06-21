@@ -2470,11 +2470,31 @@ def ai_webdev_terminal_stream(request, pk):
         if b in cmd:
             return JsonResponse({'error': f'차단된 명령어입니다'}, status=400)
 
+    # python/pip 명령어 자동 교정
+    import re as _re
+    cmd_fixed = cmd
+
+    # venv 경로 (Render 배포 환경)
+    venv_bin = '/opt/render/project/src/.venv/bin'
+    venv_pip = f'{venv_bin}/pip'
+    venv_python = f'{venv_bin}/python'
+
+    # python → venv python3 (python3도 venv 우선)
+    cmd_fixed = _re.sub(r'(?<![/\w])python(?!3|\w)', venv_python, cmd_fixed)
+    cmd_fixed = _re.sub(r'(?<![/\w])python3(?!\w)', venv_python, cmd_fixed)
+    # pip / pip3 → venv pip
+    cmd_fixed = _re.sub(r'(?<![/\w])pip3?(?!\w)', f'{venv_pip} install --break-system-packages', cmd_fixed)
+    # 이미 --break-system-packages 중복 방지
+    cmd_fixed = cmd_fixed.replace('--break-system-packages --break-system-packages', '--break-system-packages')
+
     def stream_cmd():
         try:
-            env = {**_os.environ, 'HOME': str(project_dir), 'PATH': '/usr/local/bin:/usr/bin:/bin:/usr/local/sbin'}
+            env = {**_os.environ,
+                   'HOME': str(project_dir),
+                   'PATH': f'{venv_bin}:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin',
+                   'VIRTUAL_ENV': '/opt/render/project/src/.venv'}
             proc = subprocess.Popen(
-                cmd, shell=True, cwd=str(project_dir),
+                cmd_fixed, shell=True, cwd=str(project_dir),
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, env=env,
                 bufsize=1
