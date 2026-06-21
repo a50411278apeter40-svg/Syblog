@@ -96,319 +96,256 @@
 
 <script>
 (function(){
-  /* ── 중복 방지 ── */
-  if(window._aiPanelReady3) return;
-  window._aiPanelReady3 = true;
+  if(window._aiPanelReady4) return;
+  window._aiPanelReady4 = true;
 
-  window._aiHistory = window._aiHistory || {};   // panelId → [{role,content}]
-  window._aiPanelKey = window._aiPanelKey || {}; // panelId → panel_key 문자열
+  window._aiHistory = window._aiHistory || {};
+  window._aiPanelKey = window._aiPanelKey || {};
 
-  /* ── HTML 이스케이프 ── */
-  window.escapeHtml = window.escapeHtml || function(t){
-    var d=document.createElement('div');
-    d.appendChild(document.createTextNode(t));
-    return d.innerHTML;
-  };
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-  /* ── panel_key 생성 (유저+페이지URL+panelId 조합) ── */
   function getPanelKey(panelId){
     if(window._aiPanelKey[panelId]) return window._aiPanelKey[panelId];
     var path = window.location.pathname.replace(/\//g,'_').slice(0,60);
-    var key = 'panel_' + path + '__' + panelId;
-    window._aiPanelKey[panelId] = key;
-    return key;
+    window._aiPanelKey[panelId] = 'panel_' + path + '__' + panelId;
+    return window._aiPanelKey[panelId];
   }
 
-  /* ── DB 저장 (디바운스 1초) ── */
-  var _saveTimer = {};
-  function saveHistoryDb(panelId){
-    clearTimeout(_saveTimer[panelId]);
-    _saveTimer[panelId] = setTimeout(function(){
-      var hist = window._aiHistory[panelId] || [];
-      var csrf = (document.querySelector('[name=csrfmiddlewaretoken]')||{}).value || '';
-      fetch('/blog/ai-chat/save/', {
-        method:'POST',
-        headers:{'X-CSRFToken':csrf,'Content-Type':'application/json'},
-        body: JSON.stringify({panel_key: getPanelKey(panelId), messages: hist})
-      }).then(function(r){ return r.json(); }).then(function(d){
-        var st = document.getElementById('ai-save-status-'+panelId);
-        if(st) st.textContent = d.ok ? '💾 저장됨' : '⚠ 저장실패';
-        if(st) setTimeout(function(){ st.textContent=''; }, 2500);
-      }).catch(function(){});
-    }, 1000);
-  }
+  function getCSRF(){ return (document.querySelector('[name=csrfmiddlewaretoken]')||{}).value||''; }
 
-  /* ── DB에서 히스토리 불러와 화면 복원 ── */
-  function loadHistoryDb(panelId){
-    var key = getPanelKey(panelId);
-    fetch('/blog/ai-chat/load/?panel_key=' + encodeURIComponent(key))
-      .then(function(r){ return r.json(); })
-      .then(function(d){
-        var msgs = d.messages || [];
-        if(!msgs.length) return;
-        window._aiHistory[panelId] = msgs;
-        /* 화면 복원 */
-        var result = document.getElementById('ai-result-'+panelId);
-        if(result) result.style.display='block';
-        msgs.forEach(function(m){
-          renderBubble(panelId, m.role, m.content, true);
-        });
-        var st = document.getElementById('ai-save-status-'+panelId);
-        if(st){ st.textContent = '📂 이전 대화 ' + msgs.length + '개 복원됨'; setTimeout(function(){ st.textContent=''; }, 3000); }
-      }).catch(function(){});
-  }
-
-  /* ── 대화 초기화 ── */
-  window.aiChatClear = function(panelId){
-    if(!confirm('이 패널의 AI 대화 기록을 모두 삭제할까요?')) return;
-    var csrf = (document.querySelector('[name=csrfmiddlewaretoken]')||{}).value || '';
-    fetch('/blog/ai-chat/clear/', {
+  /* DB 즉시 저장 */
+  function saveNow(panelId){
+    fetch('/blog/ai-chat/save/',{
       method:'POST',
-      headers:{'X-CSRFToken':csrf,'Content-Type':'application/json'},
-      body: JSON.stringify({panel_key: getPanelKey(panelId)})
-    }).then(function(){ 
-      window._aiHistory[panelId] = [];
-      var hist = document.getElementById('ai-history-'+panelId);
-      if(hist) hist.innerHTML = '';
-      var result = document.getElementById('ai-result-'+panelId);
-      if(result) result.style.display='none';
-      var st = document.getElementById('ai-save-status-'+panelId);
-      if(st){ st.textContent='🗑 대화 기록 초기화됨'; setTimeout(function(){ st.textContent=''; },2500); }
+      headers:{'X-CSRFToken':getCSRF(),'Content-Type':'application/json'},
+      body:JSON.stringify({panel_key:getPanelKey(panelId), messages:window._aiHistory[panelId]||[]})
+    }).then(function(r){return r.json();}).then(function(d){
+      var st=document.getElementById('ai-save-status-'+panelId);
+      if(st){st.textContent=d.ok?'💾 저장됨':'⚠ 저장실패';setTimeout(function(){st.textContent='';},2000);}
     }).catch(function(){});
-  };
-
-  /* ── 패널 접기/펼치기 ── */
-  window.toggleAiPanel = function(panelId){
-    var body = document.getElementById('ai-panel-body-'+panelId);
-    var btn  = document.querySelector('#'+panelId+' .btn-outline-secondary');
-    if(!body) return;
-    if(body.style.display==='none'){ body.style.display=''; if(btn) btn.textContent='접기 ▲'; }
-    else { body.style.display='none'; if(btn) btn.textContent='펼치기 ▼'; }
-  };
-
-  /* ── AI 명령 입력창 토글 ── */
-  window.toggleAiChat = function(panelId){
-    var area = document.getElementById('ai-chat-area-'+panelId);
-    if(!area) return;
-    var isHidden = area.style.display==='none';
-    area.style.display = isHidden ? 'block' : 'none';
-    if(isHidden){ var inp=document.getElementById('ai-chat-input-'+panelId); if(inp) setTimeout(function(){ inp.focus(); },50); }
-  };
-
-  /* ── 버블 렌더링 ── */
-  function renderBubble(panelId, role, content, noScroll){
-    var hist   = document.getElementById('ai-history-'+panelId);
-    var result = document.getElementById('ai-result-'+panelId);
-    if(!hist||!result) return;
-    result.style.display='block';
-    var isUser = role==='user';
-    var bubble = document.createElement('div');
-    bubble.style.cssText = isUser
-      ? 'align-self:flex-end;background:linear-gradient(135deg,#6c63ff,#48cfad);color:#fff;border-radius:14px 14px 3px 14px;padding:9px 13px;max-width:85%;font-size:.88rem;white-space:pre-wrap;word-break:break-word;'
-      : 'align-self:flex-start;background:#fff;border:1px solid rgba(108,99,255,0.2);border-radius:14px 14px 14px 3px;padding:9px 13px;max-width:90%;font-size:.88rem;white-space:pre-wrap;word-break:break-word;';
-    if(isUser){
-      bubble.innerHTML = '<strong style="font-size:.75rem;opacity:.8;">나</strong><br>' + escapeHtml(content);
-    } else {
-      var textId = 'ai-txt-'+panelId+'-'+Date.now()+'-'+Math.random().toString(36).slice(2,6);
-      bubble.innerHTML =
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">' +
-          '<strong style="font-size:.75rem;color:#6c63ff;">🤖 AI</strong>' +
-          '<button onclick="copyAiText(\''+textId+'\')" class="btn btn-outline-secondary" ' +
-          'style="font-size:.7rem;padding:2px 7px;border-radius:6px;" title="글만 복사">' +
-          '<i class="fas fa-copy"></i> 복사</button>' +
-        '</div>' +
-        '<div id="'+textId+'" style="white-space:pre-wrap;word-break:break-word;">' + escapeHtml(content) + '</div>';
-    }
-    hist.appendChild(bubble);
-    if(!noScroll) setTimeout(function(){ hist.scrollTop=hist.scrollHeight; },50);
-    else hist.scrollTop = hist.scrollHeight;
   }
 
-  /* ── 로딩 버블 ── */
+  /* DB 히스토리 로드 및 화면 복원 */
+  function loadHistoryDb(panelId){
+    fetch('/blog/ai-chat/load/?panel_key='+encodeURIComponent(getPanelKey(panelId)))
+      .then(function(r){return r.json();})
+      .then(function(d){
+        var msgs=d.messages||[];
+        if(!msgs.length) return;
+        window._aiHistory[panelId]=msgs;
+        var result=document.getElementById('ai-result-'+panelId);
+        if(result) result.style.display='block';
+        msgs.forEach(function(m){renderBubble(panelId,m.role,m.content,true);});
+        var st=document.getElementById('ai-save-status-'+panelId);
+        if(st){st.textContent='📂 대화 '+msgs.length+'개 복원';setTimeout(function(){st.textContent='';},3000);}
+      }).catch(function(){});
+  }
+
+  /* 초기화 */
+  window.aiChatClear=function(panelId){
+    if(!confirm('대화 기록을 모두 삭제할까요?')) return;
+    fetch('/blog/ai-chat/clear/',{method:'POST',headers:{'X-CSRFToken':getCSRF(),'Content-Type':'application/json'},body:JSON.stringify({panel_key:getPanelKey(panelId)})})
+    .then(function(){
+      window._aiHistory[panelId]=[];
+      var h=document.getElementById('ai-history-'+panelId); if(h) h.innerHTML='';
+      var r=document.getElementById('ai-result-'+panelId); if(r) r.style.display='none';
+      var st=document.getElementById('ai-save-status-'+panelId);
+      if(st){st.textContent='🗑 초기화됨';setTimeout(function(){st.textContent='';},2000);}
+    });
+  };
+
+  window.toggleAiPanel=function(panelId){
+    var body=document.getElementById('ai-panel-body-'+panelId);
+    var btn=document.querySelector('#ai-panel-'+panelId+' .btn-outline-secondary');
+    if(!body) return;
+    if(body.style.display==='none'){body.style.display='';if(btn)btn.textContent='접기 ▲';}
+    else{body.style.display='none';if(btn)btn.textContent='펼치기 ▼';}
+  };
+
+  window.toggleAiChat=function(panelId){
+    var area=document.getElementById('ai-chat-area-'+panelId);
+    if(!area) return;
+    var hidden=area.style.display==='none';
+    area.style.display=hidden?'block':'none';
+    if(hidden){var i=document.getElementById('ai-chat-input-'+panelId);if(i)setTimeout(function(){i.focus();},50);}
+  };
+
+  /* 버블 렌더링 */
+  function renderBubble(panelId,role,content,noScroll){
+    var hist=document.getElementById('ai-history-'+panelId);
+    var result=document.getElementById('ai-result-'+panelId);
+    if(!hist||!result) return null;
+    result.style.display='block';
+    var isUser=role==='user';
+    var b=document.createElement('div');
+    b.style.cssText=isUser
+      ?'align-self:flex-end;background:linear-gradient(135deg,#6c63ff,#48cfad);color:#fff;border-radius:14px 14px 3px 14px;padding:9px 13px;max-width:85%;font-size:.88rem;white-space:pre-wrap;word-break:break-word;'
+      :'align-self:flex-start;background:#fff;border:1px solid rgba(108,99,255,0.2);border-radius:14px 14px 14px 3px;padding:9px 13px;max-width:90%;font-size:.88rem;white-space:pre-wrap;word-break:break-word;color:#222;line-height:1.6;';
+    b.innerHTML=isUser?esc(content):content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+    hist.appendChild(b);
+    if(!noScroll) hist.scrollTop=hist.scrollHeight;
+    return b;
+  }
+
   function renderLoading(panelId){
     var hist=document.getElementById('ai-history-'+panelId);
     var result=document.getElementById('ai-result-'+panelId);
     if(!hist||!result) return null;
     result.style.display='block';
     var b=document.createElement('div');
-    b.id='ai-loading-'+panelId;
-    b.style.cssText='align-self:flex-start;background:#f0eeff;border-radius:14px;padding:9px 14px;font-size:.88rem;color:#6c63ff;';
-    b.innerHTML='<i class="fas fa-spinner fa-spin"></i> AI가 답변 중...';
+    b.style.cssText='align-self:flex-start;background:#f3f4f6;border-radius:14px;padding:9px 13px;font-size:.88rem;color:#9ca3af;';
+    b.innerHTML='⏳ AI 생각 중...';
     hist.appendChild(b);
-    setTimeout(function(){ hist.scrollTop=hist.scrollHeight; },50);
+    hist.scrollTop=hist.scrollHeight;
     return b;
   }
 
-  /* ── 텍스트만 복사 + 토스트 ── */
-  window.copyAiText = function(textId){
-    var el=document.getElementById(textId);
-    if(!el) return;
-    var text=el.innerText||el.textContent;
-    function showToast(){ var t=document.createElement('div'); t.textContent='✅ 복사됐어요!'; t.style.cssText='position:fixed;bottom:30px;right:30px;background:#6c63ff;color:#fff;padding:10px 20px;border-radius:20px;font-size:.88rem;font-weight:600;z-index:9999;box-shadow:0 4px 16px rgba(108,99,255,.35);'; document.body.appendChild(t); setTimeout(function(){ t.remove(); },2000); }
-    if(navigator.clipboard){ navigator.clipboard.writeText(text).then(showToast).catch(function(){ var ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); showToast(); }); }
-    else { var ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); showToast(); }
-  };
-
-  /* ── 크레딧 표시 업데이트 ── */
   function updateCreditDisplay(){
-    fetch('/blog/ai/credit/status/')
-      .then(function(r){return r.json();})
-      .then(function(d){
-        var el=document.getElementById('ai-credit-badge');
-        if(!el) return;
-        if(d.is_unlimited){ el.textContent='♾️ 무제한'; el.style.background='#10b981'; }
-        else{ el.textContent='💳 '+d.credits+' 크레딧'; el.style.background=d.credits<=5?'#ef4444':'#6c63ff'; }
-      }).catch(function(){});
+    fetch('/blog/ai/credit/info/').then(function(r){return r.json();}).then(function(d){
+      document.querySelectorAll('.ai-credit-display').forEach(function(el){
+        if(d.is_unlimited) el.textContent='♾️ 무제한';
+        else{el.textContent='💳 '+d.credits+' 크레딧';el.style.color=d.credits<=5?'#ef4444':'#6c63ff';}
+      });
+    }).catch(function(){});
   }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', updateCreditDisplay);
-  else updateCreditDisplay();
 
-  /* ── 스트리밍 AI 호출 (크레딧 차감) ── */
-  function callAiStream(panelId, payload, onToken, onDone, onError){
-    var csrf=(document.querySelector('[name=csrfmiddlewaretoken]')||{}).value||'';
+  /* ═══════════════════════════════════════════════
+     핵심 함수: 스트리밍 호출 + 완료 즉시 DB 저장
+     userLabel: 사용자 버블에 표시할 텍스트
+     payload: fetch body
+  ═══════════════════════════════════════════════ */
+  function callAiStreaming(panelId, userLabel, payload){
+    if(!window._aiHistory[panelId]) window._aiHistory[panelId]=[];
+
+    /* 1) 사용자 메시지 즉시 저장 (새로고침해도 보존) */
+    if(userLabel){
+      renderBubble(panelId,'user',userLabel);
+      window._aiHistory[panelId].push({role:'user',content:userLabel});
+      if(window._aiHistory[panelId].length>200) window._aiHistory[panelId]=window._aiHistory[panelId].slice(-200);
+      saveNow(panelId);
+    }
+
+    /* 2) 로딩 버블 */
+    var loadBubble=renderLoading(panelId);
+    var streamBubble=null;
+    var fullText='';
+
     fetch('/blog/ai/chat/stream/',{
       method:'POST',
-      headers:{'X-CSRFToken':csrf,'Content-Type':'application/json'},
+      headers:{'X-CSRFToken':getCSRF(),'Content-Type':'application/json'},
       body:JSON.stringify(payload)
     }).then(function(resp){
       if(resp.status===402){
         return resp.json().then(function(d){
-          onError('❌ 크레딧이 부족합니다. <a href="/blog/ai/credit/shop/" style="color:#fff;font-weight:bold;">크레딧 구매하기 →</a>');
+          if(loadBubble) loadBubble.remove();
+          renderBubble(panelId,'ai','❌ 크레딧이 부족합니다. <a href="/blog/ai/credit/shop/">구매하기 →</a>');
         });
       }
       var reader=resp.body.getReader();
       var decoder=new TextDecoder();
-      function read(){
+      var buf='';
+      function readChunk(){
         reader.read().then(function(res){
-          if(res.done){ onDone(); updateCreditDisplay(); return; }
-          var lines=decoder.decode(res.value).split('\n');
+          if(res.done){
+            if(fullText.trim()) _finalize(panelId,fullText,loadBubble);
+            return;
+          }
+          buf+=decoder.decode(res.value,{stream:true});
+          var lines=buf.split('\n'); buf=lines.pop();
           lines.forEach(function(line){
             if(!line.startsWith('data:')) return;
             try{
               var evt=JSON.parse(line.slice(5).trim());
-              if(evt.token) onToken(evt.token);
-              if(evt.done){ onDone(); updateCreditDisplay(); }
-              if(evt.error) onError(evt.error);
+              if(evt.token){
+                if(loadBubble){loadBubble.remove();loadBubble=null;}
+                if(!streamBubble){
+                  streamBubble=document.createElement('div');
+                  streamBubble.style.cssText='align-self:flex-start;background:#fff;border:1px solid rgba(108,99,255,0.2);border-radius:14px 14px 14px 3px;padding:9px 13px;max-width:90%;font-size:.88rem;white-space:pre-wrap;word-break:break-word;color:#222;line-height:1.6;';
+                  var histEl=document.getElementById('ai-history-'+panelId);
+                  if(histEl) histEl.appendChild(streamBubble);
+                }
+                fullText+=evt.token;
+                streamBubble.innerHTML=esc(fullText).replace(/\n/g,'<br>');
+                var histEl=document.getElementById('ai-history-'+panelId);
+                if(histEl) histEl.scrollTop=histEl.scrollHeight;
+              }
+              if(evt.done){
+                _finalize(panelId,fullText,loadBubble);
+                loadBubble=null;
+                updateCreditDisplay();
+              }
+              if(evt.error){
+                if(loadBubble){loadBubble.remove();loadBubble=null;}
+                renderBubble(panelId,'ai','❌ '+esc(evt.error));
+              }
             }catch(e){}
           });
-          read();
-        }).catch(function(e){ onError('스트리밍 오류'); });
+          readChunk();
+        }).catch(function(){
+          if(loadBubble) loadBubble.remove();
+          renderBubble(panelId,'ai','❌ 스트리밍 오류가 발생했습니다.');
+        });
       }
-      read();
-    }).catch(function(e){ onError('연결 오류: '+e.message); });
+      readChunk();
+    }).catch(function(e){
+      if(loadBubble) loadBubble.remove();
+      renderBubble(panelId,'ai','❌ 연결 오류: '+esc(e.message));
+    });
   }
 
-  /* ── 공통 fetch (비스트리밍 fallback) ── */
-  function callAi(panelId, payload, onSuccess, onError){
-    var csrf=(document.querySelector('[name=csrfmiddlewaretoken]')||{}).value||'';
-    // 스트리밍 사용
-    var loadBubble=renderLoading(panelId);
-    var hist=document.getElementById('ai-hist-'+panelId);
-    var streamDiv=null;
-    callAiStream(panelId, payload,
-      function(token){ // onToken
-        if(!streamDiv){
-          if(loadBubble){ loadBubble.remove(); loadBubble=null; }
-          var b=document.createElement('div');
-          b.style.cssText='background:linear-gradient(135deg,rgba(108,99,255,0.09),rgba(72,207,173,0.09));border:1px solid rgba(108,99,255,0.2);border-radius:10px 10px 10px 2px;padding:9px 12px;max-width:88%;font-size:.88rem;line-height:1.6;word-break:break-word;white-space:pre-wrap;';
-          if(hist) hist.appendChild(b);
-          streamDiv=b;
-        }
-        streamDiv.innerHTML=(streamDiv.innerHTML||'')+escHtmlJs(token);
-        if(hist) hist.scrollTop=hist.scrollHeight;
-      },
-      function(){ // onDone
-        // 완료 - 히스토리 저장
-        if(streamDiv){
-          var res=streamDiv.innerText||streamDiv.textContent;
-          if(!window._aiHistory[panelId]) window._aiHistory[panelId]=[];
-          window._aiHistory[panelId].push({role:'ai',content:res});
-          if(window._aiHistory[panelId].length>200) window._aiHistory[panelId]=window._aiHistory[panelId].slice(-200);
-          saveHistoryDb(panelId);
-        }
-      },
-      function(errMsg){ // onError
-        if(loadBubble){ loadBubble.remove(); }
-        var b=document.createElement('div');
-        b.style.cssText='background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:9px 12px;max-width:88%;font-size:.88rem;color:#991b1b;';
-        b.innerHTML=errMsg;
-        if(hist) hist.appendChild(b);
-      }
-    );
+  /* AI 응답 완료 → 즉시 DB 저장 */
+  function _finalize(panelId,fullText,loadBubble){
+    if(loadBubble) loadBubble.remove();
+    if(!fullText.trim()) return;
+    window._aiHistory[panelId]=window._aiHistory[panelId]||[];
+    window._aiHistory[panelId].push({role:'ai',content:fullText});
+    if(window._aiHistory[panelId].length>200) window._aiHistory[panelId]=window._aiHistory[panelId].slice(-200);
+    saveNow(panelId);
   }
-  function escHtmlJs(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-  /* ── 빠른 버튼 ── */
-  window.aiQuick = function(panelId, mode, textareaId){
+  /* 빠른 버튼 */
+  window.aiQuick=function(panelId,mode,textareaId){
     var ta=document.getElementById(textareaId);
     var text=ta?ta.value:'';
-    if(!window._aiHistory[panelId]) window._aiHistory[panelId]=[];
-    var modeLabel={improve:'✨ 내용 다듬기',summarize:'📋 요약 생성',title:'💡 제목 추천',spell:'🔍 맞춤법 검사',continue:'➡️ 이어쓰기',comment_improve:'✨ 댓글 다듬기',comment_polite:'😊 정중하게 변환'};
-    renderBubble(panelId,'user',modeLabel[mode]||mode);
-    var loadBubble=renderLoading(panelId);
-    callAi(panelId,{mode:mode,text:text.substring(0,1200)},function(d){
-      if(loadBubble) loadBubble.remove();
-      var res=d.result||d.error||'결과를 가져올 수 없습니다.';
-      renderBubble(panelId,'ai',res);
-      window._aiHistory[panelId].push({role:'user',content:modeLabel[mode]||mode});
-      window._aiHistory[panelId].push({role:'ai',content:res});
-      /* 무제한 히스토리 - 최대 200개 */
-      if(window._aiHistory[panelId].length>200) window._aiHistory[panelId]=window._aiHistory[panelId].slice(-200);
-      saveHistoryDb(panelId);
-    },function(){
-      if(loadBubble) loadBubble.remove();
-      renderBubble(panelId,'ai','오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+    var labels={improve:'✨ 내용 다듬기',summarize:'📋 요약 생성',title:'💡 제목 추천',
+      spell:'🔍 맞춤법 검사',continue:'➡️ 이어쓰기',
+      comment_improve:'✨ 댓글 다듬기',comment_polite:'😊 정중하게 변환'};
+    callAiStreaming(panelId,labels[mode]||mode,{
+      mode:mode, text:text.substring(0,1200),
+      history:(window._aiHistory[panelId]||[]).slice(-60)
     });
   };
 
-  /* ── 커스텀 명령 (연속 대화) ── */
-  window.aiCustom = function(panelId, textareaId){
+  /* 커스텀 명령 (연속 대화) */
+  window.aiCustom=function(panelId,textareaId){
     var inp=document.getElementById('ai-chat-input-'+panelId);
     if(!inp) return;
     var cmd=inp.value.trim();
-    if(!cmd){ inp.focus(); inp.style.borderColor='#e74c3c'; setTimeout(function(){ inp.style.borderColor='rgba(108,99,255,0.3)'; },1500); return; }
+    if(!cmd){inp.focus();inp.style.borderColor='#e74c3c';setTimeout(function(){inp.style.borderColor='rgba(108,99,255,0.3)';},1500);return;}
     var ta=document.getElementById(textareaId);
     var currentText=ta?ta.value.substring(0,600):'';
-    if(!window._aiHistory[panelId]) window._aiHistory[panelId]=[];
-    var hist=window._aiHistory[panelId];
+    var hist=window._aiHistory[panelId]||[];
     var finalCmd=cmd;
-    if(hist.length===0 && currentText) finalCmd=cmd+'\n\n[현재 작성 중인 글]\n'+currentText;
-    renderBubble(panelId,'user',cmd);
+    if(hist.length===0&&currentText) finalCmd=cmd+'\n\n[현재 작성 중인 글]\n'+currentText;
     inp.value='';
-    var loadBubble=renderLoading(panelId);
-    callAi(panelId,{
-      mode:'custom',
-      text:currentText,
+    callAiStreaming(panelId,cmd,{
+      mode:'custom', text:currentText,
       custom_prompt:finalCmd,
-      history:hist.slice(-60)   /* 최대 60개 컨텍스트 전송 */
-    },function(d){
-      if(loadBubble) loadBubble.remove();
-      var res=d.result||d.error||'결과를 가져올 수 없습니다.';
-      renderBubble(panelId,'ai',res);
-      hist.push({role:'user',content:cmd});
-      hist.push({role:'ai',content:res});
-      /* 최대 60개 유지 */
-      if(hist.length>200) window._aiHistory[panelId]=hist.slice(-200);
-      saveHistoryDb(panelId);
-    },function(){
-      if(loadBubble) loadBubble.remove();
-      renderBubble(panelId,'ai','오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      history:hist.slice(-60)
     });
   };
 
-  /* ── 레거시 호환 ── */
-  window.aiAssistPanel = function(panelId, mode, text){
-    aiQuick(panelId, mode, '');
-  };
+  window.aiAssistPanel=function(panelId,mode){ aiQuick(panelId,mode,''); };
 
-  /* ── 페이지 로드 시 모든 패널 히스토리 복원 ── */
+  /* 페이지 로드 시 복원 */
   function initAllPanels(){
+    updateCreditDisplay();
     document.querySelectorAll('[id^="ai-panel-"]').forEach(function(el){
-      var pid = el.id.replace('ai-panel-','');
+      var pid=el.id.replace('ai-panel-','');
       if(pid) loadHistoryDb(pid);
     });
   }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', initAllPanels);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',initAllPanels);
   else initAllPanels();
 
 })();
