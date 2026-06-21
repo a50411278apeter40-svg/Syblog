@@ -3,111 +3,284 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover">
+<meta name="theme-color" content="#6c63ff">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>SyBlog - 코딩 블로그 플랫폼</title>
 <link rel="stylesheet" href="{% static 'blog/bootstrap/bootstrap.min.css' %}">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
-* { margin:0; padding:0; box-sizing:border-box; }
-body { font-family: 'Segoe UI', sans-serif; background: #0d1b2a; color: white; overflow-x: hidden; }
-.navbar { background: rgba(13,27,42,0.9) !important; backdrop-filter: blur(10px); border-bottom: 1px solid rgba(108,99,255,0.3); }
-.navbar-brand { color: #6c63ff !important; font-weight: 800; font-size: 1.5rem; }
-.nav-link { color: rgba(255,255,255,0.8) !important; }
-.hero { min-height: 100vh; display: flex; align-items: center; position: relative; overflow: hidden; }
-.hero-bg { position: absolute; top:0; left:0; right:0; bottom:0; background: linear-gradient(135deg, #0d1b2a 0%, #1a1a3e 50%, #0d2b1a 100%); }
-.code-rain { position: absolute; top:0; left:0; right:0; bottom:0; overflow: hidden; opacity: 0.15; }
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #0d1b2a; color: white; overflow-x: hidden; }
+
+/* ── 내비게이션 ── */
+.navbar { background: rgba(13,27,42,0.92) !important; backdrop-filter: blur(12px); border-bottom: 1px solid rgba(108,99,255,0.3); }
+.navbar-brand { color: #6c63ff !important; font-weight: 800; font-size: 1.4rem; }
+.nav-link { color: rgba(255,255,255,0.85) !important; font-size: 0.9rem; }
+.nav-link:hover { color: #fff !important; }
+
+/* ── 히어로 ── */
+.hero { min-height: 100vh; display: flex; align-items: center; position: relative; overflow: hidden; padding-top: 70px; }
+.hero-bg { position: absolute; inset: 0; background: linear-gradient(135deg, #0d1b2a 0%, #1a1a3e 50%, #0d2b1a 100%); }
+.code-rain { position: absolute; inset: 0; overflow: hidden; opacity: 0.12; pointer-events: none; }
 .hero-content { position: relative; z-index: 1; }
-.hero h1 { font-size: 4rem; font-weight: 900; }
-.hero h1 span { background: linear-gradient(135deg, #6c63ff, #48cfad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-.hero p { font-size: 1.2rem; color: #adb5bd; }
-.btn-hero { background: linear-gradient(135deg, #6c63ff, #48cfad); border: none; color: white; padding: 15px 40px; border-radius: 50px; font-size: 1.1rem; font-weight: 700; transition: all 0.3s; }
-.btn-hero:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(108,99,255,0.4); color: white; }
-.feature-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(108,99,255,0.2); border-radius: 16px; padding: 30px; text-align: center; transition: all 0.3s; }
-.feature-card:hover { background: rgba(108,99,255,0.1); border-color: #6c63ff; transform: translateY(-5px); }
-.feature-icon { font-size: 2.5rem; margin-bottom: 15px; }
-.post-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; margin-bottom: 15px; transition: all 0.3s; }
+.hero h1 { font-size: clamp(2.2rem, 6vw, 4.5rem); font-weight: 900; line-height: 1.1; }
+.hero h1 span { background: linear-gradient(135deg, #6c63ff, #48cfad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.hero-subtitle { font-size: clamp(1rem, 2.5vw, 1.3rem); color: #48cfad; font-weight: 300; margin-bottom: 16px; }
+.hero p { font-size: clamp(0.9rem, 2vw, 1.1rem); color: #adb5bd; line-height: 1.7; }
+
+/* ── 히어로 버튼 ── */
+.btn-hero {
+  display: inline-block;
+  background: linear-gradient(135deg, #6c63ff, #48cfad);
+  border: none; color: white;
+  padding: 14px 36px; border-radius: 50px;
+  font-size: 1rem; font-weight: 700;
+  text-decoration: none; transition: all 0.3s;
+}
+.btn-hero:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(108,99,255,0.4); color: white; text-decoration: none; }
+.btn-outline-hero {
+  display: inline-block;
+  border: 2px solid rgba(255,255,255,0.5); color: white;
+  padding: 12px 28px; border-radius: 50px;
+  font-size: 0.95rem; font-weight: 600;
+  text-decoration: none; transition: all 0.3s;
+}
+.btn-outline-hero:hover { border-color: #fff; color: #fff; text-decoration: none; background: rgba(255,255,255,0.1); }
+
+/* ── 포스트 카드 ── */
+.post-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; margin-bottom: 12px; transition: all 0.3s; }
 .post-card:hover { border-color: #6c63ff; background: rgba(108,99,255,0.1); }
-.stats-section { background: linear-gradient(135deg, #6c63ff22, #48cfad22); border: 1px solid rgba(108,99,255,0.2); border-radius: 20px; padding: 40px; }
+
+/* ── 피처 카드 ── */
+.feature-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(108,99,255,0.2); border-radius: 16px; padding: 28px 20px; text-align: center; transition: all 0.3s; height: 100%; }
+.feature-card:hover { background: rgba(108,99,255,0.1); border-color: #6c63ff; transform: translateY(-5px); }
+.feature-icon { font-size: 2.2rem; margin-bottom: 12px; }
+
+/* ── 통계 ── */
+.stats-section { background: linear-gradient(135deg, rgba(108,99,255,0.12), rgba(72,207,173,0.12)); border: 1px solid rgba(108,99,255,0.25); border-radius: 20px; padding: 36px 24px; }
+.stat-num { font-size: clamp(2rem, 5vw, 2.8rem); font-weight: 900; background: linear-gradient(135deg, #6c63ff, #48cfad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+/* ── 푸터 ── */
 footer { background: rgba(0,0,0,0.5); border-top: 1px solid rgba(108,99,255,0.2); padding: 30px 0; }
+
+/* ── 섹션 간격 ── */
+.section-lg { padding: 80px 0; }
+.section-sm { padding: 50px 0; }
+
+/* ══════════════════════
+   반응형 모바일
+══════════════════════ */
+@media (max-width: 576px) {
+  .hero { padding-top: 65px; min-height: auto; padding-bottom: 50px; }
+  .hero-content .col-lg-6:first-child { text-align: center; }
+  .btn-hero, .btn-outline-hero { display: block; width: 100%; text-align: center; margin-bottom: 10px !important; padding: 14px 20px; }
+  .hero-buttons { display: flex; flex-direction: column; gap: 8px; }
+  .section-lg { padding: 50px 0; }
+  .section-sm { padding: 30px 0; }
+  .feature-card { padding: 20px 14px; }
+  .feature-icon { font-size: 1.8rem; }
+  .stats-section { padding: 24px 16px; }
+  .stat-num { font-size: 1.8rem; }
+}
+
+@media (max-width: 767px) {
+  .hero-latest-posts { margin-top: 40px; }
+  .col-md-4 { flex: 0 0 100%; max-width: 100%; margin-bottom: 12px; }
+  .stats-col { margin-bottom: 20px; }
+}
+
+/* ── 스크롤 애니메이션 ── */
+.fade-in { opacity: 0; transform: translateY(20px); transition: opacity 0.6s ease, transform 0.6s ease; }
+.fade-in.visible { opacity: 1; transform: translateY(0); }
 </style>
 </head>
 <body>
-<!-- Navbar -->
+
+<!-- ══ 내비게이션 ══ -->
 <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
   <div class="container">
     <a class="navbar-brand" href="/"><i class="fas fa-code"></i> SyBlog</a>
-    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"><span class="navbar-toggler-icon"></span></button>
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
     <div class="collapse navbar-collapse" id="navbarNav">
       <ul class="navbar-nav ml-auto">
         <li class="nav-item"><a class="nav-link" href="/blog/"><i class="fas fa-blog"></i> 블로그</a></li>
         <li class="nav-item"><a class="nav-link" href="/challenges/"><i class="fas fa-gamepad"></i> 챌린지</a></li>
         <li class="nav-item"><a class="nav-link" href="/user/leaderboard/"><i class="fas fa-trophy"></i> 리더보드</a></li>
+        <li class="nav-item"><a class="nav-link" href="/blog/ai-webdev/"><i class="fas fa-robot"></i> AI 웹개발</a></li>
         {% if user.is_authenticated %}
-        <li class="nav-item"><a class="nav-link" href="/user/profile/"><i class="fas fa-user"></i> {{ user.username }}</a></li>
-        <li class="nav-item"><a class="nav-link" href="/accounts/logout/"><i class="fas fa-sign-out-alt"></i> 로그아웃</a></li>
+        <li class="nav-item">
+          <a class="nav-link" href="/user/profile/">
+            <i class="fas fa-user"></i> {{ user.username }}
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="/accounts/logout/"><i class="fas fa-sign-out-alt"></i> 로그아웃</a>
+        </li>
         {% else %}
-        <li class="nav-item"><a class="nav-link" href="/accounts/login/"><i class="fas fa-sign-in-alt"></i> 로그인</a></li>
-        <li class="nav-item"><a class="nav-link" href="/accounts/signup/"><i class="fas fa-user-plus"></i> 회원가입</a></li>
+        <li class="nav-item">
+          <a class="nav-link" href="/accounts/login/"><i class="fas fa-sign-in-alt"></i> 로그인</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="/accounts/signup/"><i class="fas fa-user-plus"></i> 회원가입</a>
+        </li>
         {% endif %}
       </ul>
     </div>
   </div>
 </nav>
 
-<!-- Hero Section -->
-<section class="hero" style="padding-top:80px;">
+<!-- ══ 히어로 섹션 ══ -->
+<section class="hero">
   <div class="hero-bg"></div>
   <canvas id="codeCanvas" class="code-rain"></canvas>
   <div class="container hero-content">
     <div class="row align-items-center">
-      <div class="col-lg-6">
-        <h1><span>SyBlog</span></h1>
-        <h2 style="color:#48cfad;font-weight:300;margin-bottom:20px;">코드로 세상을 연결하다</h2>
-        <p class="mb-4">개발자를 위한 블로그 플랫폼. 글을 쓰고, 게임을 즐기고, 포인트를 모아 레벨을 올리세요!</p>
-        <a href="/blog/" class="btn-hero mr-3"><i class="fas fa-blog"></i> 블로그 보기</a>
-        {% if not user.is_authenticated %}
-        <a href="/accounts/signup/" class="btn btn-outline-light" style="border-radius:50px;padding:15px 30px;font-size:1rem;"><i class="fas fa-rocket"></i> 지금 시작</a>
-        {% else %}
-        <a href="/challenges/" class="btn btn-outline-light" style="border-radius:50px;padding:15px 30px;font-size:1rem;"><i class="fas fa-gamepad"></i> 챌린지 하기</a>
-        {% endif %}
+      <div class="col-lg-6 mb-4 mb-lg-0">
+        <div class="fade-in">
+          <h1><span>SyBlog</span></h1>
+          <p class="hero-subtitle mt-2">코드로 세상을 연결하다</p>
+          <p class="mb-4">개발자를 위한 블로그 플랫폼.<br>
+          글을 쓰고, 게임을 즐기고, AI로 웹사이트를 만들고, 포인트를 모아 레벨을 올리세요!</p>
+          <div class="hero-buttons d-flex flex-wrap" style="gap:12px;">
+            <a href="/blog/" class="btn-hero"><i class="fas fa-blog"></i> 블로그 보기</a>
+            {% if not user.is_authenticated %}
+            <a href="/accounts/signup/" class="btn-outline-hero"><i class="fas fa-rocket"></i> 지금 시작</a>
+            {% else %}
+            <a href="/blog/ai-webdev/" class="btn-outline-hero"><i class="fas fa-robot"></i> AI 웹개발 🆕</a>
+            {% endif %}
+          </div>
+        </div>
       </div>
-      <div class="col-lg-6 mt-5 mt-lg-0">
-        <h4 style="color:#48cfad;margin-bottom:20px;"><i class="fas fa-clock"></i> 최신 게시글</h4>
+      <div class="col-lg-6 hero-latest-posts fade-in">
+        <h4 style="color:#48cfad;margin-bottom:16px;font-size:1rem;"><i class="fas fa-clock"></i> 최신 게시글</h4>
         {% for post in recent_posts %}
         <div class="post-card">
           <div class="d-flex justify-content-between align-items-center">
-            <a href="{{ post.get_absolute_url }}" class="text-white font-weight-bold text-decoration-none" style="font-size:0.95rem;">{{ post.title|truncatechars:40 }}</a>
-            <small style="color:#6c63ff;">{{ post.created_at|date:"m.d" }}</small>
+            <a href="{{ post.get_absolute_url }}" class="text-white font-weight-bold text-decoration-none" style="font-size:0.9rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px;">{{ post.title|truncatechars:38 }}</a>
+            <small style="color:#6c63ff;white-space:nowrap;">{{ post.created_at|date:"m.d" }}</small>
           </div>
-          <small style="color:#adb5bd;"><i class="fas fa-user"></i> {{ post.author.username }} &nbsp;<i class="fas fa-eye"></i> {{ post.view_count }}</small>
+          <small style="color:#adb5bd;font-size:0.78rem;"><i class="fas fa-user"></i> {{ post.author.username }} &nbsp;<i class="fas fa-eye"></i> {{ post.view_count }}</small>
         </div>
         {% empty %}
-        <div class="post-card"><p class="text-muted">아직 게시글이 없습니다.</p></div>
+        <div class="post-card"><p class="text-muted mb-0">아직 게시글이 없습니다.</p></div>
         {% endfor %}
+        <a href="/blog/" class="btn-hero mt-3 d-inline-block" style="padding:10px 24px;font-size:.9rem;">전체 글 보기 →</a>
       </div>
     </div>
   </div>
 </section>
 
-<!-- Features -->
-<section style="padding:100px 0;">
+<!-- ══ 통계 ══ -->
+<section class="section-sm">
   <div class="container">
-    <h2 class="text-center mb-5" style="color:#48cfad;">SyBlog의 특징</h2>
-    <div class="row">
-      <div class="col-md-4 mb-4"><div class="feature-card"><div class="feature-icon">📝</div><h5>시리즈 블로그</h5><p style="color:#adb5bd;">연재형 글을 시리즈로 묶어 독자가 순서대로 읽을 수 있습니다.</p></div></div>
-      <div class="col-md-4 mb-4"><div class="feature-card"><div class="feature-icon">🎮</div><h5>챌린지 미니게임</h5><p style="color:#adb5bd;">20가지 미니게임을 플레이하고 점수에 따라 포인트를 획득하세요!</p></div></div>
-      <div class="col-md-4 mb-4"><div class="feature-card"><div class="feature-icon">🏆</div><h5>레벨 시스템</h5><p style="color:#adb5bd;">포인트를 모아 10단계 레벨을 올리고 리더보드에서 경쟁하세요.</p></div></div>
-      <div class="col-md-4 mb-4"><div class="feature-card"><div class="feature-icon">💌</div><h5>내부 메일</h5><p style="color:#adb5bd;">블로거끼리 내부 메일 시스템으로 소통하세요.</p></div></div>
-      <div class="col-md-4 mb-4"><div class="feature-card"><div class="feature-icon">💬</div><h5>대댓글</h5><p style="color:#adb5bd;">댓글에 답글을 달며 활발한 토론을 나눠보세요.</p></div></div>
-      <div class="col-md-4 mb-4"><div class="feature-card"><div class="feature-icon">🛡️</div><h5>스마트 필터링</h5><p style="color:#adb5bd;">악성/성인 키워드 자동 차단으로 건강한 커뮤니티를 유지합니다.</p></div></div>
+    <div class="stats-section">
+      <div class="row text-center">
+        <div class="col-6 col-md-3 stats-col fade-in">
+          <div class="stat-num" id="stat-posts">{{ total_posts|default:"0" }}</div>
+          <p style="color:#adb5bd;font-size:.9rem;">📝 게시글</p>
+        </div>
+        <div class="col-6 col-md-3 stats-col fade-in">
+          <div class="stat-num" id="stat-users">{{ total_users|default:"0" }}</div>
+          <p style="color:#adb5bd;font-size:.9rem;">👥 유저</p>
+        </div>
+        <div class="col-6 col-md-3 stats-col fade-in">
+          <div class="stat-num">20+</div>
+          <p style="color:#adb5bd;font-size:.9rem;">🎮 미니게임</p>
+        </div>
+        <div class="col-6 col-md-3 stats-col fade-in">
+          <div class="stat-num">AI</div>
+          <p style="color:#adb5bd;font-size:.9rem;">🤖 웹빌더</p>
+        </div>
+      </div>
     </div>
   </div>
 </section>
 
+<!-- ══ 기능 소개 ══ -->
+<section class="section-lg">
+  <div class="container">
+    <h2 class="text-center mb-2 fade-in" style="color:#48cfad;font-size:clamp(1.5rem,4vw,2.2rem);">SyBlog의 특징</h2>
+    <p class="text-center mb-5 fade-in" style="color:#6b7280;">개발자를 위한 올인원 블로그 플랫폼</p>
+    <div class="row">
+      <div class="col-md-4 mb-4 fade-in">
+        <div class="feature-card">
+          <div class="feature-icon">📝</div>
+          <h5 style="color:#fff;font-weight:700;margin-bottom:8px;">시리즈 블로그</h5>
+          <p style="color:#adb5bd;font-size:.9rem;">연재형 글을 시리즈로 묶어 독자가 순서대로 읽을 수 있습니다.</p>
+        </div>
+      </div>
+      <div class="col-md-4 mb-4 fade-in">
+        <div class="feature-card">
+          <div class="feature-icon">🤖</div>
+          <h5 style="color:#fff;font-weight:700;margin-bottom:8px;">AI 웹개발 빌더</h5>
+          <p style="color:#adb5bd;font-size:.9rem;">AI가 HTML/CSS/JS, React, Flask 등을 직접 만들고 배포합니다!</p>
+          <span style="background:#6c63ff;color:#fff;padding:2px 8px;border-radius:20px;font-size:.72rem;">🆕 BETA</span>
+        </div>
+      </div>
+      <div class="col-md-4 mb-4 fade-in">
+        <div class="feature-card">
+          <div class="feature-icon">🎮</div>
+          <h5 style="color:#fff;font-weight:700;margin-bottom:8px;">챌린지 미니게임</h5>
+          <p style="color:#adb5bd;font-size:.9rem;">20가지 미니게임을 플레이하고 점수에 따라 포인트를 획득하세요!</p>
+        </div>
+      </div>
+      <div class="col-md-4 mb-4 fade-in">
+        <div class="feature-card">
+          <div class="feature-icon">🏆</div>
+          <h5 style="color:#fff;font-weight:700;margin-bottom:8px;">레벨 시스템</h5>
+          <p style="color:#adb5bd;font-size:.9rem;">포인트를 모아 10단계 레벨을 올리고 리더보드에서 경쟁하세요.</p>
+        </div>
+      </div>
+      <div class="col-md-4 mb-4 fade-in">
+        <div class="feature-card">
+          <div class="feature-icon">💌</div>
+          <h5 style="color:#fff;font-weight:700;margin-bottom:8px;">내부 메일</h5>
+          <p style="color:#adb5bd;font-size:.9rem;">블로거끼리 내부 메일 시스템으로 소통하세요.</p>
+        </div>
+      </div>
+      <div class="col-md-4 mb-4 fade-in">
+        <div class="feature-card">
+          <div class="feature-icon">🎖️</div>
+          <h5 style="color:#fff;font-weight:700;margin-bottom:8px;">30종 배지</h5>
+          <p style="color:#adb5bd;font-size:.9rem;">활동에 따라 30가지 배지를 획득하고 프로필을 꾸미세요.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ CTA ══ -->
+{% if not user.is_authenticated %}
+<section class="section-sm">
+  <div class="container text-center fade-in">
+    <div style="background:linear-gradient(135deg,rgba(108,99,255,0.2),rgba(72,207,173,0.2));border:1px solid rgba(108,99,255,0.3);border-radius:24px;padding:50px 24px;">
+      <h2 style="font-size:clamp(1.4rem,4vw,2rem);margin-bottom:12px;">지금 바로 시작하세요!</h2>
+      <p style="color:#adb5bd;margin-bottom:28px;font-size:.95rem;">무료로 가입하고 글을 쓰고 AI로 웹사이트를 만들어보세요.</p>
+      <a href="/accounts/signup/" class="btn-hero" style="font-size:1.1rem;padding:16px 48px;">🚀 무료 시작</a>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<!-- ══ 푸터 ══ -->
 <footer>
-  <div class="container text-center">
-    <p><strong style="color:#6c63ff;font-size:1.3rem;">SyBlog</strong></p>
-    <p style="color:#adb5bd;">파이썬 장고로 만든 코딩 블로그 플랫폼 &copy; 2024</p>
+  <div class="container">
+    <div class="row align-items-center">
+      <div class="col-md-6 text-center text-md-left mb-3 mb-md-0">
+        <strong style="color:#6c63ff;font-size:1.2rem;"><i class="fas fa-code"></i> SyBlog</strong>
+        <p style="color:#adb5bd;font-size:.82rem;margin-top:4px;margin-bottom:0;">파이썬 장고로 만든 코딩 블로그 플랫폼 &copy; 2024</p>
+      </div>
+      <div class="col-md-6 text-center text-md-right">
+        <a href="/blog/" style="color:#6c63ff;font-size:.85rem;margin:0 8px;">블로그</a>
+        <a href="/challenges/" style="color:#6c63ff;font-size:.85rem;margin:0 8px;">챌린지</a>
+        <a href="/blog/ai-webdev/" style="color:#48cfad;font-size:.85rem;margin:0 8px;">AI 웹개발</a>
+        <a href="/user/leaderboard/" style="color:#6c63ff;font-size:.85rem;margin:0 8px;">리더보드</a>
+      </div>
+    </div>
   </div>
 </footer>
 
@@ -115,29 +288,53 @@ footer { background: rgba(0,0,0,0.5); border-top: 1px solid rgba(108,99,255,0.2)
 <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"></script>
 <script src="{% static 'blog/bootstrap/bootstrap.min.js' %}"></script>
 <script>
-// Code Rain Animation
+// ── 코드 레인 애니메이션 ──
 const canvas = document.getElementById('codeCanvas');
 const ctx = canvas.getContext('2d');
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
-const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789<>{}[]();=+-*/\\|!@#$%';
-const cols = Math.floor(canvas.width / 18);
-const drops = Array(cols).fill(0);
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+
+const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789<>{}[];=+-*/\\|!@#$%^&*()';
+let cols, drops;
+
+function initDrops() {
+  cols = Math.floor(canvas.width / 18);
+  drops = Array(cols).fill(0);
+}
+initDrops();
+
 function drawRain() {
   ctx.fillStyle = 'rgba(13, 27, 42, 0.05)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#6c63ff';
-  ctx.font = '14px monospace';
   drops.forEach((y, i) => {
     const char = chars[Math.floor(Math.random() * chars.length)];
-    ctx.fillStyle = i % 3 === 0 ? '#48cfad' : '#6c63ff';
+    ctx.fillStyle = i % 3 === 0 ? '#48cfad33' : '#6c63ff33';
+    ctx.font = '13px monospace';
     ctx.fillText(char, i * 18, y * 18);
     if (y * 18 > canvas.height && Math.random() > 0.975) drops[i] = 0;
     drops[i]++;
   });
 }
-setInterval(drawRain, 50);
-window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
+
+// 모바일에서 애니메이션 최적화
+const isMobile = window.innerWidth <= 768;
+setInterval(drawRain, isMobile ? 80 : 50);
+
+window.addEventListener('resize', () => {
+  resizeCanvas();
+  initDrops();
+}, { passive: true });
+
+// ── 스크롤 페이드인 ──
+const fadeEls = document.querySelectorAll('.fade-in');
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); } });
+}, { threshold: 0.1 });
+fadeEls.forEach(el => observer.observe(el));
 </script>
 </body>
 </html>
