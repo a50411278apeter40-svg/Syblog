@@ -1,4 +1,46 @@
 {% extends 'blog/base.html' %}
+{% block extra_css %}
+<style>
+/* 크레딧 샵 반응형 CSS */
+.credit-package-card {
+  transition: transform 0.15s, box-shadow 0.15s;
+  cursor: pointer;
+}
+.credit-package-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
+}
+.credit-status-card {
+  position: sticky;
+  top: 70px;
+}
+@media (max-width: 767px) {
+  .credit-status-card { position: static; }
+  .col-md-4, .col-md-8 { flex: 0 0 100%; max-width: 100%; }
+  .col-md-6 { flex: 0 0 50%; max-width: 50%; }
+}
+@media (max-width: 480px) {
+  .col-md-6 { flex: 0 0 100%; max-width: 100%; }
+  .card-body.p-4 { padding: 16px !important; }
+}
+/* 거래 내역 테이블 */
+.table th, .table td {
+  font-size: 0.85rem;
+  padding: 8px 10px;
+  vertical-align: middle;
+}
+@media (max-width: 576px) {
+  .table th, .table td { font-size: 0.78rem; padding: 6px 8px; }
+  .table .text-muted.small { font-size: 0.72rem !important; }
+}
+/* 구매 결과 모달 */
+#buyModal .modal-dialog { max-width: 320px; margin: auto; }
+@media (max-width: 576px) {
+  #buyModal .modal-dialog { margin: 20px; }
+}
+</style>
+{% endblock %}
+
 {% block main_area %}
 <div class="container py-4">
   <div class="row">
@@ -194,10 +236,13 @@
 
 <script>
 function buyCredit(type, amount) {
-  const confirmMsg = type === 'webdev'
-    ? `AI 웹개발 크레딧 ${amount * 10}개를 ${amount * 30}포인트로 구매할까요?`
-    : `일반 AI 크레딧 ${amount * 5}개를 ${amount * 10}포인트로 구매할까요?`;
+  const creditCount = type === 'webdev' ? amount * 10 : amount * 5;
+  const pointCost = type === 'webdev' ? amount * 30 : amount * 10;
+  const confirmMsg = `💳 ${type === 'webdev' ? 'AI 웹개발' : '일반 AI'} 크레딧 ${creditCount}개를 ${pointCost}포인트로 구매할까요?`;
   if (!confirm(confirmMsg)) return;
+
+  // 버튼 비활성화 (중복 클릭 방지)
+  event && event.target && (event.target.disabled = true);
 
   fetch('/blog/ai/credit/buy/', {
     method: 'POST',
@@ -207,22 +252,67 @@ function buyCredit(type, amount) {
   .then(r => r.json())
   .then(data => {
     if (data.ok) {
+      // 크레딧/포인트 실시간 업데이트
       const cd = document.getElementById('credit-display');
       const pd = document.getElementById('points-display');
-      if (cd) cd.textContent = data.credits;
-      if (pd) pd.textContent = data.points + 'pt';
+      if (cd) { cd.textContent = data.credits; animateValue(cd); }
+      if (pd) { pd.textContent = data.points + 'pt'; animateValue(pd); }
+      // 네비바 크레딧 배지 갱신
+      if (window.refreshCreditBadge) window.refreshCreditBadge();
+      // 모달 표시
       document.getElementById('buyModalBody').innerHTML =
         `<div style="font-size:3rem;">✅</div>
-         <h5 class="mt-2">구매 완료!</h5>
-         <p class="text-muted">+${data.added} 크레딧이 추가됐습니다.<br>잔여: <strong>${data.credits}</strong>크레딧</p>
-         <button class="btn btn-primary" data-dismiss="modal" onclick="$('#buyModal').modal('hide')">확인</button>`;
+         <h5 class="mt-2 fw-bold">구매 완료!</h5>
+         <p class="text-muted">💳 +${data.added} 크레딧이 추가됐습니다.<br>
+         잔여: <strong class="text-primary" style="font-size:1.3rem;">${data.credits}</strong>크레딧<br>
+         <small>잔여 포인트: ${data.points}pt</small></p>
+         <button class="btn btn-primary px-4" onclick="$('#buyModal').modal('hide')">✓ 확인</button>`;
       $('#buyModal').modal('show');
-      setTimeout(() => location.reload(), 2000);
+      // 2초 후 페이지 새로고침 (거래내역 업데이트)
+      setTimeout(() => location.reload(), 2200);
     } else {
-      alert(data.error || '구매 실패: 포인트가 부족하거나 오류가 발생했습니다.');
+      event && event.target && (event.target.disabled = false);
+      const errMsg = data.error || '구매 실패';
+      document.getElementById('buyModalBody').innerHTML =
+        `<div style="font-size:2.5rem;">❌</div>
+         <h5 class="mt-2">구매 실패</h5>
+         <p class="text-muted">${errMsg}</p>
+         <a href="/blog/my-dashboard/" class="btn btn-outline-primary btn-sm me-2">포인트 확인</a>
+         <button class="btn btn-secondary btn-sm" onclick="$('#buyModal').modal('hide')">닫기</button>`;
+      $('#buyModal').modal('show');
     }
   })
-  .catch(() => alert('서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'));
+  .catch(() => {
+    event && event.target && (event.target.disabled = false);
+    alert('서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+  });
 }
+
+// 숫자 변화 애니메이션
+function animateValue(el) {
+  el.style.transform = 'scale(1.2)';
+  el.style.color = '#fbbf24';
+  el.style.transition = 'all 0.3s ease';
+  setTimeout(() => {
+    el.style.transform = '';
+    el.style.color = '';
+  }, 500);
+}
+
+// 실시간 크레딧/포인트 폴링 (30초마다)
+{% if not credit.is_unlimited %}
+function refreshCreditStatus() {
+  fetch('/blog/ai/credit/status/')
+    .then(r => r.json())
+    .then(d => {
+      const cd = document.getElementById('credit-display');
+      const pd = document.getElementById('points-display');
+      if (cd && !cd.classList.contains('animating')) cd.textContent = d.credits;
+      if (pd && !pd.classList.contains('animating')) pd.textContent = d.points + 'pt';
+      if (window.refreshCreditBadge) window.refreshCreditBadge();
+    }).catch(() => {});
+}
+setInterval(refreshCreditStatus, 30000);
+{% endif %}
 </script>
 {% endblock %}

@@ -1,114 +1,386 @@
 {% extends 'blog/base.html' %}
-{% block main_area %}
+{% block extra_css %}
 <style>
 * { box-sizing: border-box; }
-body { overflow: hidden; }
-#workbench { display: flex; height: calc(100vh - 56px); gap: 0; }
+/* 웹빌더 페이지에서만 body overflow hidden */
+body.webbuilder-page { overflow: hidden; }
 
-/* ── 사이드바: 파일 탐색기 ── */
+/* ══════════════════════════════════════════
+   모바일 탭 바 (하단 네비게이션)
+══════════════════════════════════════════ */
+#mobile-tab-bar {
+  display: none;
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+  background: #1e1e2e; border-top: 1px solid #313244;
+  padding: 4px 0 max(4px, env(safe-area-inset-bottom));
+}
+#mobile-tab-bar button {
+  flex: 1; background: none; border: none;
+  color: #9ca3af; font-size: 0.65rem;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 2px; cursor: pointer; padding: 6px 2px;
+  transition: color 0.15s;
+}
+#mobile-tab-bar button .icon { font-size: 1.2rem; }
+#mobile-tab-bar button.active { color: #6c63ff; }
+
+/* ══════════════════════════════════════════
+   워크벤치 레이아웃
+══════════════════════════════════════════ */
+#workbench {
+  display: flex;
+  height: calc(100vh - 56px);
+  gap: 0;
+  position: relative;
+}
+
+/* ══════════════════════════════════════════
+   사이드바: 파일 탐색기
+══════════════════════════════════════════ */
 #sidebar {
   width: 220px; min-width: 180px; max-width: 320px;
   background: #1e1e2e; color: #cdd6f4;
   display: flex; flex-direction: column;
   border-right: 1px solid #313244;
   position: relative;
+  transition: transform 0.25s ease, width 0.25s ease;
+  z-index: 100;
 }
-#sidebar-header { padding: 10px 12px; background: #181825; font-size: .8rem; font-weight: 700; color: #89b4fa; border-bottom: 1px solid #313244; display: flex; align-items: center; gap: 6px; }
+#sidebar-header {
+  padding: 10px 12px; background: #181825;
+  font-size: .8rem; font-weight: 700; color: #89b4fa;
+  border-bottom: 1px solid #313244;
+  display: flex; align-items: center; gap: 6px;
+}
 #file-tree { flex: 1; overflow-y: auto; padding: 6px 0; font-size: .78rem; }
-.tree-item { padding: 3px 10px; cursor: pointer; display: flex; align-items: center; gap: 5px; border-radius: 4px; margin: 1px 4px; transition: background .12s; }
+.tree-item {
+  padding: 5px 10px; cursor: pointer;
+  display: flex; align-items: center; gap: 5px;
+  border-radius: 4px; margin: 1px 4px; transition: background .12s;
+  min-height: 30px; /* 모바일 터치 영역 */
+}
 .tree-item:hover { background: #313244; }
 .tree-item.active { background: #45475a; color: #cba6f7; }
 .tree-item.is-dir { color: #89b4fa; font-weight: 600; }
 .tree-item.is-file { color: #cdd6f4; }
-#sidebar-actions { padding: 8px; border-top: 1px solid #313244; display: flex; gap: 4px; flex-wrap: wrap; }
-#sidebar-actions button { flex: 1; font-size: .7rem; padding: 4px 6px; border: none; border-radius: 6px; cursor: pointer; }
+#sidebar-actions {
+  padding: 8px; border-top: 1px solid #313244;
+  display: flex; gap: 4px; flex-wrap: wrap;
+}
+#sidebar-actions button {
+  flex: 1; min-width: 40px;
+  font-size: .7rem; padding: 6px 4px;
+  border: none; border-radius: 6px; cursor: pointer;
+}
 
-/* ── 에디터 ── */
+/* ══════════════════════════════════════════
+   에디터 패널
+══════════════════════════════════════════ */
 #editor-pane {
   flex: 1; display: flex; flex-direction: column;
   background: #1e1e1e; min-width: 0;
 }
-#editor-tabs { background: #252526; border-bottom: 1px solid #3d3d3d; display: flex; align-items: center; padding: 0 8px; min-height: 36px; overflow-x: auto; gap: 2px; }
-.editor-tab { padding: 6px 12px; font-size: .78rem; color: #969696; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+#editor-tabs {
+  background: #252526; border-bottom: 1px solid #3d3d3d;
+  display: flex; align-items: center; padding: 0 8px;
+  min-height: 36px; overflow-x: auto; gap: 2px;
+  scrollbar-width: thin;
+}
+.editor-tab {
+  padding: 6px 12px; font-size: .78rem; color: #969696;
+  cursor: pointer; border-bottom: 2px solid transparent;
+  white-space: nowrap; display: flex; align-items: center; gap: 6px;
+}
 .editor-tab.active { color: #fff; border-bottom-color: #0078d4; }
 .editor-tab .tab-close { opacity: .5; font-size: .75rem; padding: 0 2px; }
 .editor-tab .tab-close:hover { opacity: 1; color: #f48771; }
-#file-path-bar { background: #2d2d2d; padding: 3px 10px; font-size: .75rem; color: #858585; display: flex; align-items: center; gap: 8px; }
+#file-path-bar {
+  background: #2d2d2d; padding: 3px 10px;
+  font-size: .75rem; color: #858585;
+  display: flex; align-items: center; gap: 8px;
+  flex-wrap: wrap;
+}
 #code-editor {
   flex: 1; resize: none; border: none; outline: none;
   background: #1e1e1e; color: #d4d4d4;
   font-family: 'Fira Code', 'Courier New', monospace;
-  font-size: .85rem; line-height: 1.6; padding: 12px 16px;
-  tab-size: 2;
+  font-size: .85rem; line-height: 1.6;
+  padding: 12px 16px; tab-size: 2;
+  -webkit-overflow-scrolling: touch;
 }
-#editor-footer { background: #007acc; color: #fff; padding: 2px 10px; font-size: .72rem; display: flex; gap: 12px; }
+#editor-footer {
+  background: #007acc; color: #fff;
+  padding: 2px 10px; font-size: .72rem;
+  display: flex; gap: 12px; align-items: center;
+  flex-wrap: wrap;
+}
 
-/* ── 오른쪽 패널: 미리보기 + AI 채팅 ── */
-#right-panel { width: 520px; min-width: 380px; display: flex; flex-direction: column; background: #fff; border-left: 1px solid #e5e7eb; }
+/* 자동저장 표시기 */
+#autosave-indicator {
+  margin-left: auto; display: flex; align-items: center;
+  gap: 4px; font-size: .7rem;
+}
+.autosave-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: #4ade80;
+}
+.autosave-dot.saving { background: #fbbf24; animation: blink 0.6s infinite; }
+.autosave-dot.error { background: #f87171; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
-/* 탭 */
-#right-tabs { background: #f3f4f6; border-bottom: 1px solid #e5e7eb; display: flex; min-height: 38px; }
-.right-tab { flex: 1; border: none; background: none; padding: 8px 4px; font-size: .8rem; font-weight: 600; cursor: pointer; color: #6b7280; border-bottom: 2px solid transparent; transition: all .15s; }
+/* ══════════════════════════════════════════
+   오른쪽 패널
+══════════════════════════════════════════ */
+#right-panel {
+  width: 500px; min-width: 360px;
+  display: flex; flex-direction: column;
+  background: #fff; border-left: 1px solid #e5e7eb;
+}
+#right-tabs {
+  background: #f3f4f6; border-bottom: 1px solid #e5e7eb;
+  display: flex; min-height: 38px; overflow-x: auto;
+}
+.right-tab {
+  flex: 1; border: none; background: none;
+  padding: 8px 4px; font-size: .75rem; font-weight: 600;
+  cursor: pointer; color: #6b7280;
+  border-bottom: 2px solid transparent; transition: all .15s;
+  white-space: nowrap; min-width: 60px;
+}
 .right-tab.active { color: #6c63ff; border-bottom-color: #6c63ff; background: #fff; }
 
 /* 미리보기 */
 #preview-pane { flex: 1; display: none; flex-direction: column; }
-#preview-toolbar { padding: 6px 10px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; display: flex; gap: 6px; align-items: center; }
-#preview-url { flex: 1; font-size: .78rem; color: #6b7280; background: #fff; border: 1px solid #d1d5db; border-radius: 6px; padding: 3px 8px; }
+#preview-toolbar {
+  padding: 6px 10px; background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex; gap: 6px; align-items: center;
+}
+#preview-url {
+  flex: 1; font-size: .78rem; color: #6b7280;
+  background: #fff; border: 1px solid #d1d5db;
+  border-radius: 6px; padding: 3px 8px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 #preview-iframe { flex: 1; border: none; width: 100%; }
 
 /* 도구 로그 */
 #tool-pane { flex: 1; display: none; flex-direction: column; overflow: hidden; }
-#tool-log-area { flex: 1; overflow-y: auto; padding: 10px; font-family: 'Courier New', monospace; font-size: .78rem; background: #0d1117; color: #e6edf3; }
+#tool-log-area {
+  flex: 1; overflow-y: auto; padding: 10px;
+  font-family: 'Courier New', monospace; font-size: .78rem;
+  background: #0d1117; color: #e6edf3;
+}
 .tool-log-entry { margin: 3px 0; padding: 4px 8px; border-radius: 4px; border-left: 3px solid; }
-.tool-log-entry.info  { border-color: #58a6ff; background: rgba(88,166,255,.08); }
+.tool-log-entry.info { border-color: #58a6ff; background: rgba(88,166,255,.08); }
 .tool-log-entry.success { border-color: #3fb950; background: rgba(63,185,80,.08); color: #3fb950; }
 .tool-log-entry.error { border-color: #f85149; background: rgba(248,81,73,.08); color: #f85149; }
-.tool-log-entry.tool  { border-color: #d2a8ff; background: rgba(210,168,255,.08); color: #d2a8ff; }
+.tool-log-entry.tool { border-color: #d2a8ff; background: rgba(210,168,255,.08); color: #d2a8ff; }
 .tool-log-entry.terminal { border-color: #ffa657; background: rgba(255,166,87,.08); color: #ffa657; white-space: pre; }
 
 /* AI 채팅 */
 #chat-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-#chat-messages { flex: 1; overflow-y: auto; padding: 12px; }
+#chat-messages { flex: 1; overflow-y: auto; padding: 12px; -webkit-overflow-scrolling: touch; }
 .msg-user { text-align: right; margin: 6px 0; }
-.msg-user .bubble { display: inline-block; background: #6c63ff; color: #fff; padding: 8px 12px; border-radius: 14px 14px 2px 14px; max-width: 88%; font-size: .88rem; text-align: left; word-break: break-word; }
+.msg-user .bubble {
+  display: inline-block; background: #6c63ff; color: #fff;
+  padding: 8px 12px; border-radius: 14px 14px 2px 14px;
+  max-width: 88%; font-size: .88rem; text-align: left; word-break: break-word;
+}
 .msg-ai { text-align: left; margin: 6px 0; }
-.msg-ai .bubble { display: inline-block; background: #f3f4f6; color: #111; padding: 8px 12px; border-radius: 14px 14px 14px 2px; max-width: 92%; font-size: .88rem; word-break: break-word; }
-.msg-ai .bubble pre { background: #1e1e1e; color: #d4d4d4; padding: 8px; border-radius: 6px; font-size: .78rem; overflow-x: auto; margin: 6px 0; }
+.msg-ai .bubble {
+  display: inline-block; background: #f3f4f6; color: #111;
+  padding: 8px 12px; border-radius: 14px 14px 14px 2px;
+  max-width: 92%; font-size: .88rem; word-break: break-word;
+}
+.msg-ai .bubble pre {
+  background: #1e1e1e; color: #d4d4d4; padding: 8px; border-radius: 6px;
+  font-size: .78rem; overflow-x: auto; margin: 6px 0; white-space: pre-wrap;
+}
 .msg-ai .bubble code { font-family: 'Courier New', monospace; }
-.tool-call-badge { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 3px 8px; font-size: .75rem; margin: 3px 0; display: inline-block; }
-#chat-input-area { border-top: 1px solid #e5e7eb; padding: 8px; background: #fff; }
-#chat-input { width: 100%; border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 8px 12px; font-size: .88rem; resize: none; outline: none; font-family: inherit; transition: border-color .15s; }
+.tool-call-badge {
+  background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px;
+  padding: 3px 8px; font-size: .75rem; margin: 3px 0; display: inline-block;
+  word-break: break-all;
+}
+#chat-input-area {
+  border-top: 1px solid #e5e7eb; padding: 8px; background: #fff;
+}
+#chat-input {
+  width: 100%; border: 1.5px solid #e5e7eb;
+  border-radius: 10px; padding: 8px 12px; font-size: 16px; /* iOS 자동확대 방지 */
+  resize: none; outline: none; font-family: inherit;
+  transition: border-color .15s;
+}
 #chat-input:focus { border-color: #6c63ff; }
 #chat-send-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
-#send-btn { background: linear-gradient(135deg,#6c63ff,#48cfad); color: #fff; border: none; border-radius: 8px; padding: 6px 18px; font-size: .85rem; font-weight: 600; cursor: pointer; }
+#send-btn {
+  background: linear-gradient(135deg, #6c63ff, #48cfad);
+  color: #fff; border: none; border-radius: 8px;
+  padding: 8px 18px; font-size: .85rem; font-weight: 600; cursor: pointer;
+  min-width: 70px;
+}
 #send-btn:disabled { opacity: .5; cursor: not-allowed; }
 .credit-info { font-size: .75rem; color: #9ca3af; }
 
 /* 배포 패널 */
-#deploy-pane { flex: 1; display: none; flex-direction: column; padding: 16px; overflow-y: auto; }
-#deploy-log { background: #0d1117; color: #e6edf3; border-radius: 10px; padding: 12px; font-family: 'Courier New', monospace; font-size: .8rem; min-height: 200px; overflow-y: auto; white-space: pre-wrap; margin-bottom: 12px; }
-.deploy-url-box { background: #ecfdf5; border: 2px solid #34d399; border-radius: 10px; padding: 12px 16px; text-align: center; }
+#deploy-pane {
+  flex: 1; display: none; flex-direction: column;
+  padding: 16px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+}
+#deploy-log {
+  background: #0d1117; color: #e6edf3; border-radius: 10px;
+  padding: 12px; font-family: 'Courier New', monospace; font-size: .8rem;
+  min-height: 150px; overflow-y: auto; white-space: pre-wrap; margin-bottom: 12px;
+}
+.deploy-url-box {
+  background: #ecfdf5; border: 2px solid #34d399;
+  border-radius: 10px; padding: 12px 16px; text-align: center;
+}
 
 /* 터미널 */
 #terminal-pane { flex: 1; display: none; flex-direction: column; }
-#terminal-output { flex: 1; background: #0d1117; color: #e6edf3; font-family: 'Courier New', monospace; font-size: .82rem; padding: 10px; overflow-y: auto; white-space: pre-wrap; }
-#terminal-input-row { display: flex; border-top: 1px solid #30363d; background: #161b22; padding: 6px 10px; gap: 6px; }
-#terminal-cmd { flex: 1; background: transparent; border: none; outline: none; color: #e6edf3; font-family: 'Courier New', monospace; font-size: .82rem; }
-#terminal-run { background: #238636; color: #fff; border: none; border-radius: 6px; padding: 4px 12px; font-size: .78rem; cursor: pointer; }
+#terminal-output {
+  flex: 1; background: #0d1117; color: #e6edf3;
+  font-family: 'Courier New', monospace; font-size: .82rem;
+  padding: 10px; overflow-y: auto; white-space: pre-wrap;
+  -webkit-overflow-scrolling: touch;
+}
+#terminal-input-row {
+  display: flex; border-top: 1px solid #30363d;
+  background: #161b22; padding: 6px 10px; gap: 6px;
+}
+#terminal-cmd {
+  flex: 1; background: transparent; border: none; outline: none;
+  color: #e6edf3; font-family: 'Courier New', monospace; font-size: .82rem;
+  font-size: 16px; /* iOS 자동확대 방지 */
+}
+#terminal-run { background: #238636; color: #fff; border: none; border-radius: 6px; padding: 6px 12px; font-size: .78rem; cursor: pointer; }
 
 /* 리사이저 */
-.resizer { width: 5px; background: #313244; cursor: col-resize; }
+.resizer { width: 5px; background: #313244; cursor: col-resize; flex-shrink: 0; }
 .resizer:hover { background: #6c63ff; }
+
+/* 백그라운드 진행 표시기 */
+#bg-progress {
+  position: fixed; top: 56px; left: 0; right: 0; z-index: 500;
+  display: none; background: linear-gradient(135deg, #1e1e2e, #181825);
+  padding: 8px 16px; border-bottom: 1px solid #313244;
+  align-items: center; gap: 10px;
+}
+#bg-progress .spinner {
+  width: 16px; height: 16px; border: 2px solid #6c63ff;
+  border-top-color: transparent; border-radius: 50%;
+  animation: spin 0.7s linear infinite; flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#bg-progress-text { color: #cdd6f4; font-size: .8rem; flex: 1; }
+#bg-progress-bar-wrap {
+  width: 120px; height: 4px; background: #313244; border-radius: 2px; overflow: hidden;
+}
+#bg-progress-bar-inner {
+  height: 100%; background: linear-gradient(90deg, #6c63ff, #48cfad);
+  transition: width 0.3s ease; width: 0%;
+}
+#bg-cancel-btn {
+  background: none; border: 1px solid #f38ba8; color: #f38ba8;
+  border-radius: 6px; padding: 2px 8px; font-size: .72rem; cursor: pointer;
+}
+
+/* ══════════════════════════════════════════
+   모바일 반응형 (768px 이하)
+══════════════════════════════════════════ */
+@media (max-width: 768px) {
+  body.webbuilder-page { overflow: hidden; }
+  
+  #workbench {
+    flex-direction: column;
+    height: calc(100vh - 56px - 52px); /* 하단 탭바 52px */
+  }
+  
+  /* 모바일 탭바 보이기 */
+  #mobile-tab-bar { display: flex; }
+  
+  /* 사이드바: 기본 숨김, 슬라이드 오버레이 */
+  #sidebar {
+    position: fixed; top: 56px; left: 0; bottom: 52px;
+    width: 280px !important; min-width: unset !important;
+    transform: translateX(-100%);
+    box-shadow: 4px 0 20px rgba(0,0,0,0.5);
+    z-index: 300;
+  }
+  #sidebar.open { transform: translateX(0); }
+  
+  /* 사이드바 오버레이 */
+  #sidebar-overlay {
+    display: none;
+    position: fixed; inset: 0; z-index: 299;
+    background: rgba(0,0,0,0.5);
+  }
+  #sidebar-overlay.visible { display: block; }
+  
+  /* 에디터: 전체 너비 */
+  #editor-pane {
+    flex: 1; width: 100%;
+    display: none; /* 기본 숨김 - 탭으로 전환 */
+  }
+  #editor-pane.mobile-active { display: flex; }
+  
+  /* 오른쪽 패널: 전체 너비 */
+  #right-panel {
+    width: 100% !important; min-width: unset !important;
+    border-left: none !important;
+    display: none;
+  }
+  #right-panel.mobile-active { display: flex; }
+  
+  /* 리사이저 숨김 */
+  .resizer { display: none; }
+  
+  /* 상단 탭 (오른쪽 패널) 스크롤 가능하게 */
+  #right-tabs { overflow-x: auto; }
+  .right-tab { min-width: 55px; font-size: .7rem; padding: 8px 3px; }
+  
+  /* 코드 에디터 폰트 */
+  #code-editor { font-size: 13px; padding: 8px 10px; }
+  
+  /* 채팅 입력 */
+  #chat-input { font-size: 16px; }
+  
+  /* 에디터 풋터 간략화 */
+  #editor-footer { font-size: .65rem; padding: 2px 8px; gap: 8px; }
+}
+
+/* 초소형 (480px 이하) */
+@media (max-width: 480px) {
+  #sidebar { width: 85vw !important; }
+  .right-tab { font-size: .65rem; min-width: 48px; }
+  #code-editor { font-size: 12px; }
+}
 </style>
+{% endblock %}
+
+{% block main_area %}
+<!-- 백그라운드 진행 표시기 -->
+<div id="bg-progress">
+  <div class="spinner"></div>
+  <div id="bg-progress-text">AI 작업 중...</div>
+  <div id="bg-progress-bar-wrap">
+    <div id="bg-progress-bar-inner" style="width:0%"></div>
+  </div>
+  <button id="bg-cancel-btn" onclick="cancelBgTask()">중단</button>
+</div>
+
+<!-- 사이드바 오버레이 (모바일) -->
+<div id="sidebar-overlay" onclick="closeMobileSidebar()"></div>
 
 <div id="workbench">
   <!-- ══ 사이드바 ══ -->
   <div id="sidebar">
     <div id="sidebar-header">
-      📁 {{ project.name }}
+      <span id="sidebar-close-btn" onclick="closeMobileSidebar()" style="cursor:pointer;display:none;font-size:1rem;margin-right:4px;">✕</span>
+      📁 <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">{{ project.name }}</span>
       {% if not credit.is_unlimited %}
-        <span id="credit-badge" style="margin-left:auto;background:#6c63ff;color:#fff;border-radius:8px;padding:1px 7px;font-size:.7rem;">💳 {{ credit.credits }}</span>
+        <span id="credit-badge" style="margin-left:auto;background:#6c63ff;color:#fff;border-radius:8px;padding:1px 7px;font-size:.7rem;white-space:nowrap;">💳 {{ credit.credits }}</span>
       {% else %}
         <span style="margin-left:auto;background:#10b981;color:#fff;border-radius:8px;padding:1px 7px;font-size:.7rem;">♾️</span>
       {% endif %}
@@ -125,20 +397,27 @@ body { overflow: hidden; }
   <div class="resizer" id="resizer-left"></div>
 
   <!-- ══ 에디터 ══ -->
-  <div id="editor-pane">
+  <div id="editor-pane" class="mobile-active">
     <div id="editor-tabs">
-      <span style="color:#5a5a7a;font-size:.75rem;padding:0 8px;">파일을 선택하거나 AI에게 만들어달라고 요청하세요</span>
+      <span style="color:#5a5a7a;font-size:.75rem;padding:0 8px;">AI에게 요청하거나 파일을 선택하세요</span>
     </div>
     <div id="file-path-bar">
-      <span id="current-path" style="color:#6c6c8a;">편집 중인 파일 없음</span>
-      <button onclick="saveCurrentFile()" style="margin-left:auto;background:#0078d4;color:#fff;border:none;border-radius:4px;padding:2px 10px;font-size:.72rem;cursor:pointer;">💾 저장 (Ctrl+S)</button>
+      <span id="current-path" style="color:#6c6c8a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">파일 없음</span>
+      <span id="autosave-indicator">
+        <span class="autosave-dot" id="autosave-dot"></span>
+        <span id="autosave-text" style="font-size:.68rem;color:rgba(255,255,255,0.6);">저장됨</span>
+      </span>
+      <button onclick="saveCurrentFile()" style="background:#0078d4;color:#fff;border:none;border-radius:4px;padding:2px 8px;font-size:.72rem;cursor:pointer;white-space:nowrap;">💾 저장</button>
     </div>
     <textarea id="code-editor" spellcheck="false" placeholder="// 파일을 선택하거나 AI에게 코드 작성을 요청하세요"></textarea>
     <div id="editor-footer">
       <span id="editor-lang">텍스트</span>
       <span id="editor-lines">0줄</span>
       <span id="editor-size">0B</span>
-      <span style="margin-left:auto;">AI 웹개발 베타 | Syblog</span>
+      <div id="autosave-indicator" style="margin-left:auto;display:flex;align-items:center;gap:4px;">
+        <span class="autosave-dot" id="autosave-dot2"></span>
+        <span id="autosave-text2" style="font-size:.68rem;">자동저장 대기</span>
+      </div>
     </div>
   </div>
 
@@ -147,9 +426,9 @@ body { overflow: hidden; }
   <!-- ══ 오른쪽 패널 ══ -->
   <div id="right-panel">
     <div id="right-tabs">
-      <button class="right-tab active" onclick="switchTab('chat')">💬 AI 채팅</button>
+      <button class="right-tab active" onclick="switchTab('chat')">💬 AI</button>
       <button class="right-tab" onclick="switchTab('preview')">🖥 미리보기</button>
-      <button class="right-tab" onclick="switchTab('tool')">🔧 도구 로그</button>
+      <button class="right-tab" onclick="switchTab('tool')">🔧 로그</button>
       <button class="right-tab" onclick="switchTab('terminal')">⚡ 터미널</button>
       <button class="right-tab" onclick="switchTab('deploy')">🚀 배포</button>
     </div>
@@ -157,10 +436,9 @@ body { overflow: hidden; }
     <!-- AI 채팅 탭 -->
     <div id="chat-pane" class="tab-content" style="display:flex;">
       <div id="chat-messages">
-        <!-- JS에서 loadChatHistory()로 DB 이력 동적 로딩 -->
-        <div style="text-align:center;padding:40px 20px;color:#9ca3af;">
-          <div style="font-size:2rem;">⏳</div>
-          <p>대화 이력 불러오는 중...</p>
+        <div style="text-align:center;padding:30px 20px;color:#9ca3af;">
+          <div style="font-size:2.5rem;">🤖</div>
+          <p style="margin-top:10px;font-size:.9rem;">대화 이력 불러오는 중...</p>
         </div>
       </div>
       <div id="chat-input-area">
@@ -170,9 +448,7 @@ body { overflow: hidden; }
             <span class="credit-info" id="credit-info">
               {% if credit.is_unlimited %}♾️ 무제한{% else %}💳 {{ credit.credits }}크레딧{% endif %}
             </span>
-            <button onclick="clearHistory()"
-                    style="background:none;border:none;color:#9ca3af;font-size:.75rem;cursor:pointer;padding:2px 4px;"
-                    title="대화 초기화">🗑️</button>
+            <button onclick="clearHistory()" style="background:none;border:none;color:#9ca3af;font-size:.75rem;cursor:pointer;padding:2px 4px;" title="대화 초기화">🗑️</button>
           </span>
           <button id="send-btn" onclick="sendChat()">▶ 전송</button>
         </div>
@@ -182,9 +458,9 @@ body { overflow: hidden; }
     <!-- 미리보기 탭 -->
     <div id="preview-pane" class="tab-content">
       <div id="preview-toolbar">
-        <button onclick="refreshPreview()" style="font-size:.8rem;border:1px solid #d1d5db;border-radius:6px;padding:3px 8px;cursor:pointer;background:#fff;">🔄</button>
+        <button onclick="refreshPreview()" style="font-size:.8rem;border:1px solid #d1d5db;border-radius:6px;padding:4px 8px;cursor:pointer;background:#fff;">🔄</button>
         <span id="preview-url">index.html</span>
-        <button onclick="openExternal()" style="font-size:.8rem;border:1px solid #d1d5db;border-radius:6px;padding:3px 8px;cursor:pointer;background:#fff;">↗ 새탭</button>
+        <button onclick="openExternal()" style="font-size:.8rem;border:1px solid #d1d5db;border-radius:6px;padding:4px 8px;cursor:pointer;background:#fff;">↗ 새탭</button>
       </div>
       <iframe id="preview-iframe" src="/blog/ai-webdev/{{ project.pk }}/preview/"></iframe>
     </div>
@@ -193,17 +469,16 @@ body { overflow: hidden; }
     <div id="tool-pane" class="tab-content">
       <div id="tool-log-area">
         <div style="color:#58a6ff;font-weight:600;margin-bottom:8px;">🔧 도구 실행 로그</div>
-        <div style="color:#6e7681;">AI가 도구를 호출하면 여기에 실시간으로 표시됩니다.</div>
+        <div style="color:#6e7681;">AI가 도구를 호출하면 실시간으로 표시됩니다.</div>
       </div>
     </div>
 
     <!-- 터미널 탭 -->
     <div id="terminal-pane" class="tab-content">
-      <div id="terminal-output">$ <span style="color:#58a6ff;">{{ project.name }}</span> 터미널 — 명령어를 입력하세요<br></div>
+      <div id="terminal-output">$ <span style="color:#58a6ff;">{{ project.name }}</span> 터미널<br></div>
       <div id="terminal-input-row">
         <span style="color:#3fb950;font-family:monospace;font-size:.82rem;">$ </span>
-        <input id="terminal-cmd" placeholder="명령어 입력 (예: ls, node -v, pip install ...)" 
-               onkeydown="if(event.key==='Enter') runTerminal()">
+        <input id="terminal-cmd" placeholder="명령어 입력 (ls, node -v, pip install ...)" onkeydown="if(event.key==='Enter') runTerminal()">
         <button id="terminal-run" onclick="runTerminal()">실행</button>
       </div>
     </div>
@@ -211,15 +486,15 @@ body { overflow: hidden; }
     <!-- 배포 탭 -->
     <div id="deploy-pane" class="tab-content">
       <h5 style="font-weight:700;margin-bottom:12px;">🚀 원클릭 배포</h5>
-      
       {% if project.deploy_url %}
       <div class="deploy-url-box mb-3">
         <div style="font-size:1.5rem;">🌐</div>
         <p style="font-weight:700;color:#059669;margin:4px 0;">배포된 사이트</p>
         <a href="{{ project.deploy_url }}" target="_blank" style="color:#2563eb;font-size:.9rem;word-break:break-all;">{{ project.deploy_url }}</a>
       </div>
+      {% else %}
+      <div id="deploy-url-box" style="display:none;" class="deploy-url-box mb-3"></div>
       {% endif %}
-
       <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:14px;margin-bottom:12px;">
         <h6 style="font-weight:600;margin-bottom:8px;">📋 배포 방법</h6>
         <ul style="font-size:.82rem;color:#6b7280;margin:0;padding-left:16px;line-height:1.8;">
@@ -228,18 +503,34 @@ body { overflow: hidden; }
           <li>무료 도메인 (.netlify.app / .vercel.app)</li>
         </ul>
       </div>
-
-      <button onclick="startDeploy()" 
-              style="width:100%;padding:14px;font-size:1rem;font-weight:700;
-                     background:linear-gradient(135deg,#6c63ff,#48cfad);
-                     color:#fff;border:none;border-radius:12px;cursor:pointer;margin-bottom:12px;">
+      <button onclick="startDeploy()" style="width:100%;padding:14px;font-size:1rem;font-weight:700;background:linear-gradient(135deg,#6c63ff,#48cfad);color:#fff;border:none;border-radius:12px;cursor:pointer;margin-bottom:12px;">
         🚀 지금 배포하기
       </button>
-
       <div id="deploy-log">배포 로그가 여기에 표시됩니다...</div>
     </div>
   </div>
 </div>
+
+<!-- ══ 모바일 하단 탭 바 ══ -->
+<div id="mobile-tab-bar">
+  <button id="mtab-files" onclick="mobileTabFiles()" class="active">
+    <span class="icon">📁</span>파일
+  </button>
+  <button id="mtab-editor" onclick="mobileTabEditor()">
+    <span class="icon">📝</span>에디터
+  </button>
+  <button id="mtab-chat" onclick="mobileTabChat()">
+    <span class="icon">💬</span>AI
+  </button>
+  <button id="mtab-preview" onclick="mobileTabPreview()">
+    <span class="icon">🖥</span>미리보기
+  </button>
+  <button id="mtab-more" onclick="mobileTabMore()">
+    <span class="icon">⋯</span>더보기
+  </button>
+</div>
+
+{% include 'blog/ai_webdev_project_js.html' %}
 
 <script>
 const PROJECT_ID = {{ project.pk }};
@@ -247,10 +538,206 @@ const CSRF = '{{ csrf_token }}';
 let activeFile = null;
 let toolLogCount = 0;
 let isSending = false;
+let bgTaskActive = false;
+let bgCancelFlag = false;
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
+// 모바일 탭 전환
+// ════════════════════════════════════════
+const isMobile = () => window.innerWidth <= 768;
+
+function setMobileTab(tabName) {
+  document.querySelectorAll('#mobile-tab-bar button').forEach(b => b.classList.remove('active'));
+}
+
+function mobileTabFiles() {
+  setMobileTab('files');
+  document.getElementById('mtab-files').classList.add('active');
+  // 사이드바 슬라이드
+  if (isMobile()) {
+    openMobileSidebar();
+  }
+}
+
+function mobileTabEditor() {
+  setMobileTab('editor');
+  document.getElementById('mtab-editor').classList.add('active');
+  closeMobileSidebar();
+  if (isMobile()) {
+    document.getElementById('editor-pane').classList.add('mobile-active');
+    document.getElementById('right-panel').classList.remove('mobile-active');
+  }
+}
+
+function mobileTabChat() {
+  setMobileTab('chat');
+  document.getElementById('mtab-chat').classList.add('active');
+  closeMobileSidebar();
+  if (isMobile()) {
+    document.getElementById('editor-pane').classList.remove('mobile-active');
+    document.getElementById('right-panel').classList.add('mobile-active');
+    switchTab('chat');
+  }
+}
+
+function mobileTabPreview() {
+  setMobileTab('preview');
+  document.getElementById('mtab-preview').classList.add('active');
+  closeMobileSidebar();
+  if (isMobile()) {
+    document.getElementById('editor-pane').classList.remove('mobile-active');
+    document.getElementById('right-panel').classList.add('mobile-active');
+    switchTab('preview');
+  }
+}
+
+function mobileTabMore() {
+  setMobileTab('more');
+  document.getElementById('mtab-more').classList.add('active');
+  closeMobileSidebar();
+  if (isMobile()) {
+    document.getElementById('editor-pane').classList.remove('mobile-active');
+    document.getElementById('right-panel').classList.add('mobile-active');
+    switchTab('tool');
+  }
+}
+
+function openMobileSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  const closeBtn = document.getElementById('sidebar-close-btn');
+  sidebar.classList.add('open');
+  overlay.classList.add('visible');
+  if (closeBtn) closeBtn.style.display = 'inline';
+}
+
+function closeMobileSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  const closeBtn = document.getElementById('sidebar-close-btn');
+  sidebar.classList.remove('open');
+  overlay.classList.remove('visible');
+  if (closeBtn) closeBtn.style.display = 'none';
+}
+
+// 윈도우 크기 변경 시 레이아웃 재조정
+window.addEventListener('resize', () => {
+  if (!isMobile()) {
+    closeMobileSidebar();
+    document.getElementById('sidebar').style.transform = '';
+    document.getElementById('editor-pane').classList.add('mobile-active');
+    document.getElementById('right-panel').classList.add('mobile-active');
+  }
+});
+
+// ════════════════════════════════════════
+// 백그라운드 진행 표시기
+// ════════════════════════════════════════
+function showBgProgress(text, pct) {
+  const el = document.getElementById('bg-progress');
+  if (el) {
+    el.style.display = 'flex';
+    document.getElementById('bg-progress-text').textContent = text || 'AI 작업 중...';
+    if (pct !== undefined) {
+      document.getElementById('bg-progress-bar-inner').style.width = pct + '%';
+    }
+  }
+  bgTaskActive = true;
+}
+
+function updateBgProgress(text, pct) {
+  if (!bgTaskActive) return;
+  const textEl = document.getElementById('bg-progress-text');
+  if (textEl) textEl.textContent = text;
+  if (pct !== undefined) {
+    document.getElementById('bg-progress-bar-inner').style.width = Math.min(pct, 98) + '%';
+  }
+}
+
+function hideBgProgress() {
+  const el = document.getElementById('bg-progress');
+  if (el) {
+    document.getElementById('bg-progress-bar-inner').style.width = '100%';
+    setTimeout(() => {
+      el.style.display = 'none';
+      document.getElementById('bg-progress-bar-inner').style.width = '0%';
+    }, 500);
+  }
+  bgTaskActive = false;
+  bgCancelFlag = false;
+}
+
+function cancelBgTask() {
+  bgCancelFlag = true;
+  hideBgProgress();
+  showToast('⚠️ 작업을 중단했습니다.', 'warn');
+}
+
+// ════════════════════════════════════════
+// 자동저장 로직
+// ════════════════════════════════════════
+let autosaveTimer = null;
+let lastSavedContent = '';
+let autosaveEnabled = true;
+
+function setAutosaveStatus(status) {
+  // status: 'saved' | 'saving' | 'error' | 'modified'
+  const dot = document.getElementById('autosave-dot2');
+  const text = document.getElementById('autosave-text2');
+  if (!dot || !text) return;
+  dot.className = 'autosave-dot';
+  if (status === 'saved') {
+    dot.style.background = '#4ade80';
+    text.textContent = '저장됨';
+  } else if (status === 'saving') {
+    dot.className = 'autosave-dot saving';
+    dot.style.background = '#fbbf24';
+    text.textContent = '저장중...';
+  } else if (status === 'error') {
+    dot.className = 'autosave-dot error';
+    dot.style.background = '#f87171';
+    text.textContent = '저장 오류';
+  } else if (status === 'modified') {
+    dot.style.background = '#fbbf24';
+    text.textContent = '수정됨*';
+  }
+}
+
+async function doAutosave() {
+  if (!activeFile || !autosaveEnabled) return;
+  const content = document.getElementById('code-editor').value;
+  if (content === lastSavedContent) return; // 변경 없으면 스킵
+  
+  setAutosaveStatus('saving');
+  try {
+    const r = await fetch(`/blog/ai-webdev/${PROJECT_ID}/file/write/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({ path: activeFile, content })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      lastSavedContent = content;
+      setAutosaveStatus('saved');
+    } else {
+      setAutosaveStatus('error');
+    }
+  } catch (e) {
+    setAutosaveStatus('error');
+  }
+}
+
+// 에디터 변경 감지 → 3초 후 자동저장
+document.getElementById('code-editor').addEventListener('input', () => {
+  setAutosaveStatus('modified');
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(doAutosave, 3000);
+  updateEditorStats();
+});
+
+// ════════════════════════════════════════
 // 탭 전환
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
 function switchTab(tab) {
   document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.right-tab').forEach(el => el.classList.remove('active'));
@@ -260,18 +747,11 @@ function switchTab(tab) {
   if (btn) btn.classList.add('active');
   if (tab === 'preview') refreshPreview();
 }
-function switchTabDirect(tab) {
-  document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
-  document.querySelectorAll('.right-tab').forEach(el => el.classList.remove('active'));
-  const pane = document.getElementById(tab + '-pane');
-  if (pane) pane.style.display = 'flex';
-  const btn = document.querySelector(`.right-tab[onclick*="${tab}"]`);
-  if (btn) btn.classList.add('active');
-}
+function switchTabDirect(tab) { switchTab(tab); }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
 // 파일 트리
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
 async function refreshFiles() {
   try {
     const r = await fetch(`/blog/ai-webdev/${PROJECT_ID}/files/`);
@@ -293,15 +773,11 @@ function renderTree(files, container, depth) {
     const icon = f.type === 'dir' ? '📁' : getFileIcon(f.name);
     div.innerHTML = `${icon} ${escHtml(f.name)}`;
     if (f.type === 'file') {
-      div.onclick = () => loadFile(f.path, f.name);
+      div.onclick = () => { loadFile(f.path, f.name); if(isMobile()) closeMobileSidebar(); };
     } else if (f.children && f.children.length) {
       let open = false;
       const sub = document.createElement('div');
-      div.onclick = () => {
-        open = !open;
-        sub.style.display = open ? 'block' : 'none';
-        div.querySelector('span') && (div.querySelector('span').textContent = open ? '▼' : '▶');
-      };
+      div.onclick = () => { open = !open; sub.style.display = open ? 'block' : 'none'; };
       renderTree(f.children, sub, depth + 1);
       sub.style.display = 'none';
       container.appendChild(div);
@@ -313,7 +789,7 @@ function renderTree(files, container, depth) {
 }
 
 function getFileIcon(name) {
-  const ext = name.split('.').pop().toLowerCase();
+  const ext = (name.split('.').pop() || '').toLowerCase();
   const map = { html:'🌐', css:'🎨', js:'📜', jsx:'⚛️', ts:'📘', tsx:'⚛️',
                 py:'🐍', json:'📋', md:'📝', txt:'📄', png:'🖼', jpg:'🖼',
                 gif:'🖼', svg:'🖼', sh:'⚡', yml:'⚙️', yaml:'⚙️' };
@@ -322,17 +798,18 @@ function getFileIcon(name) {
 
 async function loadFile(path, name) {
   document.querySelectorAll('.tree-item').forEach(i => i.classList.remove('active'));
-  event && event.target && event.target.classList.add('active');
   activeFile = path;
   document.getElementById('current-path').textContent = path;
-  // 탭 추가
-  let tab = document.querySelector(`.editor-tab[data-path="${path}"]`);
+  let tab = document.querySelector(`.editor-tab[data-path="${CSS.escape(path)}"]`);
   if (!tab) {
     tab = document.createElement('div');
     tab.className = 'editor-tab';
     tab.dataset.path = path;
-    tab.innerHTML = `${escHtml(name)} <span class="tab-close" onclick="closeTab(this,'${escHtml(path)}')">×</span>`;
+    tab.innerHTML = `${getFileIcon(name)} ${escHtml(name)} <span class="tab-close" onclick="closeTab(this,'${escHtml(path)}')">×</span>`;
     tab.onclick = (e) => { if (!e.target.classList.contains('tab-close')) activateTab(path); };
+    // 기본 hint 제거
+    const hint = document.getElementById('editor-tabs').querySelector('span:not(.editor-tab)');
+    if (hint) hint.remove();
     document.getElementById('editor-tabs').appendChild(tab);
   }
   activateTab(path);
@@ -340,8 +817,11 @@ async function loadFile(path, name) {
     const r = await fetch(`/blog/ai-webdev/${PROJECT_ID}/file/read/?path=${encodeURIComponent(path)}`);
     const d = await r.json();
     document.getElementById('code-editor').value = d.content || '';
-    document.getElementById('code-editor').dataset.path = path;
+    lastSavedContent = d.content || '';
+    setAutosaveStatus('saved');
     updateEditorStats();
+    // 모바일: 에디터로 전환
+    if (isMobile()) { mobileTabEditor(); }
   } catch(e) {
     document.getElementById('code-editor').value = '';
   }
@@ -349,7 +829,7 @@ async function loadFile(path, name) {
 
 function activateTab(path) {
   document.querySelectorAll('.editor-tab').forEach(t => t.classList.remove('active'));
-  const tab = document.querySelector(`.editor-tab[data-path="${path}"]`);
+  const tab = document.querySelector(`.editor-tab[data-path="${CSS.escape(path)}"]`);
   if (tab) tab.classList.add('active');
   activeFile = path;
   document.getElementById('current-path').textContent = path;
@@ -363,65 +843,78 @@ function closeTab(closeBtn, path) {
     if (remaining.length > 0) {
       const lastPath = remaining[remaining.length-1].dataset.path;
       loadFile(lastPath, lastPath.split('/').pop());
-    } else {
-      activeFile = null;
-      document.getElementById('code-editor').value = '';
-      document.getElementById('current-path').textContent = '파일을 선택하세요';
-    }
+    } else { closeEditor(); }
   }
 }
 
 function closeEditor() {
   activeFile = null;
   document.getElementById('code-editor').value = '';
-  document.getElementById('editor-tabs').innerHTML = '';
-  document.getElementById('current-path').textContent = '파일을 선택하세요';
+  document.getElementById('editor-tabs').innerHTML = '<span style="color:#5a5a7a;font-size:.75rem;padding:0 8px;">파일을 선택하거나 AI에게 요청하세요</span>';
+  document.getElementById('current-path').textContent = '파일 없음';
+  setAutosaveStatus('saved');
 }
 
 function updateEditorStats() {
   const val = document.getElementById('code-editor').value;
   const lines = val.split('\n').length;
-  document.getElementById('editor-lines').textContent = lines + '줄';
-  document.getElementById('editor-size').textContent =
-    val.length > 1024 ? (val.length/1024).toFixed(1)+'KB' : val.length+'B';
+  const lang = activeFile ? (activeFile.split('.').pop() || '텍스트').toUpperCase() : '텍스트';
+  const langEl = document.getElementById('editor-lang');
+  if (langEl) langEl.textContent = lang;
+  const lineEl = document.getElementById('editor-lines');
+  if (lineEl) lineEl.textContent = lines + '줄';
+  const sizeEl = document.getElementById('editor-size');
+  if (sizeEl) sizeEl.textContent = val.length > 1024 ? (val.length/1024).toFixed(1)+'KB' : val.length+'B';
 }
-document.getElementById('code-editor').addEventListener('input', updateEditorStats);
 
 async function saveCurrentFile() {
   if (!activeFile) { showToast('⚠️ 파일을 먼저 선택하세요', 'warn'); return; }
+  clearTimeout(autosaveTimer);
+  setAutosaveStatus('saving');
   const content = document.getElementById('code-editor').value;
-  const r = await fetch(`/blog/ai-webdev/${PROJECT_ID}/file/write/`, {
-    method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
-    body: JSON.stringify({path: activeFile, content})
-  });
-  const d = await r.json();
-  if (d.ok) {
-    showToast('💾 저장: ' + activeFile);
-    const previewPane = document.getElementById('preview-pane');
-    if (previewPane && previewPane.style.display !== 'none') refreshPreview();
-  }
+  try {
+    const r = await fetch(`/blog/ai-webdev/${PROJECT_ID}/file/write/`, {
+      method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+      body: JSON.stringify({path: activeFile, content})
+    });
+    const d = await r.json();
+    if (d.ok) {
+      lastSavedContent = content;
+      setAutosaveStatus('saved');
+      showToast('💾 ' + activeFile + ' 저장됨', 'success');
+      // 미리보기 새로고침
+      const pp = document.getElementById('preview-pane');
+      if (pp && pp.style.display !== 'none') refreshPreview();
+    } else { setAutosaveStatus('error'); }
+  } catch(e) { setAutosaveStatus('error'); }
 }
+
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveCurrentFile(); }
 });
 
 function newFile() {
-  const path = prompt('새 파일 경로 (예: src/App.jsx, index.html):');
+  const path = prompt('새 파일 경로 (예: index.html, src/App.jsx):');
   if (!path) return;
   activeFile = path;
   document.getElementById('code-editor').value = '';
+  lastSavedContent = '';
   document.getElementById('current-path').textContent = path;
   const name = path.split('/').pop();
-  let tab = document.querySelector(`.editor-tab[data-path="${path}"]`);
+  let tab = document.querySelector(`.editor-tab[data-path="${CSS.escape(path)}"]`);
   if (!tab) {
     tab = document.createElement('div');
     tab.className = 'editor-tab active';
     tab.dataset.path = path;
-    tab.innerHTML = `${escHtml(name)} <span class="tab-close" onclick="closeTab(this,'${escHtml(path)}')">×</span>`;
+    tab.innerHTML = `${getFileIcon(name)} ${escHtml(name)} <span class="tab-close" onclick="closeTab(this,'${escHtml(path)}')">×</span>`;
     tab.onclick = (e) => { if (!e.target.classList.contains('tab-close')) activateTab(path); };
+    const hint = document.getElementById('editor-tabs').querySelector('span:not(.editor-tab)');
+    if (hint) hint.remove();
     document.getElementById('editor-tabs').appendChild(tab);
   }
+  setAutosaveStatus('modified');
   document.getElementById('code-editor').focus();
+  if (isMobile()) mobileTabEditor();
 }
 
 function newFolder() {
@@ -442,11 +935,12 @@ async function deleteActiveFile() {
   });
   closeEditor();
   refreshFiles();
+  showToast('🗑️ 삭제됨', 'success');
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
 // 미리보기
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
 function refreshPreview() {
   const iframe = document.getElementById('preview-iframe');
   const path = activeFile && activeFile.endsWith('.html') ? activeFile : 'index.html';
@@ -458,9 +952,9 @@ function openExternal() {
   window.open(`/blog/ai-webdev/${PROJECT_ID}/preview/?path=${encodeURIComponent(path)}`, '_blank');
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
 // 도구 로그
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
 function addToolLog(msg, type='info') {
   const area = document.getElementById('tool-log-area');
   if (!area) return;
@@ -471,12 +965,12 @@ function addToolLog(msg, type='info') {
   area.scrollTop = area.scrollHeight;
   toolLogCount++;
   const toolTab = document.querySelector('.right-tab[onclick*="tool"]');
-  if (toolTab) toolTab.innerHTML = `🔧 도구 로그 <span style="background:#6c63ff;color:#fff;border-radius:10px;padding:1px 6px;font-size:.7rem;">${toolLogCount}</span>`;
+  if (toolTab) toolTab.innerHTML = `🔧 로그 <span style="background:#6c63ff;color:#fff;border-radius:10px;padding:1px 5px;font-size:.65rem;">${toolLogCount}</span>`;
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
 // 터미널
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
 function runTerminal() {
   const cmd = document.getElementById('terminal-cmd').value.trim();
   if (!cmd) return;
@@ -509,16 +1003,13 @@ function runTerminal() {
     }
     output.scrollTop = output.scrollHeight;
   }).catch(e => {
-    output.innerHTML += `<span style="color:#f85149;">연결 오류: ${escHtml(e.message)}</span>\n`;
+    output.innerHTML += `<span style="color:#f85149;">오류: ${escHtml(e.message)}</span>\n`;
   });
 }
-document.getElementById('terminal-cmd').addEventListener('keydown', e => {
-  if(e.key === 'Enter') runTerminal();
-});
 
-// ══════════════════════════════════════════════
-// 대화 이력 로딩 (페이지 초기화 시 DB에서)
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
+// 대화 이력 (DB 로딩)
+// ════════════════════════════════════════
 async function loadChatHistory() {
   try {
     const r = await fetch(`/blog/ai-webdev/${PROJECT_ID}/history/`);
@@ -527,34 +1018,28 @@ async function loadChatHistory() {
     msgs.innerHTML = '';
     if (!d.history || d.history.length === 0) {
       msgs.innerHTML = `
-        <div style="text-align:center;padding:40px 20px;color:#9ca3af;">
-          <div style="font-size:3rem;">🤖</div>
-          <p style="margin-top:12px;">AI에게 무엇을 만들지 말씀해주세요!<br>
-          <small>예: "React 투두앱 만들어줘"<br>"Flask REST API 서버"<br>"Bootstrap 포트폴리오"</small></p>
+        <div style="text-align:center;padding:30px 20px;color:#9ca3af;">
+          <div style="font-size:2.5rem;">🤖</div>
+          <p style="margin-top:10px;font-size:.9rem;">AI에게 무엇을 만들지 말씀해주세요!<br>
+          <small style="line-height:1.8;">"React 투두앱 만들어줘"<br>"Bootstrap 포트폴리오"<br>"Flask REST API"</small></p>
         </div>`;
       return;
     }
-    d.history.forEach(s => {
-      renderMsg(s.role, s.content, s.tool_calls || []);
-    });
+    d.history.forEach(s => renderMsg(s.role, s.content, s.tool_calls || []));
     msgs.scrollTop = msgs.scrollHeight;
-  } catch(e) {
-    console.error('대화 이력 로딩 실패:', e);
-  }
+  } catch(e) { console.error('이력 로딩 실패:', e); }
 }
 
 async function clearHistory() {
   if (!confirm('대화 이력을 모두 삭제할까요?')) return;
-  await fetch(`/blog/ai-webdev/${PROJECT_ID}/clear-history/`, {
-    method:'POST', headers:{'X-CSRFToken':CSRF}
-  });
+  await fetch(`/blog/ai-webdev/${PROJECT_ID}/clear-history/`, {method:'POST',headers:{'X-CSRFToken':CSRF}});
   loadChatHistory();
   showToast('🗑️ 대화 이력 삭제됨');
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
 // 메시지 렌더링
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
 function renderMsg(role, content, toolCalls) {
   const msgs = document.getElementById('chat-messages');
   const div = document.createElement('div');
@@ -565,7 +1050,6 @@ function renderMsg(role, content, toolCalls) {
     bubble.textContent = content;
   } else {
     bubble.innerHTML = formatAiText(content);
-    // 도구 호출 뱃지
     if (toolCalls && toolCalls.length > 0) {
       toolCalls.forEach(tc => {
         const badge = document.createElement('div');
@@ -582,7 +1066,6 @@ function renderMsg(role, content, toolCalls) {
 
 function appendUserMsg(content) {
   const msgs = document.getElementById('chat-messages');
-  // 빈 상태 메시지 제거
   const empty = msgs.querySelector('div[style*="text-align:center"]');
   if (empty) empty.remove();
   const div = document.createElement('div');
@@ -602,12 +1085,13 @@ function createAiBubble() {
   return div.querySelector('.bubble');
 }
 
-// ══════════════════════════════════════════════
-// 도구 실행 (클라이언트 측)
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
+// 도구 실행 (클라이언트)
+// ════════════════════════════════════════
 const executedToolHashes = new Set();
 
 async function executeToolCall(toolData) {
+  if (bgCancelFlag) return null;
   const toolName = toolData.tool || '?';
   const argsStr = JSON.stringify(toolData.args || {});
   const hash = toolName + argsStr.slice(0, 100);
@@ -615,6 +1099,7 @@ async function executeToolCall(toolData) {
   executedToolHashes.add(hash);
 
   addToolLog(`🔧 <strong>${toolName}</strong> ${argsStr.slice(0,80)}`, 'tool');
+  updateBgProgress(`🔧 ${toolName} 실행 중...`);
 
   try {
     const r = await fetch(`/blog/ai-webdev/${PROJECT_ID}/tool/`, {
@@ -624,13 +1109,18 @@ async function executeToolCall(toolData) {
     });
     const result = await r.json();
     const res = result.result || {};
-    if (res.error) {
-      addToolLog(`❌ ${toolName}: ${res.error}`, 'error');
-    } else {
-      addToolLog(`✅ ${toolName} 완료`, 'success');
-    }
+    if (res.error) { addToolLog(`❌ ${toolName}: ${res.error}`, 'error'); }
+    else { addToolLog(`✅ ${toolName} 완료`, 'success'); }
+    
     if (['write_file','delete_file','run_command'].includes(toolName)) {
       await refreshFiles();
+      // 현재 편집 중인 파일이 수정됐으면 에디터 갱신
+      if (toolName === 'write_file' && toolData.args && toolData.args.path === activeFile) {
+        document.getElementById('code-editor').value = toolData.args.content || '';
+        lastSavedContent = toolData.args.content || '';
+        setAutosaveStatus('saved');
+        updateEditorStats();
+      }
     }
     return {tool: toolData.tool, args: toolData.args, result: res};
   } catch(e) {
@@ -644,17 +1134,14 @@ function extractToolCalls(text) {
   const calls = [];
   let match;
   while((match = regex.exec(text)) !== null) {
-    try {
-      const data = JSON.parse(match[1].trim());
-      calls.push(data);
-    } catch(e) {}
+    try { calls.push(JSON.parse(match[1].trim())); } catch(e) {}
   }
   return calls;
 }
 
-// ══════════════════════════════════════════════
-// 핵심: 채팅 전송 (스트리밍 + 도구 실행 루프)
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
+// 채팅 전송 (스트리밍 + 도구 루프 + 백그라운드)
+// ════════════════════════════════════════
 async function sendChat() {
   if (isSending) return;
   const input = document.getElementById('chat-input');
@@ -662,76 +1149,71 @@ async function sendChat() {
   if (!msg) return;
 
   isSending = true;
+  bgCancelFlag = false;
   input.value = '';
   const btn = document.getElementById('send-btn');
-  btn.disabled = true;
-  btn.textContent = '⏳';
+  btn.disabled = true; btn.textContent = '⏳';
 
   appendUserMsg(msg);
   addToolLog(`💬 전송: ${msg.slice(0,60)}`, 'info');
+  showBgProgress('AI가 응답 생성 중...', 5);
 
   let toolResultsToSend = [];
-  let continueLoop = true;
   let currentMsg = msg;
+  let continueLoop = true;
   let loopCount = 0;
-  const MAX_LOOPS = 60; // 도구 자동실행 최대 반복
+  const MAX_LOOPS = 6;
+  let bubble = null;
 
-  while (continueLoop && loopCount < MAX_LOOPS) {
-    loopCount++;
+  while (continueLoop && loopCount < MAX_LOOPS && !bgCancelFlag) {
     continueLoop = false;
+    loopCount++;
+    bubble = createAiBubble();
+    updateBgProgress(`AI 응답 중 (단계 ${loopCount})...`, 10 + loopCount * 12);
 
-    const bubble = createAiBubble();
     let fullText = '';
     let streaming = false;
-
     try {
-      const resp = await fetch(`/blog/ai-webdev/${PROJECT_ID}/chat/`, {
+      const resp = await fetch(`/blog/ai-webdev/chat/`, {
         method:'POST',
         headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
         body: JSON.stringify({
           project_id: PROJECT_ID,
           message: currentMsg,
-          tool_results: toolResultsToSend,
+          tool_results: toolResultsToSend
         })
       });
 
-      if (resp.status === 402) {
-        const d = await resp.json();
-        bubble.innerHTML = `<span style="color:#ef4444;">❌ ${escHtml(d.error)}</span><br>
-          <a href="/blog/ai/credit/shop/" style="color:#6c63ff;">💳 크레딧 구매 →</a>`;
-        break;
-      }
-
       if (!resp.ok) {
-        bubble.innerHTML = `<span style="color:#ef4444;">서버 오류 (${resp.status})</span>`;
+        const errData = await resp.json().catch(()=>({error:'서버 오류'}));
+        if (errData.no_credit) {
+          bubble.innerHTML = `<span style="color:#ef4444;">❌ 크레딧 부족!<br><a href="/blog/ai/credit/shop/" style="color:#6c63ff;">💳 크레딧 구매하기</a></span>`;
+          updateCreditBadge();
+          break;
+        }
+        bubble.innerHTML = `<span style="color:#ef4444;">❌ 오류: ${escHtml(errData.error || '서버 오류')}</span>`;
         break;
       }
 
-      // 스트리밍 읽기
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
-      let buffer = '';
+      streaming = true;
 
       while(true) {
+        if (bgCancelFlag) { reader.cancel(); break; }
         const {done, value} = await reader.read();
         if(done) break;
-        buffer += decoder.decode(value, {stream:true});
-        const lines = buffer.split('\n');
-        buffer = lines.pop(); // 마지막 불완전한 줄은 버퍼에
-
+        const lines = decoder.decode(value, {stream:true}).split('\n');
         for(const line of lines) {
           if(!line.startsWith('data:')) continue;
           try {
             const evt = JSON.parse(line.slice(5).trim());
             if(evt.token) {
-              if(!streaming) { bubble.innerHTML = ''; streaming = true; }
               fullText += evt.token;
-              bubble.innerHTML = formatAiText(fullText);
+              bubble.innerHTML = formatAiText(fullText) + '<span class="typing-cursor">▋</span>';
               document.getElementById('chat-messages').scrollTop = 9999;
             }
-            if(evt.done) {
-              updateCreditBadge();
-            }
+            if(evt.done) { updateCreditBadge(); }
             if(evt.error) {
               bubble.innerHTML = `<span style="color:#ef4444;">❌ ${escHtml(evt.error)}</span>`;
             }
@@ -739,18 +1221,19 @@ async function sendChat() {
         }
       }
 
-      // 스트리밍 완료 후 도구 호출 감지 및 실행
-      if (fullText) {
+      // 스트리밍 완료 후 도구 호출 감지
+      if (fullText && !bgCancelFlag) {
         const toolCalls = extractToolCalls(fullText);
         if (toolCalls.length > 0) {
           addToolLog(`🔍 도구 ${toolCalls.length}개 감지 → 실행 중...`, 'info');
+          updateBgProgress(`🔧 도구 ${toolCalls.length}개 실행 중...`, 60);
           toolResultsToSend = [];
           for (const tc of toolCalls) {
+            if (bgCancelFlag) break;
             const result = await executeToolCall(tc);
             if (result) toolResultsToSend.push(result);
           }
-          if (toolResultsToSend.length > 0) {
-            // 도구 실행 결과를 AI에게 다시 전달
+          if (toolResultsToSend.length > 0 && !bgCancelFlag) {
             currentMsg = '도구 실행이 완료됐습니다. 결과를 확인하고 다음 작업을 이어서 진행해주세요.';
             continueLoop = true;
             addToolLog(`♻️ 도구 결과 전달 중 (루프 ${loopCount})...`, 'info');
@@ -758,47 +1241,39 @@ async function sendChat() {
         }
       }
 
-      // 마지막 AI 버블 완성
-      if (!streaming && fullText) {
-        bubble.innerHTML = formatAiText(fullText);
-      }
+      if (!streaming && fullText) bubble.innerHTML = formatAiText(fullText);
+      else if (fullText) bubble.innerHTML = formatAiText(fullText);
       document.getElementById('chat-messages').scrollTop = 9999;
 
     } catch(e) {
-      bubble.innerHTML = `<span style="color:#ef4444;">연결 오류: ${escHtml(e.message)}</span>`;
+      if (bubble) bubble.innerHTML = `<span style="color:#ef4444;">연결 오류: ${escHtml(e.message)}</span>`;
       addToolLog(`❌ 오류: ${e.message}`, 'error');
       break;
     }
   }
 
-  if (loopCount >= MAX_LOOPS) {
-    addToolLog('⚠️ 도구 실행 루프 최대 횟수 도달', 'error');
-  }
-
-  addToolLog('✅ 완료', 'success');
-  executedToolHashes.clear(); // 다음 메시지를 위해 초기화
+  if (loopCount >= MAX_LOOPS) addToolLog('⚠️ 도구 실행 루프 최대 횟수 도달', 'error');
+  addToolLog('✅ 작업 완료', 'success');
+  executedToolHashes.clear();
   isSending = false;
-  btn.disabled = false;
-  btn.textContent = '▶ 전송';
+  btn.disabled = false; btn.textContent = '▶ 전송';
+  hideBgProgress();
   await refreshFiles();
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
 // 텍스트 포맷
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
 function formatAiText(text) {
-  // 코드블록
   text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (m, lang, code) =>
     `<pre><code>${escHtml(code.trim())}</code></pre>`);
-  // tool_call 뱃지
   text = text.replace(/<tool_call>([\s\S]*?)<\/tool_call>/g, (m, json) =>
     `<div class="tool-call-badge">🔧 ${escHtml(json.slice(0,70))}${json.length>70?'...':''}</div>`);
-  // 인라인 코드
   text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
-  // **굵게**
   text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  // 줄바꿈
   text = text.replace(/\n/g, '<br>');
+  // typing cursor 제거
+  text = text.replace(/<span class="typing-cursor">▋<\/span>/g, '');
   return text;
 }
 
@@ -808,27 +1283,33 @@ function escHtml(s) {
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
 // 크레딧 배지 업데이트
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
 async function updateCreditBadge() {
   try {
     const r = await fetch('/blog/ai/credit/info/');
     const d = await r.json();
     const el = document.getElementById('credit-info');
-    if (el) {
-      el.textContent = d.is_unlimited ? '♾️ 무제한' : `💳 ${d.credits}크레딧`;
+    const badge = document.getElementById('credit-badge');
+    if (el) el.textContent = d.is_unlimited ? '♾️ 무제한' : `💳 ${d.credits}크레딧`;
+    if (badge && !d.is_unlimited) {
+      badge.textContent = `💳 ${d.credits}`;
+      badge.style.background = d.credits <= 5 ? '#ef4444' : '#6c63ff';
     }
+    // 글로벌 네비바 크레딧 배지도 갱신
+    if (window.refreshCreditBadge) window.refreshCreditBadge();
   } catch(e) {}
 }
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
 // 배포
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
 async function startDeploy() {
   const log = document.getElementById('deploy-log');
   log.textContent = '배포 준비 중...\n';
   switchTabDirect('deploy');
+  showBgProgress('🚀 배포 중...', 10);
 
   const resp = await fetch(`/blog/ai-webdev/${PROJECT_ID}/deploy/`, {
     method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
@@ -837,7 +1318,6 @@ async function startDeploy() {
 
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
-  let deployUrl = null;
 
   while(true) {
     const {done, value} = await reader.read();
@@ -847,52 +1327,82 @@ async function startDeploy() {
       if(!line.startsWith('data:')) continue;
       try {
         const evt = JSON.parse(line.slice(5).trim());
-        if(evt.log) log.textContent += evt.log + '\n';
+        if(evt.log) { log.textContent += evt.log + '\n'; log.scrollTop = log.scrollHeight; }
         if(evt.url) {
-          deployUrl = evt.url;
-          const box = document.querySelector('.deploy-url-box');
-          if(box) box.innerHTML = `
-            <p style="font-weight:700;color:#059669;margin:0;">🎉 배포 완료!</p>
-            <a href="${escHtml(deployUrl)}" target="_blank" style="color:#6c63ff;word-break:break-all;">${escHtml(deployUrl)}</a>`;
+          const box = document.getElementById('deploy-url-box') || document.querySelector('.deploy-url-box');
+          if(box) {
+            box.style.display = 'block';
+            box.innerHTML = `<p style="font-weight:700;color:#059669;margin:0;">🎉 배포 완료!</p>
+              <a href="${escHtml(evt.url)}" target="_blank" style="color:#6c63ff;word-break:break-all;">${escHtml(evt.url)}</a>`;
+          }
+          showToast('🎉 배포 완료!', 'success');
         }
         if(evt.error) log.textContent += '❌ ' + evt.error + '\n';
+        if(evt.progress) updateBgProgress('배포 중...', evt.progress);
       } catch(e){}
     }
-    log.scrollTop = log.scrollHeight;
   }
+  hideBgProgress();
 }
 
-// ══════════════════════════════════════════════
-// 토스트 알림
-// ══════════════════════════════════════════════
-function showToast(msg, type) {
-  const t = document.createElement('div');
-  t.style.cssText = `
-    position:fixed;bottom:20px;right:20px;
-    background:${type==='warn'?'#f59e0b':'#1e1e2e'};
-    color:#fff;padding:10px 18px;border-radius:10px;
-    font-size:.85rem;z-index:9999;
-    box-shadow:0 4px 12px rgba(0,0,0,.3);
-    animation:fadeIn .2s ease;
-  `;
-  t.textContent = msg;
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 2500);
+// ════════════════════════════════════════
+// 리사이저 (데스크탑)
+// ════════════════════════════════════════
+function initResizer(resizerId, leftEl, rightEl, isLeft) {
+  const resizer = document.getElementById(resizerId);
+  if (!resizer) return;
+  let isResizing = false;
+  let startX, startLeftW, startRightW;
+
+  resizer.addEventListener('mousedown', e => {
+    if (isMobile()) return;
+    isResizing = true;
+    startX = e.clientX;
+    startLeftW = leftEl.offsetWidth;
+    startRightW = rightEl.offsetWidth;
+    document.body.style.userSelect = 'none';
+  });
+  document.addEventListener('mousemove', e => {
+    if (!isResizing) return;
+    const dx = e.clientX - startX;
+    const newLeft = startLeftW + dx;
+    const newRight = startRightW - dx;
+    if (newLeft > 100 && newRight > 200) {
+      leftEl.style.width = newLeft + 'px';
+      leftEl.style.flex = 'none';
+      if (!isLeft) { rightEl.style.width = newRight + 'px'; rightEl.style.flex = 'none'; }
+    }
+  });
+  document.addEventListener('mouseup', () => { isResizing = false; document.body.style.userSelect = ''; });
 }
 
-// ══════════════════════════════════════════════
+initResizer('resizer-left', document.getElementById('sidebar'), document.getElementById('editor-pane'), true);
+initResizer('resizer-right', document.getElementById('editor-pane'), document.getElementById('right-panel'), false);
+
+// ════════════════════════════════════════
 // 키보드 단축키
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
 document.getElementById('chat-input').addEventListener('keydown', e => {
   if(e.ctrlKey && e.key === 'Enter') { e.preventDefault(); sendChat(); }
 });
 
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
 // 초기화
-// ══════════════════════════════════════════════
+// ════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', async () => {
-  await loadChatHistory();  // DB에서 대화 이력 로딩
-  await refreshFiles();     // 파일 트리 로딩
+  document.body.classList.add('webbuilder-page');
+  await loadChatHistory();
+  await refreshFiles();
+  updateCreditBadge();
+  
+  // 모바일 초기 상태: AI 채팅 패널 표시
+  if (isMobile()) {
+    document.getElementById('right-panel').classList.add('mobile-active');
+    document.getElementById('editor-pane').classList.remove('mobile-active');
+    document.getElementById('mtab-chat').classList.add('active');
+    document.getElementById('mtab-files').classList.remove('active');
+    switchTab('chat');
+  }
 });
 </script>
 {% endblock %}
