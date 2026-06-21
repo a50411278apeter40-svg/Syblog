@@ -48,7 +48,7 @@
       <h4 class="fw-bold mb-4">🛒 크레딧 구매</h4>
 
       {% if credit.is_unlimited %}
-      <div class="alert alert-success">
+      <div class="alert alert-success" style="border-radius:12px;">
         <strong>👑 관리자 계정</strong>입니다. 모든 AI 기능을 무제한으로 사용할 수 있습니다!
       </div>
       {% else %}
@@ -56,71 +56,47 @@
       <!-- 일반 AI 크레딧 패키지 -->
       <h6 class="text-muted mb-3">💬 일반 AI 도우미 크레딧</h6>
       <div class="row g-3 mb-4">
-        {% for pkg in "1,2,5,10"|split:"," %}
-        {% with pts=pkg|add:"0" %}
         <div class="col-md-6">
-          <div class="card border-0 shadow-sm h-100" style="border-radius:14px;cursor:pointer;" 
-               onclick="buyCredit('normal', {{ pkg }})">
-            <div class="card-body text-center p-3">
-              <div style="font-size:2rem;">💬</div>
-              <h5 class="fw-bold text-primary">+{% widthratio pkg 1 5 %}크레딧</h5>
-              <p class="text-muted small mb-2">{{ pkg }}세트 구매</p>
-              <div class="badge bg-warning text-dark fs-6">
-                {% widthratio pkg 1 10 %}포인트
-              </div>
-              <div class="mt-2">
-                <button class="btn btn-primary btn-sm w-100">구매하기</button>
-              </div>
-            </div>
-          </div>
-        </div>
-        {% endwith %}
-        {% endfor %}
-      </div>
-
-      <!-- 실제 패키지 -->
-      <div class="row g-3 mb-4">
-        <div class="col-md-6">
-          <div class="card border-primary border-2 shadow h-100" style="border-radius:14px;cursor:pointer;" onclick="buyCredit('normal',1)">
+          <div class="card border-primary border-2 shadow-sm h-100" style="border-radius:14px;cursor:pointer;" onclick="buyCredit('normal',1)">
             <div class="card-body text-center p-4">
               <div style="font-size:2.5rem;">💬</div>
               <h5 class="fw-bold text-primary mt-2">+5 크레딧</h5>
-              <p class="text-muted">일반 AI 5회 이용</p>
-              <div class="badge bg-warning text-dark fs-6 px-3">10 포인트</div>
-              <button class="btn btn-primary w-100 mt-3" onclick="buyCredit('normal',1); event.stopPropagation()">구매</button>
+              <p class="text-muted mb-2">일반 AI 5회 이용</p>
+              <div class="badge bg-warning text-dark px-3 py-2">10 포인트</div>
+              <button class="btn btn-primary w-100 mt-3">구매</button>
             </div>
           </div>
         </div>
         <div class="col-md-6">
-          <div class="card border-success border-2 shadow h-100" style="border-radius:14px;cursor:pointer;" onclick="buyCredit('normal',2)">
+          <div class="card border-success border-2 shadow-sm h-100" style="border-radius:14px;cursor:pointer;" onclick="buyCredit('normal',2)">
             <div class="card-body text-center p-4">
               <div style="font-size:2.5rem;">💬💬</div>
               <h5 class="fw-bold text-success mt-2">+10 크레딧</h5>
-              <p class="text-muted">일반 AI 10회 이용</p>
-              <div class="badge bg-warning text-dark fs-6 px-3">20 포인트</div>
-              <button class="btn btn-success w-100 mt-3" onclick="buyCredit('normal',2); event.stopPropagation()">구매</button>
+              <p class="text-muted mb-2">일반 AI 10회 이용</p>
+              <div class="badge bg-warning text-dark px-3 py-2">20 포인트</div>
+              <button class="btn btn-success w-100 mt-3">구매</button>
             </div>
           </div>
         </div>
         <div class="col-md-6">
-          <div class="card border-info border-2 shadow h-100" style="border-radius:14px;cursor:pointer;" onclick="buyCredit('normal',5)">
+          <div class="card border-info border-2 shadow-sm h-100" style="border-radius:14px;cursor:pointer;" onclick="buyCredit('normal',5)">
             <div class="card-body text-center p-4">
               <div style="font-size:2.5rem;">🔥</div>
               <h5 class="fw-bold text-info mt-2">+25 크레딧</h5>
-              <p class="text-muted">일반 AI 25회 이용</p>
-              <div class="badge bg-warning text-dark fs-6 px-3">50 포인트</div>
-              <button class="btn btn-info w-100 mt-3 text-white" onclick="buyCredit('normal',5); event.stopPropagation()">구매</button>
+              <p class="text-muted mb-2">일반 AI 25회 이용</p>
+              <div class="badge bg-warning text-dark px-3 py-2">50 포인트</div>
+              <button class="btn btn-info w-100 mt-3 text-white">구매</button>
             </div>
           </div>
         </div>
         <div class="col-md-6">
-          <div class="card border-danger border-2 shadow h-100" style="border-radius:14px;cursor:pointer;" onclick="buyCredit('normal',10)">
+          <div class="card border-danger border-2 shadow-sm h-100" style="border-radius:14px;cursor:pointer;" onclick="buyCredit('normal',10)">
             <div class="card-body text-center p-4">
               <div style="font-size:2.5rem;">⚡</div>
               <h5 class="fw-bold text-danger mt-2">+50 크레딧</h5>
-              <p class="text-muted">일반 AI 50회 이용</p>
-              <div class="badge bg-warning text-dark fs-6 px-3">100 포인트</div>
-              <button class="btn btn-danger w-100 mt-3" onclick="buyCredit('normal',10); event.stopPropagation()">구매</button>
+              <p class="text-muted mb-2">일반 AI 50회 이용</p>
+              <div class="badge bg-warning text-dark px-3 py-2">100 포인트</div>
+              <button class="btn btn-danger w-100 mt-3">구매</button>
             </div>
           </div>
         </div>
@@ -130,24 +106,24 @@
       <h6 class="text-muted mb-3 mt-4">🛠️ AI 웹개발 (베타) 크레딧</h6>
       <div class="row g-3 mb-4">
         <div class="col-md-6">
-          <div class="card" style="border-radius:14px;border:2px solid #7c3aed;cursor:pointer;" onclick="buyCredit('webdev',1)">
+          <div class="card shadow-sm h-100" style="border-radius:14px;border:2px solid #7c3aed;cursor:pointer;" onclick="buyCredit('webdev',1)">
             <div class="card-body text-center p-4">
               <div style="font-size:2.5rem;">🛠️</div>
               <h5 class="fw-bold mt-2" style="color:#7c3aed;">+10 크레딧</h5>
-              <p class="text-muted">AI 웹개발 10회 이용</p>
-              <div class="badge bg-warning text-dark fs-6 px-3">30 포인트</div>
-              <button class="btn w-100 mt-3 text-white" style="background:#7c3aed;" onclick="buyCredit('webdev',1); event.stopPropagation()">구매</button>
+              <p class="text-muted mb-2">AI 웹개발 10회 이용</p>
+              <div class="badge bg-warning text-dark px-3 py-2">30 포인트</div>
+              <button class="btn w-100 mt-3 text-white" style="background:#7c3aed;">구매</button>
             </div>
           </div>
         </div>
         <div class="col-md-6">
-          <div class="card" style="border-radius:14px;border:2px solid #5b21b6;cursor:pointer;" onclick="buyCredit('webdev',3)">
+          <div class="card shadow-sm h-100" style="border-radius:14px;border:2px solid #5b21b6;cursor:pointer;" onclick="buyCredit('webdev',3)">
             <div class="card-body text-center p-4">
               <div style="font-size:2.5rem;">🚀</div>
               <h5 class="fw-bold mt-2" style="color:#5b21b6;">+30 크레딧</h5>
-              <p class="text-muted">AI 웹개발 30회 이용</p>
-              <div class="badge bg-warning text-dark fs-6 px-3">90 포인트</div>
-              <button class="btn w-100 mt-3 text-white" style="background:#5b21b6;" onclick="buyCredit('webdev',3); event.stopPropagation()">구매</button>
+              <p class="text-muted mb-2">AI 웹개발 30회 이용</p>
+              <div class="badge bg-warning text-dark px-3 py-2">90 포인트</div>
+              <button class="btn w-100 mt-3 text-white" style="background:#5b21b6;">구매</button>
             </div>
           </div>
         </div>
@@ -174,7 +150,11 @@
                 {% for log in logs %}
                 <tr>
                   <td>
-                    {% if log.action == 'use' %}💬{% elif log.action == 'buy' %}💰{% elif log.action == 'admin' %}👑{% elif log.action == 'webdev' %}🛠️{% else %}🔄{% endif %}
+                    {% if log.action == 'use' %}💬
+                    {% elif log.action == 'buy' %}💰
+                    {% elif log.action == 'admin' %}👑
+                    {% elif log.action == 'webdev' %}🛠️
+                    {% else %}🔄{% endif %}
                     {{ log.get_action_display }}
                   </td>
                   <td>
@@ -207,46 +187,42 @@
 <div class="modal fade" id="buyModal" tabindex="-1">
   <div class="modal-dialog modal-sm">
     <div class="modal-content" style="border-radius:16px;">
-      <div class="modal-body text-center p-4" id="buyModalBody">
-      </div>
+      <div class="modal-body text-center p-4" id="buyModalBody"></div>
     </div>
   </div>
 </div>
 
 <script>
 function buyCredit(type, amount) {
-  const confirmMsg = type === 'webdev' 
+  const confirmMsg = type === 'webdev'
     ? `AI 웹개발 크레딧 ${amount * 10}개를 ${amount * 30}포인트로 구매할까요?`
     : `일반 AI 크레딧 ${amount * 5}개를 ${amount * 10}포인트로 구매할까요?`;
-  
   if (!confirm(confirmMsg)) return;
 
   fetch('/blog/ai/credit/buy/', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': '{{ csrf_token }}'
-    },
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
     body: JSON.stringify({type, amount})
   })
   .then(r => r.json())
   .then(data => {
     if (data.ok) {
-      document.getElementById('credit-display').textContent = data.credits;
-      document.getElementById('points-display').textContent = data.points + 'pt';
-      document.getElementById('buyModalBody').innerHTML = `
-        <div style="font-size:3rem;">🎉</div>
-        <h5 class="fw-bold text-success">구매 완료!</h5>
-        <p>+${data.gained} 크레딧 획득<br>
-        <small class="text-muted">${data.spent_points}포인트 차감<br>잔여 크레딧: ${data.credits}</small></p>
-        <button class="btn btn-primary" onclick="location.reload()">확인</button>
-      `;
-      new bootstrap.Modal(document.getElementById('buyModal')).show();
+      const cd = document.getElementById('credit-display');
+      const pd = document.getElementById('points-display');
+      if (cd) cd.textContent = data.credits;
+      if (pd) pd.textContent = data.points + 'pt';
+      document.getElementById('buyModalBody').innerHTML =
+        `<div style="font-size:3rem;">✅</div>
+         <h5 class="mt-2">구매 완료!</h5>
+         <p class="text-muted">+${data.added} 크레딧이 추가됐습니다.<br>잔여: <strong>${data.credits}</strong>크레딧</p>
+         <button class="btn btn-primary" data-dismiss="modal" onclick="$('#buyModal').modal('hide')">확인</button>`;
+      $('#buyModal').modal('show');
+      setTimeout(() => location.reload(), 2000);
     } else {
-      alert(data.error || '구매 실패');
+      alert(data.error || '구매 실패: 포인트가 부족하거나 오류가 발생했습니다.');
     }
   })
-  .catch(() => alert('오류가 발생했습니다.'));
+  .catch(() => alert('서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'));
 }
 </script>
 {% endblock %}

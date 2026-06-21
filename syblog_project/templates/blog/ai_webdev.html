@@ -1,123 +1,201 @@
 {% extends 'blog/base.html' %}
 {% block content %}
-<div class="container py-4">
-  <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="container-fluid py-4" style="max-width:1100px;">
+
+  <!-- 헤더 -->
+  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <div>
-      <h3 class="fw-bold mb-1">🛠️ AI 웹개발 <span class="badge bg-warning text-dark ms-2" style="font-size:.6rem;">BETA</span></h3>
-      <p class="text-muted mb-0">AI가 풀스택 사이트를 직접 만들어 드립니다</p>
+      <h3 class="fw-bold mb-1">🛠️ AI 웹개발
+        <span class="badge bg-warning text-dark ms-2" style="font-size:.6rem;vertical-align:middle;">BETA</span>
+      </h3>
+      <p class="text-muted mb-0">AI가 HTML/CSS/JS · React · Flask 등을 직접 만들고 배포합니다</p>
     </div>
-    {% if not credit.is_unlimited %}
     <div class="text-end">
-      <div class="badge bg-primary fs-6 px-3 py-2">💳 {{ credit.credits }} 크레딧</div>
-      <br><a href="{% url 'blog:ai_credit_shop' %}" class="btn btn-sm btn-outline-primary mt-1">크레딧 구매</a>
+      {% if credit.is_unlimited %}
+        <span class="badge bg-success fs-6 px-3 py-2">♾️ 무제한</span>
+      {% else %}
+        <span class="badge bg-primary fs-6 px-3 py-2">💳 {{ credit.credits }} 크레딧</span>
+        <br>
+        <a href="{% url 'blog:ai_credit_shop' %}" class="btn btn-sm btn-outline-primary mt-1">크레딧 구매</a>
+      {% endif %}
     </div>
-    {% else %}
-    <div class="badge bg-success fs-6 px-3 py-2">♾️ 무제한</div>
-    {% endif %}
   </div>
 
-  <!-- 안내 배너 -->
-  <div class="alert alert-info border-0 mb-4" style="border-radius:14px;background:linear-gradient(135deg,#eff6ff,#dbeafe);">
-    <h6 class="fw-bold mb-2">🚀 AI 웹개발이란?</h6>
-    <div class="row g-2">
-      <div class="col-md-3 text-center">
+  <!-- 기능 안내 -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm text-center p-3" style="border-radius:14px;background:linear-gradient(135deg,#eff6ff,#dbeafe);">
         <div style="font-size:2rem;">📝</div>
-        <small><strong>파일 쓰기/읽기</strong><br>실제 파일 생성</small>
-      </div>
-      <div class="col-md-3 text-center">
-        <div style="font-size:2rem;">⚡</div>
-        <small><strong>터미널 실행</strong><br>npm, pip 등</small>
-      </div>
-      <div class="col-md-3 text-center">
-        <div style="font-size:2rem;">🔍</div>
-        <small><strong>인터넷 검색</strong><br>API 불필요</small>
-      </div>
-      <div class="col-md-3 text-center">
-        <div style="font-size:2rem;">🌐</div>
-        <small><strong>자동 배포</strong><br>무료 도메인</small>
+        <small class="fw-bold">파일 쓰기/읽기</small>
+        <small class="text-muted d-block">실제 파일 생성</small>
       </div>
     </div>
-    <hr class="my-2">
-    <small class="text-muted">💡 크레딧: 메시지 1개 = 1크레딧 | AI 웹개발 10크레딧 = 30포인트</small>
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm text-center p-3" style="border-radius:14px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);">
+        <div style="font-size:2rem;">⚡</div>
+        <small class="fw-bold">터미널 실행</small>
+        <small class="text-muted d-block">npm, pip 등</small>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm text-center p-3" style="border-radius:14px;background:linear-gradient(135deg,#fdf4ff,#fae8ff);">
+        <div style="font-size:2rem;">🖥</div>
+        <small class="fw-bold">내장 미리보기</small>
+        <small class="text-muted d-block">iframe 즉시 확인</small>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm text-center p-3" style="border-radius:14px;background:linear-gradient(135deg,#fff7ed,#ffedd5);">
+        <div style="font-size:2rem;">🚀</div>
+        <small class="fw-bold">원클릭 배포</small>
+        <small class="text-muted d-block">무료 도메인 자동</small>
+      </div>
+    </div>
   </div>
 
   <!-- 새 프로젝트 생성 -->
-  <div class="card border-0 shadow-sm mb-4" style="border-radius:14px;">
+  <div class="card border-0 shadow mb-4" style="border-radius:16px;border-left:4px solid #6c63ff !important;">
     <div class="card-body p-4">
-      <h5 class="fw-bold mb-3">➕ 새 프로젝트 시작</h5>
-      <div class="row g-2">
+      <h5 class="fw-bold mb-3">➕ 새 프로젝트 만들기</h5>
+      <div class="row g-2 align-items-end">
         <div class="col-md-5">
-          <input type="text" class="form-control" id="proj-name" placeholder="프로젝트 이름 (예: 나의 포트폴리오)">
+          <label class="form-label small text-muted mb-1">프로젝트 이름 *</label>
+          <input type="text" class="form-control" id="proj-name"
+                 placeholder="예: 나의 포트폴리오, 투두앱, 쇼핑몰"
+                 onkeydown="if(event.key==='Enter') createProject()">
         </div>
         <div class="col-md-5">
-          <input type="text" class="form-control" id="proj-desc" placeholder="간단한 설명 (선택)">
+          <label class="form-label small text-muted mb-1">설명 (선택)</label>
+          <input type="text" class="form-control" id="proj-desc"
+                 placeholder="어떤 걸 만들고 싶은지 간단히"
+                 onkeydown="if(event.key==='Enter') createProject()">
         </div>
         <div class="col-md-2">
-          <button class="btn btn-primary w-100" onclick="createProject()">생성하기</button>
+          <button class="btn btn-primary w-100" id="create-btn" onclick="createProject()"
+                  style="background:linear-gradient(135deg,#6c63ff,#48cfad);border:none;">
+            🚀 생성
+          </button>
         </div>
+      </div>
+
+      <!-- 빠른 템플릿 -->
+      <div class="mt-3">
+        <small class="text-muted fw-bold">빠른 시작: </small>
+        <button class="btn btn-outline-secondary btn-sm me-1 mt-1" onclick="quickCreate('랜딩 페이지','Bootstrap으로 깔끔한 서비스 소개 랜딩 페이지')">🌐 랜딩 페이지</button>
+        <button class="btn btn-outline-secondary btn-sm me-1 mt-1" onclick="quickCreate('포트폴리오','개발자 포트폴리오 사이트')">💼 포트폴리오</button>
+        <button class="btn btn-outline-secondary btn-sm me-1 mt-1" onclick="quickCreate('투두 앱','React로 만든 할일 관리 앱')">✅ 투두앱</button>
+        <button class="btn btn-outline-secondary btn-sm me-1 mt-1" onclick="quickCreate('계산기','JavaScript 계산기 앱')">🔢 계산기</button>
+        <button class="btn btn-outline-secondary btn-sm me-1 mt-1" onclick="quickCreate('날씨 앱','OpenWeatherMap API 활용 날씨 앱')">☀️ 날씨앱</button>
+        <button class="btn btn-outline-secondary btn-sm me-1 mt-1" onclick="quickCreate('채팅 UI','ChatGPT 스타일 채팅 인터페이스')">💬 채팅 UI</button>
       </div>
     </div>
   </div>
 
+  <!-- 로딩 스피너 -->
+  <div id="creating-spinner" class="text-center py-3" style="display:none;">
+    <div class="spinner-border text-primary me-2" role="status"></div>
+    <span class="text-muted">프로젝트 생성 중...</span>
+  </div>
+
   <!-- 프로젝트 목록 -->
-  <h5 class="fw-bold mb-3">📁 내 프로젝트</h5>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="fw-bold mb-0">📁 내 프로젝트 <span class="badge bg-secondary ms-1" style="font-size:.75rem;">{{ projects|length }}</span></h5>
+  </div>
+
   {% if projects %}
-  <div class="row g-3">
+  <div class="row g-3" id="project-list">
     {% for proj in projects %}
     <div class="col-md-6 col-lg-4">
-      <div class="card border-0 shadow-sm h-100" style="border-radius:14px;">
-        <div class="card-body p-3">
+      <div class="card border-0 shadow-sm h-100" style="border-radius:16px;transition:transform .15s;"
+           onmouseenter="this.style.transform='translateY(-3px)'"
+           onmouseleave="this.style.transform=''">
+        <div class="card-body p-3 d-flex flex-column">
           <div class="d-flex justify-content-between align-items-start mb-2">
-            <h6 class="fw-bold mb-0">{{ proj.name }}</h6>
-            <span class="badge {% if proj.status == 'deployed' %}bg-success{% elif proj.status == 'active' %}bg-primary{% else %}bg-secondary{% endif %}">
-              {% if proj.status == 'deployed' %}🚀 배포됨{% elif proj.status == 'active' %}✏️ 작업중{% else %}⏸ 중지{% endif %}
+            <h6 class="fw-bold mb-0" style="font-size:.95rem;">{{ proj.name }}</h6>
+            <span class="badge
+              {% if proj.status == 'deployed' %}bg-success
+              {% elif proj.status == 'active' %}bg-primary
+              {% else %}bg-secondary{% endif %}"
+              style="font-size:.68rem;">
+              {% if proj.status == 'deployed' %}🚀 배포됨
+              {% elif proj.status == 'active' %}✏️ 작업중
+              {% else %}⏸ 중지{% endif %}
             </span>
           </div>
-          <p class="text-muted small mb-2">{{ proj.description|truncatechars:60 }}</p>
+          <p class="text-muted small mb-2 flex-grow-1">{{ proj.description|truncatechars:80|default:"설명 없음" }}</p>
           {% if proj.deploy_url %}
-          <a href="{{ proj.deploy_url }}" target="_blank" class="btn btn-sm btn-success mb-2 w-100">
+          <a href="{{ proj.deploy_url }}" target="_blank"
+             class="btn btn-sm btn-success mb-2 w-100">
             🌐 배포 사이트 보기
           </a>
           {% endif %}
-          <div class="d-flex gap-1">
-            <a href="{% url 'blog:ai_webdev_project' proj.pk %}" class="btn btn-primary btn-sm flex-fill">
-              💻 작업하기
-            </a>
-          </div>
-          <small class="text-muted d-block mt-2">{{ proj.updated_at|date:"Y.m.d H:i" }}</small>
+          <a href="{% url 'blog:ai_webdev_project' proj.pk %}"
+             class="btn btn-primary btn-sm w-100"
+             style="background:linear-gradient(135deg,#6c63ff,#48cfad);border:none;">
+            💻 작업하기
+          </a>
+          <small class="text-muted d-block mt-2" style="font-size:.72rem;">
+            수정: {{ proj.updated_at|date:"Y.m.d H:i" }}
+          </small>
         </div>
       </div>
     </div>
     {% endfor %}
   </div>
   {% else %}
-  <div class="text-center py-5 text-muted">
+  <div class="text-center py-5" id="empty-state">
     <div style="font-size:4rem;">🛠️</div>
-    <h5>아직 프로젝트가 없습니다</h5>
-    <p>위에서 첫 프로젝트를 만들어보세요!</p>
+    <h5 class="mt-3 fw-bold">아직 프로젝트가 없습니다</h5>
+    <p class="text-muted">위에서 프로젝트를 만들거나 빠른 시작 템플릿을 선택해보세요!</p>
+    <button class="btn btn-primary mt-2" onclick="document.getElementById('proj-name').focus()"
+            style="background:linear-gradient(135deg,#6c63ff,#48cfad);border:none;">
+      ➕ 첫 프로젝트 만들기
+    </button>
   </div>
   {% endif %}
 </div>
 
 <script>
-function createProject() {
-  const name = document.getElementById('proj-name').value.trim();
-  const desc = document.getElementById('proj-desc').value.trim();
-  if (!name) { alert('프로젝트 이름을 입력하세요'); return; }
+function createProject(name, desc) {
+  const nameVal = name || document.getElementById('proj-name').value.trim();
+  const descVal = desc || document.getElementById('proj-desc').value.trim();
+  if (!nameVal) {
+    document.getElementById('proj-name').focus();
+    document.getElementById('proj-name').style.borderColor = '#ef4444';
+    setTimeout(() => document.getElementById('proj-name').style.borderColor = '', 1500);
+    return;
+  }
+
+  const btn = document.getElementById('create-btn');
+  btn.disabled = true; btn.textContent = '생성 중...';
+  document.getElementById('creating-spinner').style.display = 'block';
 
   fetch('/blog/ai-webdev/new/', {
     method: 'POST',
-    headers: {'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},
-    body: JSON.stringify({name, description: desc})
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+    body: JSON.stringify({name: nameVal, description: descVal})
   })
   .then(r => r.json())
   .then(data => {
     if (data.ok) {
-      window.location.href = `/blog/ai-webdev/${data.id}/`;
+      window.location.href = '/blog/ai-webdev/' + data.id + '/';
     } else {
       alert(data.error || '생성 실패');
+      btn.disabled = false; btn.textContent = '🚀 생성';
+      document.getElementById('creating-spinner').style.display = 'none';
     }
+  })
+  .catch(() => {
+    alert('서버 오류가 발생했습니다.');
+    btn.disabled = false; btn.textContent = '🚀 생성';
+    document.getElementById('creating-spinner').style.display = 'none';
   });
+}
+
+function quickCreate(name, desc) {
+  document.getElementById('proj-name').value = name;
+  document.getElementById('proj-desc').value = desc;
+  createProject(name, desc);
 }
 </script>
 {% endblock %}
