@@ -35,17 +35,17 @@
                 {% if user.is_authenticated %}
                     {% if user.is_staff or user.is_superuser %}
                     <li class="nav-item">
-                        <a class="nav-link" href="/blog/notices/"><i class="fas fa-bullhorn text-warning"></i> <span class="d-none d-xl-inline">공지관리</span></a>
+                        <a class="nav-link" href="/blog/notices/"><i class="fas fa-bullhorn text-warning"></i> 공지관리</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/blog/admin-dashboard/"><i class="fas fa-cog"></i> <span class="d-none d-xl-inline">관리자</span></a>
+                        <a class="nav-link" href="/blog/admin-dashboard/"><i class="fas fa-cog"></i> 관리자</a>
                     </li>
                     {% endif %}
 
                     <!-- AI 웹개발 -->
                     <li class="nav-item">
                         <a class="nav-link" href="/blog/ai-webdev/" title="AI 웹개발 (베타)" style="position:relative;">
-                            🛠️ <span class="d-none d-lg-inline">AI 웹개발</span>
+                            🛠️ AI 웹개발
                             <span class="badge badge-warning" style="font-size:.52rem;vertical-align:super;">BETA</span>
                         </a>
                     </li>
