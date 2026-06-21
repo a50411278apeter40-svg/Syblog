@@ -674,7 +674,7 @@ async function sendChat() {
   let continueLoop = true;
   let currentMsg = msg;
   let loopCount = 0;
-  const MAX_LOOPS = 6; // 도구 자동실행 최대 반복
+  const MAX_LOOPS = 60; // 도구 자동실행 최대 반복
 
   while (continueLoop && loopCount < MAX_LOOPS) {
     loopCount++;
