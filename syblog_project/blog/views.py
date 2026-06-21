@@ -1825,7 +1825,7 @@ def ai_webdev_project(request, pk):
 
 @login_required
 @require_POST
-def ai_webdev_tool(request):
+def ai_webdev_tool(request, pk=None):
     from blog.models import AiWebProject
     try:
         body = _json_mod.loads(request.body)
@@ -1978,7 +1978,7 @@ def _run_webdev_tool(tool, args, project_dir):
 
 
 @login_required
-def ai_webdev_chat(request):
+def ai_webdev_chat(request, pk=None):
     """AI 웹개발 채팅 - 스트리밍 + 도구 실행 + DB 대화 영구 저장"""
     if request.method != 'POST':
         return JsonResponse({'error': 'POST only'}, status=405)
