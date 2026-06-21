@@ -1,8 +1,641 @@
 /*!
- * Start Bootstrap - Blog Post (https://startbootstrap.com/templates/blog-post)
- * Copyright 2013-2019 Start Bootstrap
- * Licensed under MIT (https://github.com/StartBootstrap/startbootstrap-blog-post/blob/master/LICENSE)
+ * SyBlog - Fully Responsive CSS
+ * 모든 기기(모바일/태블릿/데스크탑) 완벽 대응
  */
+
+/* ── 기본 패딩 ── */
 body {
   padding-top: 56px;
+}
+
+/* ═══════════════════════════════════════════
+   전역 반응형 유틸리티
+═══════════════════════════════════════════ */
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ═══════════════════════════════════════════
+   반응형 폰트 크기
+═══════════════════════════════════════════ */
+html {
+  font-size: 16px;
+}
+
+@media (max-width: 576px) {
+  html { font-size: 14px; }
+  body { padding-top: 56px; }
+}
+
+@media (max-width: 360px) {
+  html { font-size: 13px; }
+}
+
+/* ═══════════════════════════════════════════
+   내비게이션바 반응형
+═══════════════════════════════════════════ */
+.navbar {
+  padding: 0.4rem 1rem !important;
+}
+
+.navbar-brand {
+  font-size: 1.2rem !important;
+}
+
+/* 모바일: 내비게이션 메뉴 */
+@media (max-width: 991px) {
+  .navbar-collapse {
+    background: linear-gradient(135deg, #2d3436, #6c63ff);
+    border-radius: 0 0 12px 12px;
+    padding: 10px 0;
+    margin-top: 5px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  }
+
+  .navbar-collapse .nav-link {
+    padding: 10px 20px !important;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    font-size: 0.95rem !important;
+  }
+
+  .navbar-collapse .nav-link:last-child {
+    border-bottom: none;
+  }
+
+  .navbar-nav .dropdown-menu {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    margin: 5px 15px;
+  }
+
+  .navbar-nav .dropdown-item {
+    color: rgba(255,255,255,0.85) !important;
+    padding: 8px 16px;
+  }
+
+  .navbar-nav .dropdown-item:hover {
+    background: rgba(108,99,255,0.3);
+    color: #fff !important;
+  }
+  
+  /* 모바일 크레딧 배지 크기 조정 */
+  #ai-credit-badge {
+    font-size: 0.7rem !important;
+    padding: 2px 6px !important;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   메인 레이아웃 컨테이너 반응형
+═══════════════════════════════════════════ */
+.container {
+  padding-left: 15px;
+  padding-right: 15px;
+}
+
+/* 태블릿 */
+@media (max-width: 767px) {
+  .container {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  /* 사이드바를 메인 아래로 */
+  .col-md-8, .col-md-4,
+  .col-lg-9, .col-lg-3 {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+
+  /* 사이드바 위젯 가로 배열 */
+  .sidebar-widget {
+    margin-bottom: 12px !important;
+  }
+}
+
+/* 모바일 */
+@media (max-width: 576px) {
+  .container {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .my-3 {
+    margin-top: 0.75rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   카드 반응형
+═══════════════════════════════════════════ */
+.card {
+  border-radius: 10px !important;
+  overflow: hidden;
+}
+
+@media (max-width: 576px) {
+  .card {
+    border-radius: 8px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .card-body {
+    padding: 12px !important;
+  }
+
+  .card-header {
+    padding: 10px 12px !important;
+    font-size: 0.9rem !important;
+  }
+
+  .card-footer {
+    padding: 8px 12px !important;
+    font-size: 0.8rem !important;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   포스트 목록 반응형
+═══════════════════════════════════════════ */
+.card-img-top {
+  height: 200px;
+  object-fit: cover;
+}
+
+@media (max-width: 576px) {
+  .card-img-top {
+    height: 160px !important;
+  }
+
+  .card-title {
+    font-size: 1rem !important;
+  }
+
+  h2 {
+    font-size: 1.3rem !important;
+  }
+
+  h3, h4 {
+    font-size: 1.1rem !important;
+  }
+}
+
+/* 모바일 버튼 */
+@media (max-width: 576px) {
+  .btn {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+  }
+
+  .btn-sm {
+    padding: 4px 8px;
+    font-size: 0.78rem;
+  }
+
+  .btn-block + .btn-block {
+    margin-top: 4px;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   사이드바 위젯 반응형
+═══════════════════════════════════════════ */
+.sidebar-widget {
+  padding: 15px !important;
+}
+
+@media (max-width: 767px) {
+  /* 태블릿 이하: 사이드바 위젯 그리드로 */
+  .col-md-4 .sidebar-widget {
+    padding: 12px !important;
+  }
+
+  .sidebar-widget h5 {
+    font-size: 0.9rem !important;
+  }
+}
+
+@media (max-width: 576px) {
+  .sidebar-widget {
+    padding: 10px !important;
+  }
+
+  .sidebar-widget h5 {
+    font-size: 0.85rem !important;
+    margin-bottom: 8px !important;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   사용자 위젯 반응형
+═══════════════════════════════════════════ */
+@media (max-width: 576px) {
+  .sidebar-widget .rounded-circle {
+    width: 50px !important;
+    height: 50px !important;
+  }
+
+  .level-badge {
+    font-size: 0.7rem !important;
+    padding: 2px 8px !important;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   폼 반응형
+═══════════════════════════════════════════ */
+.form-control {
+  font-size: 0.9rem;
+  padding: 8px 12px;
+}
+
+@media (max-width: 576px) {
+  .form-control {
+    font-size: 16px !important; /* iOS 자동 확대 방지 */
+    padding: 8px 10px;
+  }
+
+  textarea.form-control {
+    min-height: 120px;
+  }
+
+  .input-group {
+    flex-wrap: nowrap;
+  }
+
+  .input-group .form-control {
+    min-width: 0;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   페이지네이션 반응형
+═══════════════════════════════════════════ */
+@media (max-width: 576px) {
+  .pagination {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 3px;
+  }
+
+  .page-link {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   알림/공지 반응형
+═══════════════════════════════════════════ */
+@media (max-width: 576px) {
+  .notice-banner {
+    padding: 6px 10px !important;
+    font-size: 0.8rem !important;
+  }
+
+  .notice-banner .container {
+    gap: 6px !important;
+  }
+
+  .alert {
+    font-size: 0.85rem;
+    padding: 10px 14px;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   게시글 상세 반응형
+═══════════════════════════════════════════ */
+@media (max-width: 576px) {
+  .post-detail-content {
+    font-size: 0.92rem;
+    line-height: 1.7;
+  }
+
+  .post-detail-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+  }
+
+  .post-detail-content pre {
+    overflow-x: auto;
+    font-size: 0.78rem;
+    padding: 10px;
+    border-radius: 8px;
+  }
+
+  .post-detail-content code {
+    font-size: 0.8rem;
+    word-break: break-word;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   댓글 반응형
+═══════════════════════════════════════════ */
+@media (max-width: 576px) {
+  .comment-form textarea {
+    font-size: 16px !important;
+  }
+
+  .comment-item {
+    padding: 10px !important;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   크레딧 샵 반응형
+═══════════════════════════════════════════ */
+@media (max-width: 576px) {
+  .col-md-4,
+  .col-md-6,
+  .col-md-8 {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+  
+  /* 크레딧 카드 */
+  .credit-package-card {
+    padding: 16px !important;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   대시보드 반응형
+═══════════════════════════════════════════ */
+@media (max-width: 576px) {
+  .row.g-3 > [class*="col-"] {
+    padding-left: 6px;
+    padding-right: 6px;
+    margin-bottom: 10px;
+  }
+
+  .col-6 {
+    flex: 0 0 50%;
+    max-width: 50%;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   AI 웹빌더 반응형
+═══════════════════════════════════════════ */
+
+/* 기능 안내 카드 */
+@media (max-width: 576px) {
+  .col-6.col-md-3 {
+    flex: 0 0 50%;
+    max-width: 50%;
+    padding: 5px;
+  }
+
+  .col-6.col-md-3 .card {
+    padding: 10px !important;
+  }
+
+  .col-6.col-md-3 small.fw-bold {
+    font-size: 0.75rem !important;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   푸터 반응형
+═══════════════════════════════════════════ */
+footer {
+  margin-top: 20px !important;
+  padding: 20px 0 !important;
+}
+
+@media (max-width: 576px) {
+  footer .col-md-4 {
+    margin-bottom: 15px;
+    text-align: center !important;
+  }
+
+  footer .text-right {
+    text-align: center !important;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   읽기 진행률 바
+═══════════════════════════════════════════ */
+#reading-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 0%;
+  background: linear-gradient(90deg, #6c63ff, #48cfad);
+  z-index: 10000;
+  transition: width 0.1s;
+}
+
+/* ═══════════════════════════════════════════
+   자동완성 드롭다운 반응형
+═══════════════════════════════════════════ */
+@media (max-width: 576px) {
+  .autocomplete-dropdown {
+    border-radius: 0 0 8px 8px !important;
+  }
+
+  .autocomplete-item {
+    padding: 10px 12px !important;
+    font-size: 0.85rem !important;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   토스트 알림 반응형
+═══════════════════════════════════════════ */
+#toast-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: calc(100vw - 40px);
+}
+
+@media (max-width: 576px) {
+  #toast-container {
+    bottom: 10px;
+    right: 10px;
+    left: 10px;
+    max-width: 100%;
+  }
+}
+
+.toast-msg {
+  background: #2d3436;
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  animation: slideUp 0.3s ease;
+  word-break: break-word;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* ═══════════════════════════════════════════
+   모달 반응형
+═══════════════════════════════════════════ */
+@media (max-width: 576px) {
+  .modal-dialog {
+    margin: 10px;
+    max-width: calc(100% - 20px);
+  }
+
+  .modal-body {
+    padding: 16px;
+  }
+
+  .modal-header {
+    padding: 12px 16px;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   테이블 반응형
+═══════════════════════════════════════════ */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+}
+
+@media (max-width: 576px) {
+  table {
+    font-size: 0.8rem;
+  }
+
+  th, td {
+    padding: 6px 8px !important;
+    white-space: nowrap;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   리더보드 반응형
+═══════════════════════════════════════════ */
+@media (max-width: 576px) {
+  .leaderboard-item {
+    padding: 8px 10px !important;
+  }
+
+  .leaderboard-rank {
+    font-size: 1.2rem !important;
+    min-width: 32px !important;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   배지/태그 반응형
+═══════════════════════════════════════════ */
+@media (max-width: 576px) {
+  .badge {
+    font-size: 0.72rem !important;
+    padding: 3px 7px !important;
+  }
+
+  .badge-pill {
+    border-radius: 50px !important;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   스크롤바 스타일 (웹킷)
+═══════════════════════════════════════════ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(108,99,255,0.4);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(108,99,255,0.7);
+}
+
+/* ═══════════════════════════════════════════
+   특수 화면 크기 대응
+═══════════════════════════════════════════ */
+
+/* 초소형 (320px 이하) */
+@media (max-width: 320px) {
+  .navbar-brand {
+    font-size: 1rem !important;
+  }
+
+  .container {
+    padding-left: 5px;
+    padding-right: 5px;
+  }
+
+  h2 { font-size: 1.1rem !important; }
+  h3 { font-size: 1rem !important; }
+}
+
+/* 큰 화면 (1400px 이상) */
+@media (min-width: 1400px) {
+  .container {
+    max-width: 1320px;
+  }
+}
+
+/* 4K 화면 */
+@media (min-width: 2560px) {
+  html { font-size: 18px; }
+  .container { max-width: 1600px; }
+}
+
+/* ═══════════════════════════════════════════
+   iOS Safari 고정 패딩 (Safe Area)
+═══════════════════════════════════════════ */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
+  }
+
+  .navbar {
+    padding-left: max(1rem, env(safe-area-inset-left)) !important;
+    padding-right: max(1rem, env(safe-area-inset-right)) !important;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   가로 모드 모바일
+═══════════════════════════════════════════ */
+@media (max-width: 768px) and (orientation: landscape) {
+  body {
+    padding-top: 50px;
+  }
+
+  .hero {
+    min-height: auto !important;
+    padding: 60px 0 40px !important;
+  }
 }
