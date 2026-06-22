@@ -17,9 +17,12 @@ body.webbuilder-page {
 #webbuilder-root {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - var(--navbar-h, 56px));
+  /* 높이는 JS(fitWebbuilderRoot)가 window.innerHeight - root.top 으로 계산해 주입 */
+  height: calc(100vh - 56px); /* fallback */
+  min-height: 0;
   position: relative;
   background: #0d1117;
+  overflow: hidden;  /* 자식이 밖으로 나가지 않게 */
 }
 
 /* ══════════════════════════════════════════
@@ -161,7 +164,7 @@ body.webbuilder-page {
 #right-panel {
   width: 420px; min-width: 340px;
   display: flex; flex-direction: column;
-  min-height: 0;        /* flex 자식이 넘치지 않게 */
+  min-height: 0; overflow: hidden;
   background: #161b22; border-left: 1px solid #30363d;
 }
 #right-tabs {
@@ -343,6 +346,7 @@ body.webbuilder-page {
   scrollbar-width: thin; scrollbar-color: #30363d transparent;
 }
 #terminal-input-row {
+  flex: 0 0 auto;  /* 항상 하단 고정, 절대 shrink 안 됨 */
   display: flex; border-top: 1px solid #30363d;
   background: #161b22; padding: 8px 12px; gap: 8px; align-items: center;
 }

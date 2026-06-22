@@ -1088,10 +1088,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.body.classList.add('webbuilder-page');
   document.documentElement.classList.add('webbuilder-html');
 
-  // navbar 높이를 CSS 변수로 주입 (동적)
-  const navbar = document.querySelector('.navbar, nav.navbar, #navbar, header nav');
-  if (navbar) {
-    document.documentElement.style.setProperty('--navbar-h', navbar.offsetHeight + 'px');
+  // webbuilder-root 높이를 뷰포트에 꽉 차게 동적 계산
+  function fitWebbuilderRoot() {
+    const root = document.getElementById('webbuilder-root');
+    if (!root) return;
+    // root의 실제 top 위치(= navbar+notice 등 모든 요소 높이 합산)
+    const top = root.getBoundingClientRect().top + window.scrollY;
+    const vh = window.innerHeight;
+    root.style.height = (vh - top) + 'px';
+  }
+  fitWebbuilderRoot();
+  window.addEventListener('resize', fitWebbuilderRoot);
+  // iOS 키보드 대응
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', fitWebbuilderRoot);
   }
 
   // 리사이저 초기화

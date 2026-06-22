@@ -1769,6 +1769,46 @@ def admin_ai_credits(request):
 import subprocess, shutil
 from pathlib import Path as _Path
 
+# ── Playwright 영구 세션 (프로젝트별 browser + page 재사용) ──
+_pw_sessions = {}   # {project_pk: {'pw': ..., 'browser': ..., 'page': ..., 'url': ...}}
+
+def _get_pw_page(pk, viewport_w=1280, viewport_h=800):
+    """프로젝트별 Playwright 페이지를 영구 유지/재사용한다."""
+    import threading
+    from playwright.sync_api import sync_playwright as _sync_pw
+    sess = _pw_sessions.get(pk)
+    # 살아있는 세션 재사용
+    if sess:
+        try:
+            _ = sess['page'].url   # 살아있는지 ping
+            return sess['page'], sess
+        except Exception:
+            try: sess['browser'].close()
+            except Exception: pass
+            try: sess['pw'].__exit__(None, None, None)
+            except Exception: pass
+            _pw_sessions.pop(pk, None)
+    # 새 세션 시작
+    pw_ctx = _sync_pw()
+    pw = pw_ctx.__enter__()
+    browser = pw.chromium.launch(
+        headless=True,
+        args=['--no-sandbox','--disable-setuid-sandbox',
+              '--disable-dev-shm-usage','--disable-gpu',
+              '--disable-extensions']
+    )
+    ctx = browser.new_context(
+        viewport={'width': viewport_w, 'height': viewport_h},
+        user_agent='Mozilla/5.0 (compatible; SyblogBot/1.0)',
+        ignore_https_errors=True,
+    )
+    page = ctx.new_page()
+    sess = {'pw_ctx': pw_ctx, 'pw': pw, 'browser': browser, 'ctx': ctx, 'page': page}
+    _pw_sessions[pk] = sess
+    return page, sess
+
+
+
 WEBDEV_WORKSPACE = _Path('/tmp/syblog_webdev')
 WEBDEV_WORKSPACE.mkdir(exist_ok=True)
 
@@ -1940,59 +1980,70 @@ def _run_webdev_tool(tool, args, project_dir):
             text_input = args.get('text', '')
             wait_ms = int(args.get('wait', 1000))
             try:
-                from playwright.sync_api import sync_playwright as _sync_pw
-                with _sync_pw() as pw:
-                    browser = pw.chromium.launch(
-                        headless=True,
-                        args=['--no-sandbox', '--disable-setuid-sandbox',
-                              '--disable-dev-shm-usage', '--disable-gpu']
-                    )
-                    ctx = browser.new_context(
-                        viewport={'width': 1280, 'height': 800},
-                        user_agent='Mozilla/5.0 (compatible; SyblogBot/1.0)',
-                        ignore_https_errors=True,
-                    )
-                    page = ctx.new_page()
-                    try:
-                        if url:
-                            page.goto(url, timeout=20000, wait_until='domcontentloaded')
-                            if wait_ms > 0:
-                                page.wait_for_timeout(min(wait_ms, 3000))
-                        if action == 'screenshot':
-                            ss_path = str(project_dir / '_screenshot.png')
-                            page.screenshot(path=ss_path, full_page=False)
-                            return {'ok': True, 'screenshot': '_screenshot.png',
-                                    'title': page.title(), 'current_url': page.url}
-                        elif action == 'get_text':
-                            if selector:
-                                try:
-                                    txt = page.locator(selector).first.inner_text(timeout=5000)
-                                except Exception:
-                                    txt = ''
-                            else:
-                                txt = page.inner_text('body') if page.locator('body').count() else page.content()
-                            return {'content': txt[:8000], 'title': page.title()}
-                        elif action == 'get_html':
-                            html = page.content()
-                            return {'html': html[:10000], 'title': page.title()}
-                        elif action == 'click':
-                            page.locator(selector).first.click(timeout=5000)
-                            page.wait_for_timeout(500)
-                            return {'ok': True, 'current_url': page.url}
-                        elif action == 'type':
-                            page.locator(selector).first.fill(text_input, timeout=5000)
-                            return {'ok': True}
-                        elif action == 'evaluate':
-                            js_code = args.get('js', 'document.title')
-                            result_js = page.evaluate(js_code)
-                            return {'result': str(result_js)[:2000]}
-                        else:
-                            return {'error': f'알 수 없는 액션: {action}'}
-                    finally:
-                        browser.close()
+                # ── 영구 세션 재사용 ──
+                page, _ = _get_pw_page(pk)
+
+                if action == 'close_session':
+                    sess = _pw_sessions.pop(pk, None)
+                    if sess:
+                        try: sess['browser'].close()
+                        except Exception: pass
+                        try: sess['pw_ctx'].__exit__(None,None,None)
+                        except Exception: pass
+                    return {'ok': True, 'msg': '브라우저 세션 종료'}
+
+                if url:
+                    page.goto(url, timeout=25000, wait_until='domcontentloaded')
+                    if wait_ms > 0:
+                        page.wait_for_timeout(min(wait_ms, 4000))
+
+                if action == 'screenshot':
+                    ss_path = str(project_dir / '_screenshot.png')
+                    page.screenshot(path=ss_path, full_page=False)
+                    return {'ok': True, 'screenshot': '_screenshot.png',
+                            'title': page.title(), 'current_url': page.url,
+                            'session': 'persistent'}
+                elif action == 'get_text':
+                    if selector:
+                        try:
+                            txt = page.locator(selector).first.inner_text(timeout=5000)
+                        except Exception:
+                            txt = ''
+                    else:
+                        txt = page.inner_text('body') if page.locator('body').count() else page.content()
+                    return {'content': txt[:8000], 'title': page.title(), 'current_url': page.url}
+                elif action == 'get_html':
+                    html = page.content()
+                    return {'html': html[:10000], 'title': page.title(), 'current_url': page.url}
+                elif action == 'click':
+                    page.locator(selector).first.click(timeout=5000)
+                    page.wait_for_timeout(500)
+                    return {'ok': True, 'current_url': page.url}
+                elif action == 'type':
+                    page.locator(selector).first.fill(text_input, timeout=5000)
+                    return {'ok': True, 'current_url': page.url}
+                elif action == 'evaluate':
+                    js_code = args.get('js', 'document.title')
+                    result_js = page.evaluate(js_code)
+                    return {'result': str(result_js)[:2000], 'current_url': page.url}
+                elif action == 'back':
+                    page.go_back(timeout=10000)
+                    return {'ok': True, 'current_url': page.url}
+                elif action == 'forward':
+                    page.go_forward(timeout=10000)
+                    return {'ok': True, 'current_url': page.url}
+                elif action == 'reload':
+                    page.reload(timeout=15000)
+                    return {'ok': True, 'current_url': page.url}
+                elif action == 'current_url':
+                    return {'current_url': page.url, 'title': page.title()}
+                else:
+                    return {'error': f'알 수 없는 액션: {action}'}
             except ImportError:
                 return {'error': 'playwright 미설치. 터미널에서: pip install playwright && playwright install chromium'}
             except Exception as e:
+                # 세션 깨진 경우 초기화 후 재시도
+                _pw_sessions.pop(pk, None)
                 return {'error': f'browser 오류: {str(e)[:300]}'}
 
         else:
