@@ -2744,8 +2744,7 @@ def ai_webdev_proxy(request, pk, port, path=''):
                     base_url = f'/blog/ai-webdev/{pk}/proxy/{port}/'
                     base_tag = f'<base href="{base_url}">'
                     # X-Frame-Options 우회를 위해 meta 태그도 주입
-                    inject = f'{base_tag}
-<script>window.__PROXY_BASE__="{base_url}";</script>'
+                    inject = base_tag + f'<script>window.__PROXY_BASE__="{base_url}";</script>'
                     if '<head>' in text:
                         text = text.replace('<head>', f'<head>{inject}', 1)
                     elif '<html' in text:

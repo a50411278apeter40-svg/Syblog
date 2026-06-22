@@ -22,10 +22,19 @@ const isMobile = () => window.innerWidth <= 768;
 // 탭 전환 (오른쪽 패널)
 // ════════════════════════════════════════════════
 function switchTab(tab) {
-  document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.tab-content').forEach(el => {
+    el.style.display = 'none';
+    el.style.flexDirection = '';
+  });
   document.querySelectorAll('.right-tab').forEach(el => el.classList.remove('active'));
   const pane = document.getElementById(tab + '-pane');
-  if (pane) pane.style.display = 'flex';
+  if (pane) {
+    pane.style.display = 'flex';
+    pane.style.flexDirection = 'column';
+    pane.style.flex = '1';
+    pane.style.minHeight = '0';
+    pane.style.overflow = 'hidden';
+  }
   const btn = document.querySelector(`.right-tab[onclick*="'${tab}'"]`) ||
               document.querySelector(`.right-tab[onclick*='"${tab}"']`);
   if (btn) btn.classList.add('active');
