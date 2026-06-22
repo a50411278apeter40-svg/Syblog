@@ -9,6 +9,7 @@ let toolLogCount = 0;
 let isSending = false;
 let bgCancelFlag = false;
 let bgTaskActive = false;
+let bgTaskId = null;        // 서버 task ID
 let autosaveTimer = null;
 let lastSavedContent = '';
 
@@ -112,48 +113,53 @@ window.addEventListener('resize', () => {
 }, { passive: true });
 
 // ════════════════════════════════════════════════
-// 백그라운드 진행 표시기
+// 진행 상태 (배너 없이 채팅창에만 표시)
 // ════════════════════════════════════════════════
-function showBgProgress(text, pct) {
-  const el = document.getElementById('bg-progress');
-  if (el) {
-    el.style.display = 'flex';
-    const textEl = document.getElementById('bg-progress-text');
-    if (textEl) textEl.textContent = text || 'AI 작업 중...';
-    if (pct !== undefined) {
-      const bar = document.getElementById('bg-progress-bar-inner');
-      if (bar) bar.style.width = Math.min(pct, 98) + '%';
-    }
-  }
+let _statusBubble = null;
+
+function showBgProgress(text) {
   bgTaskActive = true;
   bgCancelFlag = false;
+  _updateStatusBubble(text);
 }
 
-function updateBgProgress(text, pct) {
+function updateBgProgress(text) {
   if (!bgTaskActive) return;
-  const textEl = document.getElementById('bg-progress-text');
-  if (textEl) textEl.textContent = text;
-  if (pct !== undefined) {
-    const bar = document.getElementById('bg-progress-bar-inner');
-    if (bar) bar.style.width = Math.min(pct, 98) + '%';
+  _updateStatusBubble(text);
+  if (bgTaskId) {
+    clearTimeout(updateBgProgress._t);
+    updateBgProgress._t = setTimeout(() => {
+      fetch('/blog/ai-webdev/' + PROJECT_ID + '/task/upsert/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+        body: JSON.stringify({action: 'update', task_id: bgTaskId, label: text})
+      }).catch(() => {});
+    }, 800);
+  }
+}
+
+function _updateStatusBubble(text) {
+  if (_statusBubble) {
+    _statusBubble.innerHTML = '<span style="color:#8b949e;font-size:.82rem;">⏳ ' + escHtml(text) + '</span>';
+    document.getElementById('chat-messages').scrollTop = 9999;
   }
 }
 
 function hideBgProgress() {
-  const bar = document.getElementById('bg-progress-bar-inner');
-  if (bar) bar.style.width = '100%';
-  setTimeout(() => {
-    const el = document.getElementById('bg-progress');
-    if (el) el.style.display = 'none';
-    if (bar) bar.style.width = '0%';
-  }, 500);
   bgTaskActive = false;
-  bgCancelFlag = false;
 }
 
 function cancelBgTask() {
   bgCancelFlag = true;
   hideBgProgress();
+  if (bgTaskId) {
+    fetch('/blog/ai-webdev/' + PROJECT_ID + '/task/upsert/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify({action: 'cancel', task_id: bgTaskId})
+    }).catch(() => {});
+    bgTaskId = null;
+  }
   showToast('⚠️ 작업을 중단했습니다.', 'warn');
 }
 
@@ -549,18 +555,57 @@ async function loadChatHistory() {
     msgs.innerHTML = '';
     if (!d.history || d.history.length === 0) {
       msgs.innerHTML = `
-        <div style="text-align:center;padding:30px 16px;color:#9ca3af;">
+        <div style="text-align:center;padding:30px 16px;color:#8b949e;">
           <div style="font-size:2.5rem;">🤖</div>
           <p style="margin-top:10px;font-size:.9rem;line-height:1.8;">
             AI에게 무엇을 만들지 말씀해주세요!<br>
-            <small>"React 투두앱 만들어줘"<br>"Bootstrap 포트폴리오"<br>"Flask REST API"</small>
+            <small style="color:#484f58;">"React 투두앱 만들어줘"<br>"Bootstrap 포트폴리오"<br>"Flask REST API"</small>
           </p>
         </div>`;
+    } else {
+      d.history.forEach(s => renderMsg(s.role, s.content, s.tool_calls || []));
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    // 서버에서 실행중인 task가 있으면 표시
+    if (d.running_task) {
+      const div = document.createElement('div');
+      div.className = 'msg-ai';
+      div.id = 'running-task-indicator';
+      div.innerHTML = `<div class="bubble" style="background:#1c2128;border:1px solid #3d444d;">
+        <span style="color:#f0c000;">⏳ ${escHtml(d.running_task.label)}</span>
+        <div style="font-size:.75rem;color:#484f58;margin-top:4px;">백그라운드에서 작업 중입니다. 잠시 후 자동으로 업데이트됩니다.</div>
+      </div>`;
+      msgs.appendChild(div);
+      msgs.scrollTop = msgs.scrollHeight;
+      // 5초마다 이력 갱신
+      setTimeout(pollRunningTask, 5000);
+    }
+  } catch(e) { console.error('이력 로딩 실패:', e); }
+}
+
+async function pollRunningTask() {
+  if (isSending) return;
+  try {
+    const r = await fetch(`/blog/ai-webdev/${PROJECT_ID}/task/status/`);
+    const d = await r.json();
+    const indicator = document.getElementById('running-task-indicator');
+    if (!d.running) {
+      // 완료됨 → 이력 새로고침
+      if (indicator) indicator.remove();
+      await loadChatHistory();
       return;
     }
-    d.history.forEach(s => renderMsg(s.role, s.content, s.tool_calls || []));
-    msgs.scrollTop = msgs.scrollHeight;
-  } catch(e) { console.error('이력 로딩 실패:', e); }
+    // 아직 실행중 → 라벨 업데이트
+    if (indicator) {
+      indicator.querySelector('.bubble').innerHTML = `
+        <span style="color:#f0c000;">⏳ ${escHtml(d.label)}</span>
+        <div style="font-size:.75rem;color:#484f58;margin-top:4px;">백그라운드에서 작업 중입니다. 잠시 후 자동으로 업데이트됩니다.</div>`;
+    }
+    setTimeout(pollRunningTask, 5000);
+  } catch(e) {
+    setTimeout(pollRunningTask, 8000);
+  }
 }
 
 async function clearHistory() {
@@ -683,14 +728,31 @@ async function sendChat() {
 
   isSending = true;
   bgCancelFlag = false;
+  bgTaskId = null;
   input.value = '';
   const btn = document.getElementById('send-btn');
   btn.disabled = true;
   btn.textContent = '⏳';
 
   appendUserMsg(msg);
-  addToolLog(`💬 전송: ${msg.slice(0, 60)}`, 'info');
-  showBgProgress('AI가 응답 생성 중...', 5);
+
+  // 서버에 task 시작 등록 (새로고침 후 복원용)
+  fetch(`/blog/ai-webdev/${PROJECT_ID}/task/upsert/`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify({action: 'start', label: 'AI 응답 생성 중...'})
+  }).then(r => r.json()).then(d => { if (d.task_id) bgTaskId = d.task_id; }).catch(() => {});
+
+  // 상태 버블 생성 (채팅창 내)
+  const statusDiv = document.createElement('div');
+  statusDiv.className = 'msg-ai';
+  statusDiv.id = 'chat-status-bubble';
+  statusDiv.innerHTML = '<div class="bubble" style="background:#1c2128;border:1px solid #30363d;"><span style="color:#8b949e;font-size:.82rem;">⏳ AI가 응답 준비 중...</span></div>';
+  document.getElementById('chat-messages').appendChild(statusDiv);
+  document.getElementById('chat-messages').scrollTop = 9999;
+  _statusBubble = statusDiv.querySelector('.bubble');
+
+  showBgProgress('AI가 응답 생성 중...');
 
   let toolResultsToSend = [];
   let currentMsg = msg;
@@ -707,7 +769,7 @@ async function sendChat() {
     let streaming = false;
 
     try {
-      updateBgProgress(`AI 응답 중 (단계 ${loopCount})...`, 10 + loopCount * 12);
+      // 상태 버블은 유지 (단계 표시 없음)
 
       // ★ 올바른 URL: /blog/ai-webdev/{PROJECT_ID}/chat/
       const resp = await fetch(`/blog/ai-webdev/${PROJECT_ID}/chat/`, {
@@ -804,13 +866,36 @@ async function sendChat() {
     } catch (e) {
       bubble.innerHTML = `<span style="color:#ef4444;">연결 오류: ${escHtml(e.message)}</span>`;
       addToolLog(`❌ 오류: ${e.message}`, 'error');
+      if (bgTaskId) {
+        fetch(`/blog/ai-webdev/${PROJECT_ID}/task/upsert/`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+          body: JSON.stringify({action: 'error', task_id: bgTaskId, error_msg: e.message})
+        }).catch(() => {});
+        bgTaskId = null;
+      }
       break;
     }
   }
 
   if (loopCount >= MAX_LOOPS) addToolLog('⚠️ 도구 실행 루프 최대 횟수 도달', 'error');
-  addToolLog('✅ 작업 완료', 'success');
   executedToolHashes.clear();
+
+  // 상태 버블 제거
+  const sb = document.getElementById('chat-status-bubble');
+  if (sb) sb.remove();
+  _statusBubble = null;
+
+  // 서버 task 완료 처리
+  if (bgTaskId) {
+    fetch(`/blog/ai-webdev/${PROJECT_ID}/task/upsert/`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify({action: 'done', task_id: bgTaskId, label: '작업 완료'})
+    }).catch(() => {});
+    bgTaskId = null;
+  }
+
   isSending = false;
   btn.disabled = false;
   btn.textContent = '▶ 전송';
@@ -979,5 +1064,56 @@ document.addEventListener('DOMContentLoaded', async () => {
     setMobileTabActive('mtab-chat');
     switchTab('chat');
   }
+
+  // ── 모바일 키보드 올라올 때 입력창 가림 방지 ──
+  const chatInput = document.getElementById('chat-input');
+  const chatPane  = document.getElementById('chat-pane');
+
+  function adjustForKeyboard() {
+    if (!isMobile()) return;
+    // visual viewport 지원 브라우저 (iOS 13+)
+    const vvh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    const winH = window.innerHeight;
+    const kbHeight = Math.max(0, winH - vvh);
+    const tabBarH = 54;
+    // chat-pane 높이를 키보드 위까지 맞춤
+    if (kbHeight > 50) {
+      chatPane.style.maxHeight = (vvh - tabBarH - 56) + 'px';
+      chatPane.style.height    = (vvh - tabBarH - 56) + 'px';
+      // 입력창이 보이도록 스크롤
+      setTimeout(() => {
+        document.getElementById('chat-messages').scrollTop = 9999;
+        chatInput.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+      }, 100);
+    } else {
+      chatPane.style.maxHeight = '';
+      chatPane.style.height    = '';
+    }
+  }
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', adjustForKeyboard);
+    window.visualViewport.addEventListener('scroll', adjustForKeyboard);
+  } else {
+    window.addEventListener('resize', adjustForKeyboard);
+  }
+
+  chatInput.addEventListener('focus', () => {
+    if (isMobile()) {
+      setTimeout(adjustForKeyboard, 300);
+      setTimeout(() => {
+        document.getElementById('chat-messages').scrollTop = 9999;
+      }, 400);
+    }
+  });
+
+  chatInput.addEventListener('blur', () => {
+    if (isMobile()) {
+      setTimeout(() => {
+        chatPane.style.maxHeight = '';
+        chatPane.style.height    = '';
+      }, 200);
+    }
+  });
 });
 </script>

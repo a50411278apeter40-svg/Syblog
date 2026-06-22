@@ -346,3 +346,33 @@ class AiWebSession(models.Model):
 
     class Meta:
         ordering = ['created_at']
+
+
+class AiWebTask(models.Model):
+    """AI 웹개발 백그라운드 작업 상태 추적 (새로고침 후에도 재개 가능)"""
+    STATUS_RUNNING   = 'running'
+    STATUS_DONE      = 'done'
+    STATUS_ERROR     = 'error'
+    STATUS_CANCELLED = 'cancelled'
+
+    STATUS_CHOICES = [
+        (STATUS_RUNNING,   '실행 중'),
+        (STATUS_DONE,      '완료'),
+        (STATUS_ERROR,     '오류'),
+        (STATUS_CANCELLED, '취소'),
+    ]
+
+    project    = models.ForeignKey(AiWebProject, on_delete=models.CASCADE, related_name='tasks')
+    status     = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_RUNNING)
+    label      = models.CharField(max_length=200, blank=True)   # "명령 실행 중..." 같은 표시 문구
+    result_msg = models.TextField(blank=True)                   # 완료 후 결과 메시지
+    error_msg  = models.TextField(blank=True)
+    loop_count = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Task({self.pk}) {self.project} [{self.status}]'
