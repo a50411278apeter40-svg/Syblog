@@ -1938,37 +1938,62 @@ def _run_webdev_tool(tool, args, project_dir):
             url = args.get('url', '')
             selector = args.get('selector', '')
             text_input = args.get('text', '')
+            wait_ms = int(args.get('wait', 1000))
             try:
-                from playwright.sync_api import sync_playwright
-                with sync_playwright() as p:
-                    browser = p.chromium.launch(headless=True)
-                    page = browser.new_page()
-                    if url:
-                        page.goto(url, timeout=15000)
-                    if action == 'screenshot':
-                        ss_path = str(project_dir / '_screenshot.png')
-                        page.screenshot(path=ss_path)
+                from playwright.sync_api import sync_playwright as _sync_pw
+                with _sync_pw() as pw:
+                    browser = pw.chromium.launch(
+                        headless=True,
+                        args=['--no-sandbox', '--disable-setuid-sandbox',
+                              '--disable-dev-shm-usage', '--disable-gpu']
+                    )
+                    ctx = browser.new_context(
+                        viewport={'width': 1280, 'height': 800},
+                        user_agent='Mozilla/5.0 (compatible; SyblogBot/1.0)',
+                        ignore_https_errors=True,
+                    )
+                    page = ctx.new_page()
+                    try:
+                        if url:
+                            page.goto(url, timeout=20000, wait_until='domcontentloaded')
+                            if wait_ms > 0:
+                                page.wait_for_timeout(min(wait_ms, 3000))
+                        if action == 'screenshot':
+                            ss_path = str(project_dir / '_screenshot.png')
+                            page.screenshot(path=ss_path, full_page=False)
+                            return {'ok': True, 'screenshot': '_screenshot.png',
+                                    'title': page.title(), 'current_url': page.url}
+                        elif action == 'get_text':
+                            if selector:
+                                try:
+                                    txt = page.locator(selector).first.inner_text(timeout=5000)
+                                except Exception:
+                                    txt = ''
+                            else:
+                                txt = page.inner_text('body') if page.locator('body').count() else page.content()
+                            return {'content': txt[:8000], 'title': page.title()}
+                        elif action == 'get_html':
+                            html = page.content()
+                            return {'html': html[:10000], 'title': page.title()}
+                        elif action == 'click':
+                            page.locator(selector).first.click(timeout=5000)
+                            page.wait_for_timeout(500)
+                            return {'ok': True, 'current_url': page.url}
+                        elif action == 'type':
+                            page.locator(selector).first.fill(text_input, timeout=5000)
+                            return {'ok': True}
+                        elif action == 'evaluate':
+                            js_code = args.get('js', 'document.title')
+                            result_js = page.evaluate(js_code)
+                            return {'result': str(result_js)[:2000]}
+                        else:
+                            return {'error': f'알 수 없는 액션: {action}'}
+                    finally:
                         browser.close()
-                        return {'ok': True, 'screenshot': '_screenshot.png'}
-                    elif action == 'get_text':
-                        content = page.locator(selector).inner_text() if selector else page.content()
-                        browser.close()
-                        return {'content': content[:5000]}
-                    elif action == 'click':
-                        page.click(selector)
-                        browser.close()
-                        return {'ok': True}
-                    elif action == 'type':
-                        page.fill(selector, text_input)
-                        browser.close()
-                        return {'ok': True}
-                    else:
-                        browser.close()
-                        return {'error': '알 수 없는 액션'}
             except ImportError:
-                return {'error': 'playwright 미설치'}
+                return {'error': 'playwright 미설치. 터미널에서: pip install playwright && playwright install chromium'}
             except Exception as e:
-                return {'error': str(e)[:200]}
+                return {'error': f'browser 오류: {str(e)[:300]}'}
 
         else:
             return {'error': f'알 수 없는 도구: {tool}'}
@@ -2444,14 +2469,15 @@ def ai_webdev_static(request, pk, filepath):
 
 
 # ── 터미널 스트리밍 실행 ─────────────────────────────────────────────────────
-@login_required  
+@login_required
 def ai_webdev_terminal_stream(request, pk):
-    """터미널 명령어를 실시간 스트리밍으로 실행"""
+    """터미널 명령어 실시간 스트리밍 (venv 자동교정 + cd 세션유지)"""
     if request.method != 'POST':
         return JsonResponse({'error': 'POST only'}, status=405)
 
     from blog.models import AiWebProject
     import os as _os
+    import re as _re
 
     project = get_object_or_404(AiWebProject, pk=pk, user=request.user)
     project_dir = _get_project_dir(project.pk)
@@ -2459,6 +2485,7 @@ def ai_webdev_terminal_stream(request, pk):
     try:
         body = _json_mod.loads(request.body)
         cmd = body.get('command', '').strip()
+        cwd_rel = body.get('cwd', '.').strip()
     except Exception:
         return JsonResponse({'error': '잘못된 요청'}, status=400)
 
@@ -2468,41 +2495,76 @@ def ai_webdev_terminal_stream(request, pk):
     blocked = ['rm -rf /', ':(){', '>/dev/sda', 'shutdown', 'reboot']
     for b in blocked:
         if b in cmd:
-            return JsonResponse({'error': f'차단된 명령어입니다'}, status=400)
+            return JsonResponse({'error': '차단된 명령어입니다'}, status=400)
 
-    # python/pip 명령어 자동 교정
-    import re as _re
-    cmd_fixed = cmd
+    # venv 경로
+    venv_base = '/opt/render/project/src/.venv'
+    venv_bin  = f'{venv_base}/bin'
+    venv_pip  = f'{venv_bin}/pip'
+    venv_py   = f'{venv_bin}/python3'
 
-    # venv 경로 (Render 배포 환경)
-    venv_bin = '/opt/render/project/src/.venv/bin'
-    venv_pip = f'{venv_bin}/pip'
-    venv_python = f'{venv_bin}/python'
+    def fix_cmd(c):
+        if venv_bin in c:
+            return c
+        c = _re.sub(r'\bpip3?\s+install\b', f'{venv_pip} install', c)
+        c = _re.sub(r'\bpip3?\b', venv_pip, c)
+        c = _re.sub(r'\bpython3?\b', venv_py, c)
+        return c
 
-    # python → venv python3 (python3도 venv 우선)
-    cmd_fixed = _re.sub(r'(?<![/\w])python(?!3|\w)', venv_python, cmd_fixed)
-    cmd_fixed = _re.sub(r'(?<![/\w])python3(?!\w)', venv_python, cmd_fixed)
-    # pip / pip3 → venv pip
-    cmd_fixed = _re.sub(r'(?<![/\w])pip3?(?!\w)', f'{venv_pip} install --break-system-packages', cmd_fixed)
-    # 이미 --break-system-packages 중복 방지
-    cmd_fixed = cmd_fixed.replace('--break-system-packages --break-system-packages', '--break-system-packages')
+    cmd_fixed = fix_cmd(cmd)
+
+    # CWD 계산
+    try:
+        cwd_path = project_dir if (not cwd_rel or cwd_rel == '.') else (project_dir / cwd_rel).resolve()
+        if not str(cwd_path).startswith(str(project_dir)):
+            cwd_path = project_dir
+    except Exception:
+        cwd_path = project_dir
 
     def stream_cmd():
         try:
-            env = {**_os.environ,
-                   'HOME': str(project_dir),
-                   'PATH': f'{venv_bin}:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin',
-                   'VIRTUAL_ENV': '/opt/render/project/src/.venv'}
+            env = {
+                **_os.environ,
+                'HOME': str(project_dir),
+                'PATH': f'{venv_bin}:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin',
+                'VIRTUAL_ENV': venv_base,
+            }
+
+            # cd 명령 처리
+            cd_match = _re.match(r'^cd\s*(.*)', cmd.strip())
+            if cd_match:
+                target = cd_match.group(1).strip()
+                if not target or target == '~':
+                    new_dir = project_dir
+                elif target == '..':
+                    new_dir = cwd_path.parent
+                else:
+                    new_dir = (cwd_path / target).resolve()
+                if str(new_dir).startswith(str(project_dir)) and new_dir.is_dir():
+                    try:
+                        rel = str(new_dir.relative_to(project_dir))
+                    except ValueError:
+                        rel = '.'
+                    yield f"data: {_json_stdlib.dumps({'done': True, 'returncode': 0, 'new_cwd': rel})}\n\n"
+                else:
+                    _cd_err = f'cd: {target}: No such directory\n'; yield f"data: {_json_stdlib.dumps({'line': _cd_err})}\n\n"
+                    yield f"data: {_json_stdlib.dumps({'done': True, 'returncode': 1})}\n\n"
+                return
+
             proc = subprocess.Popen(
-                cmd_fixed, shell=True, cwd=str(project_dir),
+                cmd_fixed, shell=True,
+                cwd=str(cwd_path),
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, env=env,
-                bufsize=1
+                text=True, env=env, bufsize=1
             )
             for line in iter(proc.stdout.readline, ''):
                 yield f"data: {_json_stdlib.dumps({'line': line})}\n\n"
             proc.wait()
-            yield f"data: {_json_stdlib.dumps({'done': True, 'returncode': proc.returncode})}\n\n"
+            try:
+                rel_cwd = str(cwd_path.relative_to(project_dir))
+            except ValueError:
+                rel_cwd = '.'
+            yield f"data: {_json_stdlib.dumps({'done': True, 'returncode': proc.returncode, 'cwd': rel_cwd})}\n\n"
         except Exception as e:
             yield f"data: {_json_stdlib.dumps({'error': str(e), 'done': True})}\n\n"
 
@@ -2512,7 +2574,6 @@ def ai_webdev_terminal_stream(request, pk):
     return resp
 
 
-# ── 프로젝트 파일 읽기/저장 API (에디터용) ──────────────────────────────────
 @login_required
 def ai_webdev_file_read(request, pk):
     """특정 파일 내용 반환"""
