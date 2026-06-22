@@ -411,15 +411,45 @@ async function deleteActiveFile() {
 // ════════════════════════════════════════════════
 // 미리보기
 // ════════════════════════════════════════════════
+function _previewMode() {
+  const sel = document.getElementById('preview-mode');
+  return sel ? sel.value : 'file';
+}
+
+function onPreviewModeChange() {
+  const mode = _previewMode();
+  const fileCtrl = document.getElementById('preview-file-controls');
+  const portCtrl = document.getElementById('preview-port-controls');
+  if (fileCtrl) fileCtrl.style.display = mode === 'file' ? 'flex' : 'none';
+  if (portCtrl) portCtrl.style.display = mode === 'port' ? 'flex' : 'none';
+  refreshPreview();
+}
+
 function refreshPreview() {
   const iframe = document.getElementById('preview-iframe');
-  const path = activeFile && activeFile.endsWith('.html') ? activeFile : 'index.html';
-  iframe.src = `/blog/ai-webdev/${PROJECT_ID}/preview/?path=${encodeURIComponent(path)}&t=${Date.now()}`;
-  document.getElementById('preview-url').textContent = path;
+  if (!iframe) return;
+  const mode = _previewMode();
+  if (mode === 'port') {
+    const port = parseInt(document.getElementById('preview-port-input')?.value || '3000', 10);
+    const proxyUrl = `/blog/ai-webdev/${PROJECT_ID}/proxy/${port}/`;
+    iframe.src = proxyUrl + '?t=' + Date.now();
+  } else {
+    const path = activeFile && activeFile.endsWith('.html') ? activeFile : 'index.html';
+    iframe.src = `/blog/ai-webdev/${PROJECT_ID}/preview/?path=${encodeURIComponent(path)}&t=${Date.now()}`;
+    const urlEl = document.getElementById('preview-url');
+    if (urlEl) urlEl.textContent = path;
+  }
 }
+
 function openExternal() {
-  const path = activeFile && activeFile.endsWith('.html') ? activeFile : 'index.html';
-  window.open(`/blog/ai-webdev/${PROJECT_ID}/preview/?path=${encodeURIComponent(path)}`, '_blank');
+  const mode = _previewMode();
+  if (mode === 'port') {
+    const port = parseInt(document.getElementById('preview-port-input')?.value || '3000', 10);
+    window.open(`/blog/ai-webdev/${PROJECT_ID}/proxy/${port}/`, '_blank');
+  } else {
+    const path = activeFile && activeFile.endsWith('.html') ? activeFile : 'index.html';
+    window.open(`/blog/ai-webdev/${PROJECT_ID}/preview/?path=${encodeURIComponent(path)}`, '_blank');
+  }
 }
 
 // ════════════════════════════════════════════════
@@ -1047,6 +1077,13 @@ document.getElementById('chat-input').addEventListener('keydown', e => {
 // ════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', async () => {
   document.body.classList.add('webbuilder-page');
+  document.documentElement.classList.add('webbuilder-html');
+
+  // navbar 높이를 CSS 변수로 주입 (동적)
+  const navbar = document.querySelector('.navbar, nav.navbar, #navbar, header nav');
+  if (navbar) {
+    document.documentElement.style.setProperty('--navbar-h', navbar.offsetHeight + 'px');
+  }
 
   // 리사이저 초기화
   initResizer('resizer-left', document.getElementById('sidebar'), document.getElementById('editor-pane'));

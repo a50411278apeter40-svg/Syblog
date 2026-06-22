@@ -5,7 +5,22 @@
    기본 & 레이아웃
 ══════════════════════════════════════════ */
 * { box-sizing: border-box; }
-body.webbuilder-page { overflow: hidden; }
+
+/* 웹빌더 페이지: body와 html 모두 overflow hidden */
+html.webbuilder-html,
+body.webbuilder-page {
+  overflow: hidden !important;
+  height: 100% !important;
+}
+
+/* full_page 블록 래퍼 */
+#webbuilder-root {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - var(--navbar-h, 56px));
+  position: relative;
+  background: #0d1117;
+}
 
 /* ══════════════════════════════════════════
    모바일 탭 바 (하단 네비게이션)
@@ -33,10 +48,12 @@ body.webbuilder-page { overflow: hidden; }
 ══════════════════════════════════════════ */
 #workbench {
   display: flex;
-  height: calc(100vh - 56px);
+  flex: 1;
+  min-height: 0;        /* flex 자식이 부모 높이를 넘지 않게 */
   gap: 0;
   position: relative;
   background: #0d1117;
+  overflow: hidden;
 }
 
 /* ══════════════════════════════════════════
@@ -202,10 +219,17 @@ body.webbuilder-page { overflow: hidden; }
 /* ══════════════════════════════════════════
    AI 채팅
 ══════════════════════════════════════════ */
-#chat-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #161b22; }
+#chat-pane { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: #161b22; }
 #chat-messages {
-  flex: 1; overflow-y: auto; padding: 14px 12px;
+  flex: 1 1 0;      /* 남은 공간 전부 차지 */
+  min-height: 0;    /* 부모 높이를 넘어서 늘어나지 않게 */
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+}
+/* chat-input-area는 flex shrink 0: 항상 하단 고정 */
+#chat-input-area { flex: 0 0 auto; }
+#chat-messages {
+  padding: 14px 12px;
   scrollbar-width: thin; scrollbar-color: #30363d transparent;
 }
 .msg-user { text-align: right; margin: 8px 0; }
@@ -378,7 +402,8 @@ button { touch-action: manipulation; }
 
   #workbench {
     flex-direction: column;
-    height: calc(100vh - 56px - 54px);
+    /* 높이는 부모(#webbuilder-root)가 가변으로 줌, 탭바 54px 뺌 */
+    height: calc(100% - 54px);
   }
 
   #mobile-tab-bar { display: flex; }
@@ -432,14 +457,8 @@ button { touch-action: manipulation; }
 </style>
 {% endblock %}
 
-{% block main_area %}
-<!-- bg-progress 제거됨 -->
-  <div id="bg-progress-text">AI 작업 중...</div>
-  <div id="bg-progress-bar-wrap">
-    <div id="bg-progress-bar-inner" style="width:0%"></div>
-  </div>
-  <button id="bg-cancel-btn" onclick="cancelBgTask()">중단</button>
-</div>
+{% block full_page %}
+<div id="webbuilder-root">
 
 <!-- 사이드바 오버레이 (모바일) -->
 <div id="sidebar-overlay" onclick="closeMobileSidebar()"></div>
@@ -528,12 +547,30 @@ button { touch-action: manipulation; }
 
     <!-- 미리보기 탭 -->
     <div id="preview-pane" class="tab-content">
-      <div id="preview-toolbar">
-        <button onclick="refreshPreview()" style="font-size:.8rem;border:1px solid #d1d5db;border-radius:6px;padding:4px 8px;cursor:pointer;background:#fff;">🔄</button>
-        <span id="preview-url">index.html</span>
-        <button onclick="openExternal()" style="font-size:.8rem;border:1px solid #d1d5db;border-radius:6px;padding:4px 8px;cursor:pointer;background:#fff;">↗ 새탭</button>
+      <div id="preview-toolbar" style="background:#0d1117;border-bottom:1px solid #30363d;padding:6px 8px;gap:6px;flex-wrap:wrap;">
+        <!-- 모드 선택 -->
+        <select id="preview-mode" onchange="onPreviewModeChange()" style="background:#161b22;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:3px 8px;font-size:.78rem;cursor:pointer;">
+          <option value="file">📄 파일</option>
+          <option value="port">🔌 포트</option>
+        </select>
+        <!-- 파일 모드 -->
+        <span id="preview-file-controls" style="display:flex;align-items:center;flex:1;gap:6px;min-width:0;">
+          <span id="preview-url" style="flex:1;font-size:.78rem;color:#8b949e;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:3px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">index.html</span>
+        </span>
+        <!-- 포트 모드 -->
+        <span id="preview-port-controls" style="display:none;align-items:center;flex:1;gap:6px;">
+          <input id="preview-port-input" type="number" value="3000" min="1000" max="9999"
+            style="width:76px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:3px 8px;font-size:.78rem;"
+            placeholder="포트" onkeydown="if(event.key==='Enter')refreshPreview()">
+          <span style="font-size:.75rem;color:#6e7681;">예: 3000, 8080</span>
+        </span>
+        <button onclick="refreshPreview()" style="background:#1f6feb;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:.78rem;cursor:pointer;white-space:nowrap;">🔄 새로고침</button>
+        <button onclick="openExternal()" style="background:#21262d;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:4px 10px;font-size:.78rem;cursor:pointer;">↗</button>
       </div>
-      <iframe id="preview-iframe" src="/blog/ai-webdev/{{ project.pk }}/preview/"></iframe>
+      <iframe id="preview-iframe"
+        src="/blog/ai-webdev/{{ project.pk }}/preview/"
+        sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-modals"
+        style="flex:1;border:none;width:100%;height:100%;background:#fff;"></iframe>
     </div>
 
     <!-- 도구 로그 탭 -->
@@ -603,5 +640,5 @@ button { touch-action: manipulation; }
 
 {% include 'blog/ai_webdev_project_js.html' %}
 
-
+</div>{# /webbuilder-root #}
 {% endblock %}

@@ -81,6 +81,8 @@ urlpatterns = [
     path('ai-webdev/<int:pk>/history/', views.ai_webdev_history, name='ai_webdev_history'),
     path('ai-webdev/<int:pk>/task/status/', views.ai_webdev_task_status, name='ai_webdev_task_status'),
     path('ai-webdev/<int:pk>/task/upsert/', views.ai_webdev_task_upsert, name='ai_webdev_task_upsert'),
+    path('ai-webdev/<int:pk>/proxy/<int:port>/', views.ai_webdev_proxy, name='ai_webdev_proxy', kwargs={'path': ''}),
+    path('ai-webdev/<int:pk>/proxy/<int:port>/<path:path>', views.ai_webdev_proxy, name='ai_webdev_proxy_path'),
     path('ai-webdev/<int:pk>/clear-history/', views.ai_webdev_clear_history, name='ai_webdev_clear_history'),
     path('ai/credit/info/', views.ai_credit_info, name='ai_credit_info'),
 ]

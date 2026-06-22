@@ -2703,3 +2703,85 @@ def ai_webdev_file_write(request, pk):
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding='utf-8')
     return JsonResponse({'ok': True, 'path': path})
+
+
+@login_required
+def ai_webdev_proxy(request, pk, port, path=''):
+    """
+    실행 중인 개발 서버 포트를 Django 백엔드에서 프록시
+    iframe 차단 없이 미리보기 가능
+    """
+    import urllib.request as _urllib_req
+    import urllib.error as _urllib_err
+    from blog.models import AiWebProject
+
+    project = get_object_or_404(AiWebProject, pk=pk, user=request.user)
+
+    # 허용 포트 범위 제한 (3000~9999)
+    try:
+        port = int(port)
+        if not (3000 <= port <= 9999):
+            return HttpResponse('허용되지 않는 포트', status=400)
+    except (ValueError, TypeError):
+        return HttpResponse('잘못된 포트', status=400)
+
+    qs = request.GET.urlencode()
+    url = f'http://127.0.0.1:{port}/{path}' + (f'?{qs}' if qs else '')
+
+    try:
+        req = _urllib_req.Request(url)
+        req.add_header('Accept', request.META.get('HTTP_ACCEPT', '*/*'))
+        req.add_header('Accept-Language', 'ko,en')
+
+        with _urllib_req.urlopen(req, timeout=8) as resp:
+            body = resp.read()
+            ct = resp.getheader('Content-Type', 'text/html; charset=utf-8')
+
+            # HTML이면 base 태그 주입 (상대 경로 처리)
+            if 'text/html' in ct:
+                try:
+                    text = body.decode('utf-8', errors='replace')
+                    base_url = f'/blog/ai-webdev/{pk}/proxy/{port}/'
+                    base_tag = f'<base href="{base_url}">'
+                    # X-Frame-Options 우회를 위해 meta 태그도 주입
+                    inject = f'{base_tag}
+<script>window.__PROXY_BASE__="{base_url}";</script>'
+                    if '<head>' in text:
+                        text = text.replace('<head>', f'<head>{inject}', 1)
+                    elif '<html' in text:
+                        idx = text.find('>', text.find('<html')) + 1
+                        text = text[:idx] + f'<head>{inject}</head>' + text[idx:]
+                    else:
+                        text = inject + text
+                    body = text.encode('utf-8')
+                except Exception:
+                    pass
+
+            http_resp = HttpResponse(body, content_type=ct)
+            http_resp['X-Frame-Options'] = 'SAMEORIGIN'
+            http_resp['Cache-Control'] = 'no-cache'
+            return http_resp
+
+    except _urllib_err.URLError as e:
+        # 서버 아직 안 뜸
+        html = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<style>
+body{{font-family:sans-serif;background:#0d1117;color:#8b949e;
+     display:flex;flex-direction:column;align-items:center;justify-content:center;
+     height:100vh;margin:0;text-align:center;}}
+.icon{{font-size:3rem;margin-bottom:12px;}}
+p{{font-size:.9rem;max-width:300px;line-height:1.6;}}
+button{{margin-top:16px;background:#1f6feb;color:#fff;border:none;
+        border-radius:8px;padding:8px 20px;cursor:pointer;font-size:.9rem;}}
+</style></head><body>
+<div class="icon">🔌</div>
+<p>포트 <strong style="color:#58a6ff;">{port}</strong>에서 실행 중인 서버가 없습니다.<br>
+터미널에서 서버를 먼저 실행해주세요.</p>
+<p style="font-size:.8rem;color:#484f58;">{str(e)[:80]}</p>
+<button onclick="location.reload()">🔄 다시 시도</button>
+</body></html>"""
+        return HttpResponse(html, content_type='text/html; charset=utf-8', status=502)
+    except Exception as e:
+        return HttpResponse(f'프록시 오류: {str(e)[:200]}', status=500)
+
