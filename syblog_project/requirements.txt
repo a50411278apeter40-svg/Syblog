@@ -14,3 +14,4 @@ PyJWT==2.13.0
 cryptography==45.0.3
 psycopg2-binary==2.9.9
 g4f==7.6.6
+playwright==1.49.1

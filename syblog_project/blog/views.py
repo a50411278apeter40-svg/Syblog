@@ -1775,7 +1775,18 @@ _pw_sessions = {}   # {project_pk: {'pw': ..., 'browser': ..., 'page': ..., 'url
 def _get_pw_page(pk, viewport_w=1280, viewport_h=800):
     """프로젝트별 Playwright 페이지를 영구 유지/재사용한다."""
     import threading
-    from playwright.sync_api import sync_playwright as _sync_pw
+    try:
+        from playwright.sync_api import sync_playwright as _sync_pw
+    except ImportError:
+        # 자동 설치 시도
+        import subprocess, sys
+        venv_pip = '/opt/render/project/src/.venv/bin/pip'
+        pip_cmd = venv_pip if __import__('os').path.exists(venv_pip) else sys.executable.replace('python', 'pip').replace('python3', 'pip3')
+        subprocess.run([pip_cmd, 'install', 'playwright==1.49.1'], check=False)
+        venv_pw = '/opt/render/project/src/.venv/bin/playwright'
+        pw_cmd = venv_pw if __import__('os').path.exists(venv_pw) else 'playwright'
+        subprocess.run([pw_cmd, 'install', 'chromium'], check=False)
+        from playwright.sync_api import sync_playwright as _sync_pw
     sess = _pw_sessions.get(pk)
     # 살아있는 세션 재사용
     if sess:
@@ -2040,7 +2051,7 @@ def _run_webdev_tool(tool, args, project_dir):
                 else:
                     return {'error': f'알 수 없는 액션: {action}'}
             except ImportError:
-                return {'error': 'playwright 미설치. 터미널에서: pip install playwright && playwright install chromium'}
+                return {'error': 'playwright 미설치 또는 브라우저 미준비. 잠시 후 자동 설치됩니다. 다시 시도해주세요.'}
             except Exception as e:
                 # 세션 깨진 경우 초기화 후 재시도
                 _pw_sessions.pop(pk, None)
