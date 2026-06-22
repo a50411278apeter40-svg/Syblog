@@ -772,6 +772,8 @@ async function sendChat() {
   const btn = document.getElementById('send-btn');
   btn.disabled = true;
   btn.textContent = '⏳';
+  const stopBtn = document.getElementById('stop-btn');
+  if (stopBtn) stopBtn.style.display = 'inline-block';
 
   appendUserMsg(msg);
 
@@ -797,9 +799,9 @@ async function sendChat() {
   let currentMsg = msg;
   let continueLoop = true;
   let loopCount = 0;
-  const MAX_LOOPS = 6;
+  // 무한 루프 (사용자가 정지 버튼 누를 때까지)
 
-  while (continueLoop && loopCount < MAX_LOOPS && !bgCancelFlag) {
+  while (continueLoop && !bgCancelFlag) {
     loopCount++;
     continueLoop = false;
 
@@ -838,8 +840,10 @@ async function sendChat() {
           errMsg = errData.error || errMsg;
         } catch(e) {}
         bubble.innerHTML = `<span style="color:#ef4444;">❌ ${escHtml(errMsg)}</span>`;
-        addToolLog(`❌ ${errMsg}`, 'error');
-        break;
+        addToolLog(`❌ ${errMsg} → 계속 진행`, 'error');
+        // 에러여도 계속 진행 (정지 버튼으로만 멈춤)
+        continueLoop = false;
+        break;  // 이 루프만 종료, 다음 사용자 입력 대기
       }
 
       // 스트리밍 읽기
@@ -904,7 +908,7 @@ async function sendChat() {
 
     } catch (e) {
       bubble.innerHTML = `<span style="color:#ef4444;">연결 오류: ${escHtml(e.message)}</span>`;
-      addToolLog(`❌ 오류: ${e.message}`, 'error');
+      addToolLog(`❌ 오류: ${e.message} → 계속 대기`, 'error');
       if (bgTaskId) {
         fetch(`/blog/ai-webdev/${PROJECT_ID}/task/upsert/`, {
           method: 'POST',
@@ -913,11 +917,12 @@ async function sendChat() {
         }).catch(() => {});
         bgTaskId = null;
       }
-      break;
+      // 연결 오류여도 멈추지 않고 다음 입력 대기
+      continueLoop = false;
     }
   }
 
-  if (loopCount >= MAX_LOOPS) addToolLog('⚠️ 도구 실행 루프 최대 횟수 도달', 'error');
+  // 루프 종료 (정지 버튼 또는 작업 완료)
   executedToolHashes.clear();
 
   // 상태 버블 제거
@@ -938,6 +943,7 @@ async function sendChat() {
   isSending = false;
   btn.disabled = false;
   btn.textContent = '▶ 전송';
+  if (stopBtn) stopBtn.style.display = 'none';
   hideBgProgress();
   await refreshFiles();
 }
@@ -1092,17 +1098,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   function fitWebbuilderRoot() {
     const root = document.getElementById('webbuilder-root');
     if (!root) return;
-    // root의 실제 top 위치(= navbar+notice 등 모든 요소 높이 합산)
-    const top = root.getBoundingClientRect().top + window.scrollY;
-    const vh = window.innerHeight;
-    root.style.height = (vh - top) + 'px';
+    const vv = window.visualViewport;
+    const vh = vv ? vv.height : window.innerHeight;
+    // html/body가 position:fixed이므로 스크롤 없음 → getBoundingClientRect().top 정확
+    const top = root.getBoundingClientRect().top;
+    const tabBar = document.getElementById('mobile-tab-bar');
+    const tabBarH = (tabBar && getComputedStyle(tabBar).display !== 'none')
+                    ? tabBar.offsetHeight : 0;
+    const h = Math.max(200, vh - Math.max(0, top) - tabBarH);
+    root.style.height = h + 'px';
+    root.style.maxHeight = h + 'px';
   }
   fitWebbuilderRoot();
   window.addEventListener('resize', fitWebbuilderRoot);
-  // iOS 키보드 대응
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', fitWebbuilderRoot);
+    window.visualViewport.addEventListener('scroll', fitWebbuilderRoot);
   }
+  // 공지 dismiss 시에도 재계산
+  document.addEventListener('click', e => {
+    if (e.target.closest('[onclick*="dismissNotice"]')) {
+      setTimeout(fitWebbuilderRoot, 350);
+    }
+  });
 
   // 리사이저 초기화
   initResizer('resizer-left', document.getElementById('sidebar'), document.getElementById('editor-pane'));
