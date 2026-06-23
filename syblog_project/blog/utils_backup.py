@@ -105,6 +105,38 @@ def _media_to_zip_bytes(media_root):
     return buf.getvalue()
 
 
+# ── AI 웹빌더 프로젝트 폴더 → zip bytes ────────────────────────
+WEBDEV_WORKSPACE_PATH = '/tmp/syblog_webdev'
+
+def _webdev_to_zip_bytes(workspace_path):
+    """AI 웹빌더 전체 workspace → zip bytes (프로젝트 ID별 폴더 구조 유지)"""
+    buf = BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
+        if os.path.isdir(workspace_path):
+            for dirpath, dirnames, filenames in os.walk(workspace_path):
+                # __pycache__, .git, node_modules 제외
+                dirnames[:] = [d for d in dirnames
+                               if d not in ('__pycache__', '.git', 'node_modules', '.venv')]
+                for filename in filenames:
+                    full_path = os.path.join(dirpath, filename)
+                    arcname = os.path.relpath(full_path, workspace_path)
+                    try:
+                        zf.write(full_path, arcname)
+                    except (OSError, PermissionError):
+                        pass
+    return buf.getvalue()
+
+
+def _zip_bytes_to_webdev(zip_bytes, workspace_path):
+    """zip bytes → AI 웹빌더 workspace 복원"""
+    # 기존 workspace 폴더 삭제 후 재생성
+    if os.path.isdir(workspace_path):
+        shutil.rmtree(workspace_path)
+    os.makedirs(workspace_path, exist_ok=True)
+    with zipfile.ZipFile(BytesIO(zip_bytes), 'r') as zf:
+        zf.extractall(workspace_path)
+
+
 # ── zip bytes → 미디어 폴더 복원 ────────────────────────────────
 def _zip_bytes_to_media(zip_bytes, media_root):
     # 기존 미디어 폴더 삭제 후 재생성
@@ -156,13 +188,26 @@ def perform_backup():
         if not ok:
             errors.append(f'미디어 백업 경고: {info_or_err}')
 
-        # ③ 메타 파일 (어떤 백업 파일끼리 쌍인지 기록)
+        # ③ AI 웹빌더 파일 백업
+        webdev_zip_bytes = _webdev_to_zip_bytes(WEBDEV_WORKSPACE_PATH)
+        webdev_path = f'backups/webdev/syblog_webdev_{now_str}.zip'
+        webdev_ok, webdev_info_or_err = _upload_large_file_to_github(
+            token, repo, webdev_path, webdev_zip_bytes,
+            f'🛠️ AI웹빌더 백업 {now_str}'
+        )
+        if not webdev_ok:
+            errors.append(f'웹빌더 백업 경고: {webdev_info_or_err}')
+
+        # ④ 메타 파일 (어떤 백업 파일끼리 쌍인지 기록)
         meta = {
             'timestamp': now_str,
             'db_path': db_path,
             'media_path': media_path,
             'media_info': info_or_err if ok else None,
             'media_zip_size_kb': round(len(media_zip_bytes) / 1024, 1),
+            'webdev_path': webdev_path,
+            'webdev_info': webdev_info_or_err if webdev_ok else None,
+            'webdev_zip_size_kb': round(len(webdev_zip_bytes) / 1024, 1),
         }
         meta_b64 = base64.b64encode(json.dumps(meta, ensure_ascii=False).encode('utf-8')).decode('utf-8')
         meta_path = f'backups/meta/syblog_meta_{now_str}.json'
@@ -172,7 +217,7 @@ def perform_backup():
             payload['sha'] = res.get('sha', '')
         _github_api('PUT', f'/repos/{repo}/contents/{meta_path}', token, payload)
 
-        msg = f'DB + 미디어 백업 완료 ({now_str})'
+        msg = f'DB + 미디어 + AI웹빌더 백업 완료 ({now_str})'
         if errors:
             msg += ' | 경고: ' + '; '.join(errors)
         return True, msg
@@ -228,6 +273,15 @@ def perform_restore():
                     media_root = getattr(settings, 'MEDIA_ROOT', os.path.join(settings.BASE_DIR, '_media'))
                     _zip_bytes_to_media(zip_bytes, media_root)
 
+            # AI 웹빌더 파일 복원
+            webdev_err = None
+            if meta.get('webdev_path') and meta.get('webdev_info'):
+                webdev_zip_bytes, webdev_err = _download_file_from_github(
+                    token, repo, meta['webdev_path'], meta['webdev_info']
+                )
+                if webdev_zip_bytes:
+                    _zip_bytes_to_webdev(webdev_zip_bytes, WEBDEV_WORKSPACE_PATH)
+
             ts = meta.get('timestamp', '알 수 없음')
 
         else:
@@ -266,9 +320,11 @@ def perform_restore():
         call_command('loaddata', f_name)
         os.remove(f_name)
 
-        msg = f'복원 완료 ({ts})'
+        msg = f'DB + 미디어 + AI웹빌더 복원 완료 ({ts})'
         if media_err:
-            msg += f' | 미디어: {media_err}'
+            msg += f' | 미디어 오류: {media_err}'
+        if webdev_err:
+            msg += f' | 웹빌더 오류: {webdev_err}'
         return True, msg
 
     except Exception as e:
