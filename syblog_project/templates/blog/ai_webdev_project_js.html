@@ -236,25 +236,54 @@ function renderTree(files, container, depth) {
     const div = document.createElement('div');
     div.className = 'tree-item ' + (f.type === 'dir' ? 'is-dir' : 'is-file');
     div.style.paddingLeft = (10 + depth * 14) + 'px';
+    div.style.display = 'flex';
+    div.style.alignItems = 'center';
     const icon = f.type === 'dir' ? '📁' : getFileIcon(f.name);
-    div.innerHTML = `${icon} ${escHtml(f.name)}`;
+    const nameSpan = document.createElement('span');
+    nameSpan.style.flex = '1';
+    nameSpan.style.overflow = 'hidden';
+    nameSpan.style.textOverflow = 'ellipsis';
+    nameSpan.style.whiteSpace = 'nowrap';
+    nameSpan.innerHTML = `${icon} ${escHtml(f.name)}`;
+
     if (f.type === 'file') {
-      div.onclick = () => {
+      nameSpan.style.cursor = 'pointer';
+      nameSpan.onclick = (e) => {
+        e.stopPropagation();
         loadFile(f.path, f.name);
         if (isMobile()) closeMobileSidebar();
       };
+      // 개별 다운로드 버튼
+      const dlBtn = document.createElement('a');
+      dlBtn.href = `/blog/ai-webdev/${PROJECT_ID}/file/download/?path=${encodeURIComponent(f.path)}`;
+      dlBtn.download = f.name;
+      dlBtn.title = '다운로드';
+      dlBtn.style.cssText = 'color:#58a6ff;font-size:.72rem;padding:2px 5px;opacity:0;transition:opacity .15s;flex:0 0 auto;text-decoration:none;';
+      dlBtn.textContent = '⬇';
+      dlBtn.onclick = e => e.stopPropagation();
+      div.addEventListener('mouseenter', () => dlBtn.style.opacity = '1');
+      div.addEventListener('mouseleave', () => dlBtn.style.opacity = '0');
+      div.appendChild(nameSpan);
+      div.appendChild(dlBtn);
     } else if (f.children && f.children.length) {
       let open = false;
       const sub = document.createElement('div');
-      div.onclick = () => {
+      div.style.cursor = 'pointer';
+      nameSpan.onclick = () => {
         open = !open;
         sub.style.display = open ? 'block' : 'none';
+        nameSpan.querySelector('span.folder-arrow') &&
+          (nameSpan.querySelector('span.folder-arrow').textContent = open ? '▼ ' : '▶ ');
       };
+      div.onclick = nameSpan.onclick;
       renderTree(f.children, sub, depth + 1);
       sub.style.display = 'none';
+      div.appendChild(nameSpan);
       container.appendChild(div);
       container.appendChild(sub);
       return;
+    } else {
+      div.appendChild(nameSpan);
     }
     container.appendChild(div);
   });
@@ -571,6 +600,62 @@ function clearToolLog() {
   if (toolTab) toolTab.innerHTML = '🔧 로그';
   const cnt = document.getElementById('tool-card-count');
   if (cnt) cnt.textContent = '';
+}
+
+
+// ════════════════════════════════════════════════
+// 파일 다운로드
+// ════════════════════════════════════════════════
+function downloadActiveFile() {
+  if (!activeFile) {
+    showToast('⚠️ 먼저 파일을 선택하세요', 'warning');
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = `/blog/ai-webdev/${PROJECT_ID}/file/download/?path=${encodeURIComponent(activeFile)}`;
+  a.download = activeFile.split('/').pop();
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  showToast(`⬇️ ${a.download} 다운로드 시작`);
+}
+
+function downloadZip() {
+  const btn = document.getElementById('download-zip-btn');
+  const origText = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.innerHTML = '⏳ 압축 중...';
+    btn.style.pointerEvents = 'none';
+    btn.style.opacity = '0.6';
+  }
+  showToast('📦 ZIP 압축 중... 잠시 후 다운로드됩니다');
+
+  // fetch로 blob 다운로드 (진행상태 감지 가능)
+  fetch(`/blog/ai-webdev/${PROJECT_ID}/download-zip/`)
+    .then(r => {
+      if (!r.ok) throw new Error('ZIP 생성 실패');
+      const filename = (r.headers.get('Content-Disposition') || '').match(/filename="(.+?)"/)?.[1] || 'project.zip';
+      return r.blob().then(blob => ({ blob, filename }));
+    })
+    .then(({ blob, filename }) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('✅ ZIP 다운로드 완료!');
+    })
+    .catch(e => showToast('❌ ZIP 오류: ' + e.message, 'error'))
+    .finally(() => {
+      if (btn) {
+        btn.innerHTML = origText;
+        btn.style.pointerEvents = '';
+        btn.style.opacity = '';
+      }
+    });
 }
 
 // ════════════════════════════════════════════════

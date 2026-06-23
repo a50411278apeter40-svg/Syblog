@@ -542,6 +542,23 @@ button { touch-action: manipulation; }
       <button onclick="refreshFiles()" style="background:#45475a;color:#cdd6f4;">🔄</button>
       <button onclick="deleteActiveFile()" style="background:#f38ba8;color:#fff;">🗑</button>
     </div>
+    <!-- 다운로드 버튼 영역 -->
+    <div style="display:flex;gap:6px;padding:8px 10px;border-top:1px solid #30363d;background:#0d1117;">
+      <button id="download-file-btn" onclick="downloadActiveFile()"
+              title="현재 파일 다운로드"
+              style="flex:1;background:#1f2937;color:#58a6ff;border:1px solid #30363d;
+                     border-radius:6px;padding:6px 4px;font-size:.74rem;cursor:pointer;
+                     display:flex;align-items:center;justify-content:center;gap:4px;">
+        ⬇ 파일
+      </button>
+      <button id="download-zip-btn" onclick="downloadZip()"
+              title="전체 파일 ZIP으로 다운로드"
+              style="flex:1;background:#1f2937;color:#3fb950;border:1px solid #30363d;
+                     border-radius:6px;padding:6px 4px;font-size:.74rem;cursor:pointer;
+                     display:flex;align-items:center;justify-content:center;gap:4px;">
+        📦 ZIP
+      </button>
+    </div>
   </div>
 
   <div class="resizer" id="resizer-left"></div>

@@ -1276,8 +1276,6 @@ def ai_writing_assist(request):
             raise ValueError("빈 응답")
         return JsonResponse({'result': result.strip(), 'mode': mode})
     except Exception as e:
-        import logging
-logger = logging.getLogger(__name__)
         logging.getLogger(__name__).warning(f"g4f AI error: {e}")
         return JsonResponse({
             'result': f"AI 연결에 실패했습니다. 잠시 후 다시 시도해주세요.\n(오류: {str(e)[:80]})",
@@ -2780,6 +2778,61 @@ def ai_webdev_file_write(request, pk):
     target.write_text(content, encoding='utf-8')
     return JsonResponse({'ok': True, 'path': path})
 
+
+
+@login_required
+def ai_webdev_file_download(request, pk):
+    """개별 파일 다운로드"""
+    import mimetypes
+    from django.http import FileResponse
+    from blog.models import AiWebProject
+    project = get_object_or_404(AiWebProject, pk=pk, user=request.user)
+    project_dir = _get_project_dir(project.pk)
+    path = request.GET.get('path', '').lstrip('/')
+    if not path:
+        return JsonResponse({'error': '경로 필요'}, status=400)
+    target = (project_dir / path).resolve()
+    if not str(target).startswith(str(project_dir.resolve())):
+        return HttpResponse('허용되지 않은 경로', status=403)
+    if not target.exists() or not target.is_file():
+        return HttpResponse('파일 없음', status=404)
+    mime, _ = mimetypes.guess_type(str(target))
+    mime = mime or 'application/octet-stream'
+    response = FileResponse(open(target, 'rb'), content_type=mime)
+    response['Content-Disposition'] = f'attachment; filename="{target.name}"'
+    logger.info(f'[WebDev] 파일 다운로드: pk={pk} path={path}')
+    return response
+
+
+@login_required
+def ai_webdev_zip_download(request, pk):
+    """전체 프로젝트 ZIP 다운로드"""
+    import zipfile
+    import io
+    from blog.models import AiWebProject
+    project = get_object_or_404(AiWebProject, pk=pk, user=request.user)
+    project_dir = _get_project_dir(project.pk)
+    if not project_dir.exists():
+        return HttpResponse('프로젝트 파일 없음', status=404)
+
+    buf = io.BytesIO()
+    file_count = 0
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for file_path in sorted(project_dir.rglob('*')):
+            if file_path.is_file():
+                # 숨김파일 / __pycache__ 제외
+                parts = file_path.relative_to(project_dir).parts
+                if any(p.startswith('.') or p == '__pycache__' for p in parts):
+                    continue
+                arcname = str(file_path.relative_to(project_dir))
+                zf.write(file_path, arcname)
+                file_count += 1
+    buf.seek(0)
+    safe_name = ''.join(c if c.isalnum() or c in '-_' else '_' for c in project.name)
+    logger.info(f'[WebDev] ZIP 다운로드: pk={pk} name={project.name} files={file_count}')
+    response = HttpResponse(buf.read(), content_type='application/zip')
+    response['Content-Disposition'] = f'attachment; filename="{safe_name}.zip"'
+    return response
 
 @login_required
 def ai_webdev_proxy(request, pk, port, path=''):
