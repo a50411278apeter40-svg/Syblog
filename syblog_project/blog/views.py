@@ -12,6 +12,9 @@ from django.views.decorators.http import require_POST
 from .models import Post, Category, Tag, Comment, Series, check_banned_keywords
 from .forms import CommentForm, PostForm, SeriesForm, PostFormWithSchedule
 from django.contrib.auth.models import User
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ── 배지/포인트 헬퍼 ─────────────────────────────────────────
