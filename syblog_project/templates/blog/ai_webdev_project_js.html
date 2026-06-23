@@ -462,19 +462,115 @@ function openExternal() {
 }
 
 // ════════════════════════════════════════════════
-// 도구 로그
+// 도구 로그 (카드 + 간단 로그 혼합)
 // ════════════════════════════════════════════════
+let _cardCounter = 0;
+
+function _updateToolTabBadge() {
+  toolLogCount++;
+  const toolTab = document.querySelector('.right-tab[onclick*="tool"]');
+  if (toolTab) toolTab.innerHTML = `🔧 로그 <span style="background:#6c63ff;color:#fff;border-radius:10px;padding:1px 6px;font-size:.7rem;">${toolLogCount}</span>`;
+  const cnt = document.getElementById('tool-card-count');
+  if (cnt) cnt.textContent = `(${toolLogCount}개)`;
+}
+
+/** 간단 로그 한 줄 */
 function addToolLog(msg, type='info') {
   const area = document.getElementById('tool-log-area');
   if (!area) return;
   const div = document.createElement('div');
   div.className = 'tool-log-entry ' + type;
-  div.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  div.innerHTML = `<span style="color:#484f58;">[${new Date().toLocaleTimeString()}]</span> ${msg}`;
   area.appendChild(div);
   area.scrollTop = area.scrollHeight;
-  toolLogCount++;
+  _updateToolTabBadge();
+}
+
+/**
+ * 도구 카드 생성 (접기/펼치기 + 입출력값)
+ * @returns {cardId, updateOutput} - updateOutput(result, isError) 로 출력 업데이트
+ */
+function addToolCard(toolName, argsObj) {
+  const area = document.getElementById('tool-log-area');
+  if (!area) return { cardId: null, updateOutput: ()=>{} };
+  const id = 'tc-' + (++_cardCounter);
+  const argsStr = JSON.stringify(argsObj || {}, null, 2);
+  const card = document.createElement('div');
+  card.className = 'tool-card';
+  card.id = id;
+  card.innerHTML = `
+    <div class="tool-card-header" onclick="toggleToolCard('${id}')">
+      <span style="color:#6e7681;font-size:.75rem;">[${new Date().toLocaleTimeString()}]</span>
+      <span class="tool-card-name">🔧 ${escHtml(toolName)}</span>
+      <span class="tool-card-status running" id="${id}-status">⏳ 실행 중</span>
+      <span class="tool-card-toggle" id="${id}-toggle">▶</span>
+    </div>
+    <div class="tool-card-body" id="${id}-body">
+      <div class="tool-card-section">
+        <div class="tool-card-section-title">📥 입력값 (args)</div>
+        <div class="tool-card-code">${escHtml(argsStr)}</div>
+      </div>
+      <div class="tool-card-section" id="${id}-out-section" style="display:none;">
+        <div class="tool-card-section-title">📤 출력값 (result)</div>
+        <div class="tool-card-code output" id="${id}-out"></div>
+      </div>
+    </div>`;
+  area.appendChild(card);
+  area.scrollTop = area.scrollHeight;
+  _updateToolTabBadge();
+
+  function updateOutput(result, isError) {
+    const statusEl = document.getElementById(id + '-status');
+    const outSection = document.getElementById(id + '-out-section');
+    const outEl = document.getElementById(id + '-out');
+    if (statusEl) {
+      statusEl.className = 'tool-card-status ' + (isError ? 'err' : 'ok');
+      statusEl.textContent = isError ? '❌ 오류' : '✅ 완료';
+    }
+    if (outEl && outSection) {
+      outSection.style.display = '';
+      const resultStr = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+      outEl.textContent = resultStr;
+      if (isError) outEl.className = 'tool-card-code error-out';
+    }
+    area.scrollTop = area.scrollHeight;
+  }
+  return { cardId: id, updateOutput };
+}
+
+function toggleToolCard(id) {
+  const body = document.getElementById(id + '-body');
+  const toggle = document.getElementById(id + '-toggle');
+  if (!body) return;
+  const isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  if (toggle) { toggle.classList.toggle('open', !isOpen); toggle.textContent = isOpen ? '▶' : '▼'; }
+}
+
+function expandAllCards() {
+  document.querySelectorAll('.tool-card-body').forEach(b => {
+    b.classList.add('open');
+    const t = b.closest('.tool-card')?.querySelector('.tool-card-toggle');
+    if (t) { t.classList.add('open'); t.textContent = '▼'; }
+  });
+}
+
+function collapseAllCards() {
+  document.querySelectorAll('.tool-card-body').forEach(b => {
+    b.classList.remove('open');
+    const t = b.closest('.tool-card')?.querySelector('.tool-card-toggle');
+    if (t) { t.classList.remove('open'); t.textContent = '▶'; }
+  });
+}
+
+function clearToolLog() {
+  const area = document.getElementById('tool-log-area');
+  if (area) { area.innerHTML = '<div style="color:#6e7681;font-size:.78rem;padding:8px 0;">로그가 지워졌습니다.</div>'; }
+  toolLogCount = 0; _cardCounter = 0;
   const toolTab = document.querySelector('.right-tab[onclick*="tool"]');
-  if (toolTab) toolTab.innerHTML = `🔧 로그 <span style="background:#6c63ff;color:#fff;border-radius:10px;padding:1px 6px;font-size:.7rem;">${toolLogCount}</span>`;
+  if (toolTab) toolTab.innerHTML = '🔧 로그';
+  const cnt = document.getElementById('tool-card-count');
+  if (cnt) cnt.textContent = '';
 }
 
 // ════════════════════════════════════════════════
@@ -623,27 +719,45 @@ async function loadChatHistory() {
   } catch(e) { console.error('이력 로딩 실패:', e); }
 }
 
+let _pollElapsed = 0;
+
 async function pollRunningTask() {
   if (isSending) return;
   try {
     const r = await fetch(`/blog/ai-webdev/${PROJECT_ID}/task/status/`);
     const d = await r.json();
     const indicator = document.getElementById('running-task-indicator');
+
     if (!d.running) {
-      // 완료됨 → 이력 새로고침
+      // 완료/에러/취소
       if (indicator) indicator.remove();
+      _pollElapsed = 0;
       await loadChatHistory();
       return;
     }
-    // 아직 실행중 → 라벨 업데이트
+
+    // 경과 시간 업데이트
+    _pollElapsed += 2;
+    const elapsed = _pollElapsed < 60
+      ? `${_pollElapsed}초 경과`
+      : `${Math.floor(_pollElapsed/60)}분 ${_pollElapsed%60}초 경과`;
+
     if (indicator) {
       indicator.querySelector('.bubble').innerHTML = `
-        <span style="color:#f0c000;">⏳ ${escHtml(d.label)}</span>
-        <div style="font-size:.75rem;color:#484f58;margin-top:4px;">백그라운드에서 작업 중입니다. 잠시 후 자동으로 업데이트됩니다.</div>`;
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:1.2rem;animation:spin 1s linear infinite;display:inline-block;">⚙️</span>
+          <div>
+            <div style="color:#f0c000;font-weight:600;">⏳ ${escHtml(d.label || '명령 실행 중...')}</div>
+            <div style="font-size:.72rem;color:#484f58;margin-top:3px;">
+              ${elapsed} · 새로고침해도 백그라운드에서 계속 실행됩니다
+            </div>
+          </div>
+        </div>`;
     }
-    setTimeout(pollRunningTask, 5000);
+    // 2초마다 폴링
+    setTimeout(pollRunningTask, 2000);
   } catch(e) {
-    setTimeout(pollRunningTask, 8000);
+    setTimeout(pollRunningTask, 5000);
   }
 }
 
@@ -715,7 +829,7 @@ async function executeToolCall(toolData) {
   if (executedToolHashes.has(hash)) return null;
   executedToolHashes.add(hash);
 
-  addToolLog(`🔧 <strong>${toolName}</strong> ${argsStr.slice(0,80)}`, 'tool');
+  const { updateOutput } = addToolCard(toolName, toolData.args || {});
   updateBgProgress(`🔧 ${toolName} 실행 중...`);
 
   try {
@@ -726,12 +840,16 @@ async function executeToolCall(toolData) {
     });
     const result = await r.json();
     const res = result.result || {};
-    if (res.error) { addToolLog(`❌ ${toolName}: ${res.error}`, 'error'); }
-    else { addToolLog(`✅ ${toolName} 완료`, 'success'); }
+    if (res.error) {
+      updateOutput(res.error, true);
+    } else {
+      // 출력값: output > stdout > 간단 OK
+      const outVal = res.output ?? res.stdout ?? res.content ?? res;
+      updateOutput(typeof outVal === 'string' ? outVal : JSON.stringify(outVal, null, 2), false);
+    }
 
     if (['write_file','delete_file','run_command'].includes(toolName)) {
       await refreshFiles();
-      // AI가 현재 편집 중인 파일을 write_file 했다면 에디터 내용도 갱신
       if (toolName === 'write_file' && toolData.args && toolData.args.path === activeFile) {
         document.getElementById('code-editor').value = toolData.args.content || '';
         lastSavedContent = toolData.args.content || '';
@@ -741,7 +859,7 @@ async function executeToolCall(toolData) {
     }
     return {tool: toolData.tool, args: toolData.args, result: res};
   } catch(e) {
-    addToolLog(`❌ ${toolName} 오류: ${e.message}`, 'error');
+    updateOutput(e.message, true);
     return null;
   }
 }

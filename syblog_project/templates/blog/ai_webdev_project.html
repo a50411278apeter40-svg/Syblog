@@ -219,19 +219,52 @@ html.webbuilder-html body {
 ══════════════════════════════════════════ */
 #tool-pane { flex: 1; display: none; flex-direction: column; min-height: 0; overflow: hidden; }
 #tool-log-area {
-  flex: 1; overflow-y: auto; padding: 12px;
+  flex: 1; overflow-y: auto; padding: 10px;
   font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: .8rem;
   background: #0d1117; color: #e6edf3; line-height: 1.5;
 }
+/* 간단 로그 (info/success/error) */
 .tool-log-entry {
-  margin: 3px 0; padding: 5px 10px; border-radius: 5px;
+  margin: 2px 0; padding: 4px 10px; border-radius: 5px;
   border-left: 3px solid; word-break: break-all;
 }
-.tool-log-entry.info    { border-color: #58a6ff; background: rgba(88,166,255,.1); color: #a5c8ff; }
-.tool-log-entry.success { border-color: #3fb950; background: rgba(63,185,80,.1); color: #56d364; }
-.tool-log-entry.error   { border-color: #f85149; background: rgba(248,81,73,.1); color: #ff7b72; }
-.tool-log-entry.tool    { border-color: #d2a8ff; background: rgba(210,168,255,.1); color: #d2a8ff; }
-.tool-log-entry.terminal { border-color: #ffa657; background: rgba(255,166,87,.1); color: #ffa657; white-space: pre-wrap; }
+.tool-log-entry.info    { border-color: #58a6ff; background: rgba(88,166,255,.08); color: #a5c8ff; }
+.tool-log-entry.success { border-color: #3fb950; background: rgba(63,185,80,.08); color: #56d364; }
+.tool-log-entry.error   { border-color: #f85149; background: rgba(248,81,73,.08); color: #ff7b72; }
+.tool-log-entry.terminal{ border-color: #ffa657; background: rgba(255,166,87,.08); color: #ffa657; white-space: pre-wrap; }
+/* 도구 카드 - 접기/펼치기 */
+.tool-card {
+  margin: 5px 0; border-radius: 7px; border: 1px solid #30363d;
+  background: #161b22; overflow: hidden;
+}
+.tool-card-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px; cursor: pointer; user-select: none;
+  background: #1c2128;
+  transition: background .15s;
+}
+.tool-card-header:hover { background: #21262d; }
+.tool-card-name { font-weight: 700; color: #d2a8ff; font-size: .82rem; flex: 1; }
+.tool-card-status { font-size: .75rem; }
+.tool-card-status.running { color: #f0c000; }
+.tool-card-status.ok      { color: #3fb950; }
+.tool-card-status.err     { color: #f85149; }
+.tool-card-toggle { color: #6e7681; font-size: .75rem; transition: transform .2s; }
+.tool-card-toggle.open { transform: rotate(90deg); }
+.tool-card-body {
+  display: none; padding: 10px 12px;
+  border-top: 1px solid #30363d;
+}
+.tool-card-body.open { display: block; }
+.tool-card-section { margin-bottom: 8px; }
+.tool-card-section-title { color: #8b949e; font-size: .72rem; font-weight: 600; margin-bottom: 3px; }
+.tool-card-code {
+  background: #0d1117; border: 1px solid #21262d; border-radius: 5px;
+  padding: 6px 10px; font-size: .77rem; color: #e6edf3;
+  white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto;
+}
+.tool-card-code.output { color: #a5c8ff; }
+.tool-card-code.error-out { color: #ff7b72; }
 
 /* ══════════════════════════════════════════
    AI 채팅
@@ -418,6 +451,7 @@ html.webbuilder-html body {
    버튼 공통
 ══════════════════════════════════════════ */
 button { touch-action: manipulation; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 /* ══════════════════════════════════════════
    모바일 (768px 이하)
@@ -606,9 +640,23 @@ button { touch-action: manipulation; }
 
     <!-- 도구 로그 탭 -->
     <div id="tool-pane" class="tab-content">
+      <!-- 로그 헤더 툴바 -->
+      <div style="display:flex;align-items:center;gap:8px;padding:7px 12px;
+                  background:#0d1117;border-bottom:1px solid #30363d;flex:0 0 auto;">
+        <span style="color:#d2a8ff;font-weight:700;font-size:.82rem;">🔧 도구 실행 로그</span>
+        <span id="tool-card-count" style="color:#6e7681;font-size:.75rem;flex:1;"></span>
+        <button onclick="expandAllCards()" title="모두 펼치기"
+                style="background:#21262d;border:1px solid #30363d;color:#8b949e;
+                       border-radius:5px;padding:3px 8px;font-size:.72rem;cursor:pointer;">▼ 모두 펼치기</button>
+        <button onclick="collapseAllCards()" title="모두 접기"
+                style="background:#21262d;border:1px solid #30363d;color:#8b949e;
+                       border-radius:5px;padding:3px 8px;font-size:.72rem;cursor:pointer;">▶ 모두 접기</button>
+        <button onclick="clearToolLog()" title="로그 지우기"
+                style="background:#21262d;border:1px solid #30363d;color:#f85149;
+                       border-radius:5px;padding:3px 8px;font-size:.72rem;cursor:pointer;">🗑️</button>
+      </div>
       <div id="tool-log-area">
-        <div style="color:#58a6ff;font-weight:600;margin-bottom:8px;">🔧 도구 실행 로그</div>
-        <div style="color:#6e7681;">AI가 도구를 호출하면 실시간으로 표시됩니다.</div>
+        <div style="color:#6e7681;font-size:.78rem;padding:8px 0;">AI가 도구를 호출하면 실시간으로 표시됩니다.</div>
       </div>
     </div>
 

@@ -174,7 +174,10 @@
        id="notice-{{ n.pk }}" style="font-size:.85rem;">
     <div class="container d-flex align-items-center flex-wrap" style="gap:8px;">
       <span>{% if n.level == 'danger' %}🚨{% elif n.level == 'warning' %}⚠️{% elif n.level == 'success' %}✅{% else %}📢{% endif %}</span>
-      <span style="flex:1;min-width:0;"><strong>{{ n.title }}</strong>{% if n.content %}<span class="ml-2 text-muted" style="font-size:.82rem;">{{ n.content|truncatechars:100 }}</span>{% endif %}</span>
+      <a href="{% url 'notice_detail' n.pk %}" style="flex:1;min-width:0;text-decoration:none;color:inherit;cursor:pointer;">
+        <strong>{{ n.title }}</strong>{% if n.content %}<span class="ml-2 text-muted" style="font-size:.82rem;">{{ n.content|truncatechars:80 }}</span>{% endif %}
+        <span style="font-size:.72rem;opacity:.7;margin-left:6px;">→ 자세히</span>
+      </a>
       <button type="button" class="close p-0" style="font-size:1rem;" onclick="dismissNotice({{ n.pk }})" aria-label="닫기"><span>&times;</span></button>
     </div>
   </div>

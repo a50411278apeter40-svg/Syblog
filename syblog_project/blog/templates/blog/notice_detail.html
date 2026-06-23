@@ -1,0 +1,51 @@
+{% extends 'blog/base.html' %}
+{% block title %}공지사항 - {{ notice.title }}{% endblock %}
+{% block content %}
+<div class="container" style="max-width:760px;padding:30px 16px;">
+  <div class="card shadow-sm border-0" style="border-radius:14px;overflow:hidden;">
+    <!-- 헤더 배너 -->
+    <div class="card-header alert-{{ notice.level }} mb-0 border-0 py-3 px-4"
+         style="border-radius:0;">
+      <div class="d-flex align-items-center gap-2">
+        <span style="font-size:1.4rem;">
+          {% if notice.level == 'danger' %}🚨
+          {% elif notice.level == 'warning' %}⚠️
+          {% elif notice.level == 'success' %}✅
+          {% else %}📢{% endif %}
+        </span>
+        <div>
+          <div style="font-size:.72rem;color:#666;font-weight:500;text-transform:uppercase;letter-spacing:.05em;">
+            공지사항
+          </div>
+          <h5 class="mb-0 fw-bold" style="font-size:1.15rem;">{{ notice.title }}</h5>
+        </div>
+      </div>
+    </div>
+    <!-- 메타 정보 -->
+    <div class="card-body" style="padding:24px;">
+      <div class="d-flex flex-wrap gap-3 mb-4"
+           style="font-size:.8rem;color:#6b7280;border-bottom:1px solid #f0f0f0;padding-bottom:14px;">
+        <span>📅 작성일: <strong>{{ notice.created_at|date:"Y년 m월 d일 H:i" }}</strong></span>
+        {% if notice.expires_at %}
+        <span>⏰ 만료일: <strong>{{ notice.expires_at|date:"Y년 m월 d일 H:i" }}</strong></span>
+        {% endif %}
+        {% if notice.created_by %}
+        <span>✍️ 작성자: <strong>{{ notice.created_by.username }}</strong></span>
+        {% endif %}
+      </div>
+      <!-- 본문 -->
+      {% if notice.content %}
+      <div style="line-height:1.85;font-size:.95rem;white-space:pre-wrap;color:#1f2937;">{{ notice.content }}</div>
+      {% else %}
+      <p style="color:#9ca3af;font-style:italic;">상세 내용이 없습니다.</p>
+      {% endif %}
+    </div>
+    <!-- 하단 버튼 -->
+    <div class="card-footer bg-white border-0 px-4 pb-4 pt-0">
+      <a href="{% url 'blog-home' %}" class="btn btn-outline-secondary btn-sm" style="border-radius:8px;">
+        ← 홈으로
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}

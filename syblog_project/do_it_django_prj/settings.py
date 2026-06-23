@@ -175,24 +175,58 @@ BANNED_KEYWORDS = [
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[{levelname}] {asctime} {name} {module}:{lineno} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '[{levelname}] {name}: {message}',
+            'style': '{',
+        },
+    },
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
         },
     },
     'root': {
         'handlers': ['console'],
-        'level': 'INFO',
+        'level': 'WARNING',
     },
     'loggers': {
+        # 앱 전체 INFO 이상 로그
+        'blog': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
         'accounts': {
             'handlers': ['console'],
-            'level': 'DEBUG',
+            'level': 'INFO',
             'propagate': False,
         },
         'allauth': {
             'handlers': ['console'],
-            'level': 'DEBUG',
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        # Django 요청/보안 오류
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'django.security': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        # DB 쿼리 오류
+        'django.db.backends': {
+            'handlers': ['console'],
+            'level': 'ERROR',
             'propagate': False,
         },
     },

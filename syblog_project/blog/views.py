@@ -876,6 +876,19 @@ from django.utils.decorators import method_decorator
 
 
 @staff_member_required
+def notice_detail(request, pk):
+    """공지사항 상세 페이지"""
+    from blog.models import Notice
+    from django.utils import timezone
+    notice = get_object_or_404(Notice, pk=pk)
+    # 만료됐거나 비활성이면 404
+    if not notice.is_visible():
+        from django.http import Http404
+        raise Http404("공지사항을 찾을 수 없습니다.")
+    logger.info(f"[Notice] 상세 조회: pk={pk} title={notice.title}")
+    return render(request, 'blog/notice_detail.html', {'notice': notice})
+
+
 def notice_list_admin(request):
     from django.utils import timezone
     from django.db.models import Q
@@ -1264,6 +1277,7 @@ def ai_writing_assist(request):
         return JsonResponse({'result': result.strip(), 'mode': mode})
     except Exception as e:
         import logging
+logger = logging.getLogger(__name__)
         logging.getLogger(__name__).warning(f"g4f AI error: {e}")
         return JsonResponse({
             'result': f"AI 연결에 실패했습니다. 잠시 후 다시 시도해주세요.\n(오류: {str(e)[:80]})",
