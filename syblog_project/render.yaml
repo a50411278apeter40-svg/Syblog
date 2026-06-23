@@ -3,6 +3,7 @@ services:
     name: syblog
     env: python
     rootDir: syblog_project
+    pythonVersion: "3.11"
     buildCommand: "pip install -r requirements.txt && playwright install chromium && playwright install-deps chromium && python manage.py collectstatic --noinput && python manage.py migrate && python manage.py setup_google_oauth"
     startCommand: "python keepalive.py & gunicorn do_it_django_prj.wsgi:application"
     envVars:
@@ -11,7 +12,7 @@ services:
       - key: DEBUG
         value: "False"
       - key: PYTHON_VERSION
-        value: "3.11.0"
+        value: "3.11.11"
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
