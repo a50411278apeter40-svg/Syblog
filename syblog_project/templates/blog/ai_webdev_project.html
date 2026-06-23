@@ -577,6 +577,55 @@ button { touch-action: manipulation; }
       <button onclick="saveCurrentFile()" style="background:#0078d4;color:#fff;border:none;border-radius:4px;padding:2px 8px;font-size:.72rem;cursor:pointer;white-space:nowrap;">💾 저장</button>
     </div>
     <textarea id="code-editor" spellcheck="false" placeholder="// 파일을 선택하거나 AI에게 코드 작성을 요청하세요"></textarea>
+    <!-- 바이너리/미디어 파일 미리보기 영역 -->
+    <div id="binary-preview" style="display:none;flex:1;overflow:auto;
+         background:#0d1117;align-items:center;justify-content:center;
+         flex-direction:column;gap:16px;padding:24px;">
+      <!-- 이미지 미리보기 -->
+      <div id="preview-image-wrap" style="display:none;flex-direction:column;align-items:center;gap:12px;width:100%;">
+        <img id="preview-image" src="" alt="이미지 미리보기"
+             style="max-width:100%;max-height:60vh;object-fit:contain;
+                    border-radius:8px;border:1px solid #30363d;background:#161b22;" />
+        <span id="preview-image-info" style="color:#8b949e;font-size:.78rem;"></span>
+      </div>
+      <!-- 오디오 미리보기 -->
+      <div id="preview-audio-wrap" style="display:none;flex-direction:column;align-items:center;gap:12px;width:100%;">
+        <div style="font-size:3rem;">🎵</div>
+        <audio id="preview-audio" controls style="width:100%;max-width:480px;"></audio>
+        <span id="preview-audio-info" style="color:#8b949e;font-size:.78rem;"></span>
+      </div>
+      <!-- 동영상 미리보기 -->
+      <div id="preview-video-wrap" style="display:none;flex-direction:column;align-items:center;gap:12px;width:100%;">
+        <video id="preview-video" controls style="max-width:100%;max-height:60vh;
+               border-radius:8px;border:1px solid #30363d;background:#000;"></video>
+        <span id="preview-video-info" style="color:#8b949e;font-size:.78rem;"></span>
+      </div>
+      <!-- PDF 미리보기 -->
+      <div id="preview-pdf-wrap" style="display:none;flex-direction:column;align-items:center;gap:12px;width:100%;height:100%;">
+        <iframe id="preview-pdf" src="" style="width:100%;flex:1;min-height:60vh;
+                border:1px solid #30363d;border-radius:8px;background:#fff;"></iframe>
+        <span id="preview-pdf-info" style="color:#8b949e;font-size:.78rem;"></span>
+      </div>
+      <!-- 폰트 미리보기 -->
+      <div id="preview-font-wrap" style="display:none;flex-direction:column;align-items:center;gap:16px;width:100%;">
+        <div id="preview-font-sample" style="font-size:2rem;color:#cdd6f4;text-align:center;padding:20px;
+             border:1px solid #30363d;border-radius:8px;background:#161b22;width:100%;">
+          가나다라마바사 AaBbCcDd 123
+        </div>
+        <span id="preview-font-info" style="color:#8b949e;font-size:.78rem;"></span>
+      </div>
+      <!-- 기타 바이너리 -->
+      <div id="preview-binary-wrap" style="display:none;flex-direction:column;align-items:center;gap:12px;">
+        <div style="font-size:4rem;">📦</div>
+        <span id="preview-binary-name" style="color:#cdd6f4;font-size:1rem;font-weight:600;"></span>
+        <span id="preview-binary-info" style="color:#8b949e;font-size:.78rem;"></span>
+        <a id="preview-binary-dl" href="#" download style="
+           background:#1f2937;color:#58a6ff;border:1px solid #30363d;
+           border-radius:6px;padding:8px 20px;text-decoration:none;font-size:.85rem;">
+          ⬇ 다운로드
+        </a>
+      </div>
+    </div>
     <div id="editor-footer">
       <span id="editor-lang">텍스트</span>
       <span id="editor-lines">0줄</span>

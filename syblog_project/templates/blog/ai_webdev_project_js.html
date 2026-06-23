@@ -291,10 +291,117 @@ function renderTree(files, container, depth) {
 
 function getFileIcon(name) {
   const ext = (name.split('.').pop() || '').toLowerCase();
-  const map = { html:'🌐', css:'🎨', js:'📜', jsx:'⚛️', ts:'📘', tsx:'⚛️',
-                py:'🐍', json:'📋', md:'📝', txt:'📄', png:'🖼', jpg:'🖼',
-                gif:'🖼', svg:'🖼', sh:'⚡', yml:'⚙️', yaml:'⚙️' };
+  const map = {
+    html:'🌐', htm:'🌐', css:'🎨', js:'📜', jsx:'⚛️', ts:'📘', tsx:'⚛️',
+    py:'🐍', json:'📋', md:'📝', txt:'📄',
+    png:'🖼️', jpg:'🖼️', jpeg:'🖼️', gif:'🖼️', webp:'🖼️', svg:'🖼️',
+    ico:'🖼️', bmp:'🖼️', avif:'🖼️', tiff:'🖼️',
+    mp3:'🎵', wav:'🎵', ogg:'🎵', flac:'🎵', aac:'🎵', m4a:'🎵',
+    mp4:'🎬', webm:'🎬', mov:'🎬', avi:'🎬', mkv:'🎬',
+    pdf:'📕', ttf:'🔤', otf:'🔤', woff:'🔤', woff2:'🔤',
+    sh:'⚡', yml:'⚙️', yaml:'⚙️', xml:'📋', csv:'📊',
+    zip:'🗜️', gz:'🗜️', tar:'🗜️', env:'🔐', sql:'🗄️',
+    vue:'💚', rb:'💎', go:'🐹', rs:'🦀', php:'🐘'
+  };
   return map[ext] || '📄';
+}
+
+// 파일 확장자 → 미디어 타입 분류
+function getFileMediaType(name) {
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  const IMAGE = ['png','jpg','jpeg','gif','bmp','webp','svg','ico','tiff','avif'];
+  const AUDIO = ['mp3','wav','ogg','flac','aac','m4a','opus','weba'];
+  const VIDEO = ['mp4','webm','ogv','avi','mov','mkv','m4v'];
+  const PDF   = ['pdf'];
+  const FONT  = ['ttf','otf','woff','woff2','eot'];
+  const TEXT  = ['html','htm','css','js','jsx','ts','tsx','py','json','md',
+                 'txt','sh','yml','yaml','xml','csv','env','toml','ini',
+                 'gitignore','dockerignore','php','rb','go','rs','java',
+                 'c','cpp','h','sql','vue','svelte','lock','cfg','conf'];
+  if (IMAGE.includes(ext)) return 'image';
+  if (AUDIO.includes(ext)) return 'audio';
+  if (VIDEO.includes(ext)) return 'video';
+  if (PDF.includes(ext))   return 'pdf';
+  if (FONT.includes(ext))  return 'font';
+  if (TEXT.includes(ext))  return 'text';
+  return 'binary';
+}
+
+function formatBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+  return (b/1024/1024).toFixed(2) + ' MB';
+}
+
+function showBinaryPreview(path, name, mediaType) {
+  const editor   = document.getElementById('code-editor');
+  const preview  = document.getElementById('binary-preview');
+  const dlUrl    = `/blog/ai-webdev/${PROJECT_ID}/file/download/?path=${encodeURIComponent(path)}`;
+  const mediaUrl = dlUrl; // 다운로드 URL을 src로도 활용
+
+  // 모두 숨기기
+  editor.style.display  = 'none';
+  preview.style.display = 'flex';
+  ['image','audio','video','pdf','font','binary'].forEach(t =>
+    document.getElementById(`preview-${t}-wrap`).style.display = 'none');
+
+  const showWrap = (id) => {
+    document.getElementById(id).style.display = 'flex';
+  };
+
+  if (mediaType === 'image') {
+    showWrap('preview-image-wrap');
+    const img = document.getElementById('preview-image');
+    img.src = mediaUrl;
+    img.onload = () => {
+      document.getElementById('preview-image-info').textContent =
+        `${img.naturalWidth} × ${img.naturalHeight}px  ·  ${name}`;
+    };
+    img.onerror = () => {
+      document.getElementById('preview-image-info').textContent = '이미지를 불러올 수 없습니다.';
+    };
+  } else if (mediaType === 'audio') {
+    showWrap('preview-audio-wrap');
+    document.getElementById('preview-audio').src = mediaUrl;
+    document.getElementById('preview-audio-info').textContent = name;
+  } else if (mediaType === 'video') {
+    showWrap('preview-video-wrap');
+    document.getElementById('preview-video').src = mediaUrl;
+    document.getElementById('preview-video-info').textContent = name;
+  } else if (mediaType === 'pdf') {
+    showWrap('preview-pdf-wrap');
+    document.getElementById('preview-pdf').src = mediaUrl;
+    document.getElementById('preview-pdf-info').textContent = name;
+  } else if (mediaType === 'font') {
+    showWrap('preview-font-wrap');
+    // 동적으로 @font-face 적용
+    const styleId = 'preview-font-style';
+    let st = document.getElementById(styleId);
+    if (!st) { st = document.createElement('style'); st.id = styleId; document.head.appendChild(st); }
+    st.textContent = `@font-face { font-family: PreviewFont; src: url('${mediaUrl}'); }`;
+    const sample = document.getElementById('preview-font-sample');
+    sample.style.fontFamily = 'PreviewFont, sans-serif';
+    document.getElementById('preview-font-info').textContent = name;
+  } else {
+    showWrap('preview-binary-wrap');
+    document.getElementById('preview-binary-name').textContent = name;
+    document.getElementById('preview-binary-info').textContent = '바이너리 파일 — 텍스트로 표시할 수 없습니다.';
+    const dl = document.getElementById('preview-binary-dl');
+    dl.href = dlUrl;
+    dl.download = name;
+  }
+}
+
+function hideBinaryPreview() {
+  const editor  = document.getElementById('code-editor');
+  const preview = document.getElementById('binary-preview');
+  editor.style.display  = '';
+  preview.style.display = 'none';
+  // 미디어 정지 (메모리 해제)
+  ['preview-audio','preview-video'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.pause(); el.src = ''; }
+  });
 }
 
 async function loadFile(path, name) {
@@ -314,6 +421,19 @@ async function loadFile(path, name) {
     document.getElementById('editor-tabs').appendChild(tab);
   }
   activateTab(path);
+
+  const mediaType = getFileMediaType(name || path.split('/').pop());
+
+  if (mediaType !== 'text') {
+    // 바이너리/미디어 → 미리보기
+    hideBinaryPreview(); // 이전 미디어 정리
+    showBinaryPreview(path, name || path.split('/').pop(), mediaType);
+    if (isMobile()) mobileTabEditor();
+    return;
+  }
+
+  // 텍스트 파일 → 에디터
+  hideBinaryPreview();
   try {
     const r = await fetch(`/blog/ai-webdev/${PROJECT_ID}/file/read/?path=${encodeURIComponent(path)}`);
     const d = await r.json();
@@ -334,6 +454,11 @@ function activateTab(path) {
   if (tab) tab.classList.add('active');
   activeFile = path;
   document.getElementById('current-path').textContent = path;
+  // 탭 전환 시 미디어 정지
+  ['preview-audio','preview-video'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.src) el.pause();
+  });
 }
 
 function closeTab(closeBtn, path) {
