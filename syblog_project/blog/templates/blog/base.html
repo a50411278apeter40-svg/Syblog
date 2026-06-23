@@ -174,7 +174,7 @@
        id="notice-{{ n.pk }}" style="font-size:.85rem;">
     <div class="container d-flex align-items-center flex-wrap" style="gap:8px;">
       <span>{% if n.level == 'danger' %}🚨{% elif n.level == 'warning' %}⚠️{% elif n.level == 'success' %}✅{% else %}📢{% endif %}</span>
-      <a href="{% url 'notice_detail' n.pk %}" style="flex:1;min-width:0;text-decoration:none;color:inherit;cursor:pointer;">
+      <a href="{% url 'blog:notice_detail' n.pk %}" style="flex:1;min-width:0;text-decoration:none;color:inherit;cursor:pointer;">
         <strong>{{ n.title }}</strong>{% if n.content %}<span class="ml-2 text-muted" style="font-size:.82rem;">{{ n.content|truncatechars:80 }}</span>{% endif %}
         <span style="font-size:.72rem;opacity:.7;margin-left:6px;">→ 자세히</span>
       </a>
