@@ -2770,17 +2770,17 @@ def ai_webdev_terminal_stream(request, pk):
             return JsonResponse({'error': '차단된 명령어입니다'}, status=400)
 
     # venv 경로
-    venv_base = '/opt/render/project/src/.venv'
-    venv_bin  = f'{venv_base}/bin'
+    proj_venv = _get_project_venv(project_dir)
+    venv_bin  = str(proj_venv / 'bin')
     venv_pip  = f'{venv_bin}/pip'
     venv_py   = f'{venv_bin}/python3'
 
     def fix_cmd(c):
         if venv_bin in c:
             return c
-        c = _re.sub(r'\bpip3?\s+install\b', f'{venv_pip} install', c)
-        c = _re.sub(r'\bpip3?\b', venv_pip, c)
-        c = _re.sub(r'\bpython3?\b', venv_py, c)
+        c = _re.sub(r'(?<![/\w])pip3?\s+install', f'{venv_pip} install', c)
+        c = _re.sub(r'(?<![/\w])pip3?(?!\s*install)\b', venv_pip, c)
+        c = _re.sub(r'(?<![/\w])python3?\b', venv_py, c)
         return c
 
     cmd_fixed = fix_cmd(cmd)
@@ -2795,12 +2795,7 @@ def ai_webdev_terminal_stream(request, pk):
 
     def stream_cmd():
         try:
-            env = {
-                **_os.environ,
-                'HOME': str(project_dir),
-                'PATH': f'{venv_bin}:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin',
-                'VIRTUAL_ENV': venv_base,
-            }
+            env = _get_venv_env(project_dir)
 
             # cd 명령 처리
             cd_match = _re.match(r'^cd\s*(.*)', cmd.strip())
@@ -2819,7 +2814,8 @@ def ai_webdev_terminal_stream(request, pk):
                         rel = '.'
                     yield f"data: {_json_stdlib.dumps({'done': True, 'returncode': 0, 'new_cwd': rel})}\n\n"
                 else:
-                    _cd_err = f'cd: {target}: No such directory\n'; yield f"data: {_json_stdlib.dumps({'line': _cd_err})}\n\n"
+                    _cd_err = f'cd: {target}: No such directory\n'
+                    yield f"data: {_json_stdlib.dumps({'line': _cd_err})}\n\n"
                     yield f"data: {_json_stdlib.dumps({'done': True, 'returncode': 1})}\n\n"
                 return
 
@@ -2837,19 +2833,17 @@ def ai_webdev_terminal_stream(request, pk):
             is_pip_install = bool(_re.search(r'\bpip\b.*\binstall\b', cmd_fixed))
             if is_pip_install and proc.returncode == 0:
                 try:
-                    import subprocess as _sp2
-                    freeze_result = _sp2.run(
+                    freeze_result = subprocess.run(
                         [venv_pip, 'freeze'],
                         capture_output=True, text=True, env=env
                     )
                     if freeze_result.returncode == 0:
-                        req_path = project_dir / 'requirements.txt'
-                        req_path.write_text(freeze_result.stdout, encoding='utf-8')
+                        (project_dir / 'requirements.txt').write_text(
+                            freeze_result.stdout, encoding='utf-8')
                         _save_msg = _json_stdlib.dumps({'line': '\n[자동저장] requirements.txt 업데이트됨\n'})
                         yield f"data: {_save_msg}\n\n"
-                except Exception as _fe:
-                    _warn_msg = _json_stdlib.dumps({'line': '[경고] requirements.txt 저장 실패\n'})
-                    yield f"data: {_warn_msg}\n\n"
+                except Exception:
+                    pass
 
             try:
                 rel_cwd = str(cwd_path.relative_to(project_dir))
