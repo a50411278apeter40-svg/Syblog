@@ -1838,6 +1838,37 @@ def _get_pw_page(pk, viewport_w=1280, viewport_h=800):
 WEBDEV_WORKSPACE = _Path('/tmp/syblog_webdev')
 WEBDEV_WORKSPACE.mkdir(exist_ok=True)
 
+# 프로젝트별 환경 복원 타임스탬프 캐시 (서버 재시작 시에만 재설치)
+_WEBDEV_ENV_RESTORED: set = set()
+
+def _webdev_auto_restore_env(project_dir):
+    """
+    프로젝트 디렉터리에 requirements.txt가 있으면
+    서버 시작 후 첫 진입 시 자동으로 pip install -r 실행.
+    이미 설치된 경우(_WEBDEV_ENV_RESTORED 캐시) 스킵.
+    블로킹이지만 빠른 경우 몇 초 내 완료됨.
+    """
+    import subprocess as _sp2
+    req_file = project_dir / 'requirements.txt'
+    cache_key = str(project_dir)
+    if cache_key in _WEBDEV_ENV_RESTORED:
+        return  # 이미 이 서버 프로세스에서 설치했음
+    if not req_file.exists():
+        _WEBDEV_ENV_RESTORED.add(cache_key)
+        return
+    venv_pip = '/opt/render/project/src/.venv/bin/pip'
+    if not os.path.exists(venv_pip):
+        venv_pip = 'pip'
+    try:
+        _sp2.run(
+            [venv_pip, 'install', '-r', str(req_file), '--quiet'],
+            timeout=120,
+            capture_output=True
+        )
+    except Exception:
+        pass
+    _WEBDEV_ENV_RESTORED.add(cache_key)
+
 
 def _get_project_dir(project_id):
     d = WEBDEV_WORKSPACE / str(project_id)
@@ -1881,11 +1912,14 @@ def ai_webdev_project(request, pk):
     project = get_object_or_404(AiWebProject, pk=pk, user=request.user)
     sessions = AiWebSession.objects.filter(project=project).order_by('created_at')
     credit = _get_or_create_credit(request.user)
+    project_dir = _get_project_dir(project.pk)
+    # 새로고침/재진입 시 requirements.txt 있으면 자동 pip install
+    _webdev_auto_restore_env(project_dir)
     return render(request, 'blog/ai_webdev_project.html', {
         'project': project,
         'sessions': sessions,
         'credit': credit,
-        'project_dir': str(_get_project_dir(project.pk)),
+        'project_dir': str(project_dir),
     })
 
 
@@ -2727,6 +2761,25 @@ def ai_webdev_terminal_stream(request, pk):
             for line in iter(proc.stdout.readline, ''):
                 yield f"data: {_json_stdlib.dumps({'line': line})}\n\n"
             proc.wait()
+
+            # pip install 성공 시 requirements.txt 자동 갱신
+            is_pip_install = bool(_re.search(r'\bpip\b.*\binstall\b', cmd_fixed))
+            if is_pip_install and proc.returncode == 0:
+                try:
+                    import subprocess as _sp2
+                    freeze_result = _sp2.run(
+                        [venv_pip, 'freeze'],
+                        capture_output=True, text=True, env=env
+                    )
+                    if freeze_result.returncode == 0:
+                        req_path = project_dir / 'requirements.txt'
+                        req_path.write_text(freeze_result.stdout, encoding='utf-8')
+                        _save_msg = _json_stdlib.dumps({'line': '\n[자동저장] requirements.txt 업데이트됨\n'})
+                        yield f"data: {_save_msg}\n\n"
+                except Exception as _fe:
+                    _warn_msg = _json_stdlib.dumps({'line': '[경고] requirements.txt 저장 실패\n'})
+                    yield f"data: {_warn_msg}\n\n"
+
             try:
                 rel_cwd = str(cwd_path.relative_to(project_dir))
             except ValueError:

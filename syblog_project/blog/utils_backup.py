@@ -147,6 +147,34 @@ def _zip_bytes_to_media(zip_bytes, media_root):
         zf.extractall(media_root)
 
 
+# ── 복원 후 requirements.txt 자동 pip install ─────────────────
+def _auto_install_requirements(workspace_path):
+    """
+    복원된 webdev workspace 내 각 프로젝트 폴더의
+    requirements.txt를 찾아 자동으로 pip install -r 실행.
+    실패해도 전체 복원을 막지 않음.
+    """
+    import subprocess as _sp
+    venv_pip = '/opt/render/project/src/.venv/bin/pip'
+    fallback_pip = 'pip'
+    pip_cmd = venv_pip if os.path.exists(venv_pip) else fallback_pip
+
+    if not os.path.isdir(workspace_path):
+        return
+
+    for project_id_dir in os.listdir(workspace_path):
+        req_file = os.path.join(workspace_path, project_id_dir, 'requirements.txt')
+        if os.path.isfile(req_file):
+            try:
+                _sp.run(
+                    [pip_cmd, 'install', '-r', req_file, '--quiet'],
+                    timeout=120,
+                    capture_output=True
+                )
+            except Exception:
+                pass  # 실패해도 무시 - 복원 자체는 성공
+
+
 # ── 백업 수행 ──────────────────────────────────────────────────
 def perform_backup():
     from django.conf import settings
@@ -281,6 +309,8 @@ def perform_restore():
                 )
                 if webdev_zip_bytes:
                     _zip_bytes_to_webdev(webdev_zip_bytes, WEBDEV_WORKSPACE_PATH)
+                    # 각 프로젝트의 requirements.txt 발견 시 자동 pip install
+                    _auto_install_requirements(WEBDEV_WORKSPACE_PATH)
 
             ts = meta.get('timestamp', '알 수 없음')
 
