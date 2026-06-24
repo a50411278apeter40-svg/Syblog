@@ -569,32 +569,48 @@ def perform_restore():
             backup_text = base64.b64decode(b64).decode('utf-8')
             ts = latest['name'].replace('syblog_db_', '').replace('.json', '')
 
-        # DB 실제 복원
-        logger.info('[restore] DB loaddata 실행 중...')
-        from django.db import connection
-        with connection.cursor() as cursor:
-            tables_to_clear = [
-                'blog_post_tags', 'blog_post', 'blog_comment',
-                'blog_category', 'blog_tag', 'blog_series',
-                'blog_aiwebproject', 'blog_aiwebsession',
-                'blog_notice', 'blog_usercredit',
-                'blog_badge', 'blog_userbadge', 'blog_userrank',
-                'account_emailaddress', 'socialaccount_socialaccount',
-                'socialaccount_socialtoken', 'socialaccount_socialapp_sites',
-                'socialaccount_socialapp',
-                'auth_user',
-            ]
-            for t in tables_to_clear:
-                try:
-                    cursor.execute(f'DELETE FROM "{t}"')
-                except Exception:
-                    pass
+        # DB 실제 복원 — 완전 덮어쓰기(flush → loaddata)
+        logger.info('[restore] DB flush 시작...')
+        import tempfile as _tempfile
+        import subprocess as _sub_restore
 
-        from django.core import serializers as _serializers
-        backup_data = _serializers.deserialize('json', backup_text)
-        for obj in backup_data:
+        venv_py = '/opt/render/project/src/.venv/bin/python3'
+        manage_py = os.path.join(settings.BASE_DIR, 'manage.py')
+
+        # ① 임시 파일에 백업 JSON 저장
+        with _tempfile.NamedTemporaryFile(mode='w', suffix='.json',
+                                          delete=False, encoding='utf-8') as _tf:
+            _tf.write(backup_text)
+            tmp_fixture = _tf.name
+
+        try:
+            # ② flush — 외래키 제약 순서 문제를 피하기 위해 SQLite pragma 사용
+            from django.db import connection as _conn
+            with _conn.cursor() as cur:
+                cur.execute('PRAGMA foreign_keys = OFF')
+                cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'django_migrations'")
+                tables = [r[0] for r in cur.fetchall()]
+                for t in tables:
+                    try:
+                        cur.execute(f'DELETE FROM "{t}"')
+                    except Exception:
+                        pass
+                cur.execute('PRAGMA foreign_keys = ON')
+            logger.info(f'[restore] flush 완료: {len(tables)}개 테이블')
+
+            # ③ loaddata
+            r = _sub_restore.run(
+                [venv_py, manage_py, 'loaddata', tmp_fixture],
+                capture_output=True, text=True,
+                cwd=str(settings.BASE_DIR)
+            )
+            if r.returncode != 0:
+                logger.error(f'[restore] loaddata 실패: {r.stderr}')
+                return False, f'loaddata 실패: {r.stderr[:300]}'
+            logger.info(f'[restore] loaddata 성공: {r.stdout.strip()}')
+        finally:
             try:
-                obj.save()
+                os.remove(tmp_fixture)
             except Exception:
                 pass
 
