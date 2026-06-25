@@ -1,6 +1,6 @@
 {% extends 'blog/base.html' %}
 {% block title %}건의사항 답변 - {{ sugg.title }}{% endblock %}
-{% block content %}
+{% block full_page %}
 <div class="container mt-4 mb-5" style="max-width:720px;">
   <div class="d-flex align-items-center gap-2 mb-3">
     <a href="{% url 'blog:suggestion_admin_list' %}" class="btn btn-sm btn-outline-secondary rounded-pill">← 건의함 목록</a>

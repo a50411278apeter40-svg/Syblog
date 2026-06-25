@@ -1,6 +1,6 @@
 {% extends 'blog/base.html' %}
 {% block title %}{% if action == 'edit' %}글 수정{% else %}새 글 작성{% endif %} - {{ board.name }}{% endblock %}
-{% block content %}
+{% block full_page %}
 <div class="container mt-4 mb-5" style="max-width:760px;">
   <div class="d-flex align-items-center gap-2 mb-3">
     <a href="{% url 'blog:board_detail' board.slug %}" class="btn btn-sm btn-outline-secondary rounded-pill">← 목록</a>

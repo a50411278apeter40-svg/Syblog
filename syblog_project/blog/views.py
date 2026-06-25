@@ -2254,12 +2254,16 @@ def ai_webdev_chat(request, pk=None):
         # 첨부 파일 처리
         import base64 as _b64
         _IMAGE_EXTS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'}
+        # project_id를 안전하게 정수로 변환
+        _proj_id_safe = int(project_id) if project_id else int(pk)
         for _f in request.FILES.getlist('files'):
             _ext = _os.path.splitext(_f.name)[1].lower()
-            _bytes = _f.read()
+            _bytes = _f.read()   # 한 번만 읽고 재사용
             if _ext in _IMAGE_EXTS:
                 # 이미지 → base64 변환 후 multimodal에 전달
                 _mime = _f.content_type or f'image/{_ext.lstrip(".")}'
+                if not _mime or _mime == 'application/octet-stream':
+                    _mime = f'image/{_ext.lstrip(".") or "jpeg"}'
                 uploaded_images.append({
                     'name': _f.name,
                     'base64': _b64.b64encode(_bytes).decode(),
@@ -2268,13 +2272,12 @@ def ai_webdev_chat(request, pk=None):
             # 모든 파일 → 프로젝트 디렉토리에 저장
             try:
                 from blog.models import AiWebProject as _AiWebProject2
-                _proj_tmp = _AiWebProject2.objects.get(pk=project_id, user=request.user)
+                _proj_tmp = _AiWebProject2.objects.get(pk=_proj_id_safe, user=request.user)
                 _proj_dir = _get_project_dir(_proj_tmp.pk)
                 _save_path = _proj_dir / 'uploads' / _f.name
                 _save_path.parent.mkdir(parents=True, exist_ok=True)
-                _f.seek(0)
                 with open(_save_path, 'wb') as _sf:
-                    _sf.write(_f.read())
+                    _sf.write(_bytes)   # 이미 읽어둔 bytes 사용
                 uploaded_files.append({
                     'name': _f.name,
                     'path': f'uploads/{_f.name}',
@@ -2374,27 +2377,41 @@ def ai_webdev_chat(request, pk=None):
         db_msg += ' [이미지: ' + ', '.join(i['name'] for i in uploaded_images) + ']'
     AiWebSession.objects.create(project=project, role='user', content=db_msg)
 
-    # ── g4f 모델 폴백 목록 (이미지 있으면 vision 모델 우선) ──
-    if uploaded_images:
-        _G4F_MODELS = ['gpt-4o', 'gpt-4-vision-preview', 'gpt-4o-mini']
-    else:
-        _G4F_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-3.5-turbo']
+    # ── g4f 모델 폴백 목록 ──
+    _G4F_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-3.5-turbo']
+    _has_images = bool(uploaded_images)
 
     # ── 스트리밍 생성기 ──
     def stream_response():
         import time as _time
         full_text = ''
+        # 이미지가 있을 때 텍스트 폴백 메시지 준비 (vision 실패 대비)
+        _text_only_messages = None
+        if _has_images:
+            _img_names = ', '.join(i['name'] for i in uploaded_images)
+            _text_fallback_content = (text_content or '') + f'\n\n[첨부 이미지: {_img_names}] — 이미지를 분석해서 웹 개발 작업을 도와주세요.'
+            _text_only_messages = messages[:-1] + [{'role': 'user', 'content': _text_fallback_content}]
+
         try:
             from g4f.client import Client as G4FClient
             client = G4FClient()
 
-            # 스트리밍 시도 (모델 폴백)
+            # 스트리밍 시도 (모델 폴백) — 이미지 있으면 vision 먼저, 실패 시 텍스트 전용
             response = None
             last_err = None
-            for _model in _G4F_MODELS:
+            _msgs_to_use = messages
+
+            # vision 모델 먼저 시도
+            _vision_models = ['gpt-4o', 'gpt-4-vision-preview'] if _has_images else []
+            _all_models = _vision_models + [m for m in _G4F_MODELS if m not in _vision_models]
+
+            for _midx, _model in enumerate(_all_models):
+                # vision 모델 실패 후엔 텍스트 전용 메시지로 전환
+                if _has_images and _midx >= len(_vision_models) and _text_only_messages:
+                    _msgs_to_use = _text_only_messages
                 try:
                     response = client.chat.completions.create(
-                        model=_model, messages=messages, stream=True,
+                        model=_model, messages=_msgs_to_use, stream=True,
                     )
                     break
                 except Exception as _me:
@@ -2428,10 +2445,11 @@ def ai_webdev_chat(request, pk=None):
                 client = G4FClient()
                 resp2 = None
                 last_err2 = None
+                _msgs2 = _text_only_messages if (_has_images and _text_only_messages) else messages
                 for _model in _G4F_MODELS:
                     try:
                         resp2 = client.chat.completions.create(
-                            model=_model, messages=messages, stream=False,
+                            model=_model, messages=_msgs2, stream=False,
                         )
                         break
                     except Exception as _me2:
