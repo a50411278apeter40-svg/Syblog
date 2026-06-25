@@ -1,0 +1,58 @@
+{% extends 'blog/base.html' %}
+{% block title %}건의함 관리{% endblock %}
+{% block content %}
+<div class="container mt-4 mb-5">
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <h3 class="fw-bold mb-0">📬 건의함 관리</h3>
+    <a href="{% url 'blog:admin_dashboard' %}" class="btn btn-sm btn-outline-secondary rounded-pill">← 대시보드</a>
+  </div>
+
+  <!-- 상태 필터 -->
+  <div class="d-flex gap-2 flex-wrap mb-3">
+    <a href="?" class="btn btn-sm {% if not status_filter %}btn-primary{% else %}btn-outline-secondary{% endif %} rounded-pill">전체</a>
+    {% for val, label in status_choices %}
+    <a href="?status={{ val }}"
+       class="btn btn-sm {% if status_filter == val %}btn-primary{% else %}btn-outline-secondary{% endif %} rounded-pill">
+      {{ label }}
+    </a>
+    {% endfor %}
+  </div>
+
+  <div class="d-flex flex-column gap-3">
+    {% for s in suggestions %}
+    <a href="{% url 'blog:suggestion_admin_detail' s.pk %}" class="text-decoration-none">
+      <div class="card shadow-sm suggestion-card" style="border-radius:14px;border:none;">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+            <div>
+              <span class="badge rounded-pill me-1" style="background:#6c63ff;color:#fff;">{{ s.get_category_display }}</span>
+              <strong>{{ s.title }}</strong>
+              {% if s.is_anonymous %}<span class="badge bg-secondary ms-1">익명</span>{% endif %}
+              <br>
+              <small class="text-muted">
+                {{ s.created_at|date:"Y.m.d H:i" }}
+                {% if not s.is_anonymous %} · {{ s.author.username }}{% endif %}
+              </small>
+            </div>
+            <span class="badge rounded-pill
+              {% if s.status == 'resolved' %}bg-success
+              {% elif s.status == 'in_progress' %}bg-warning text-dark
+              {% elif s.status == 'rejected' %}bg-danger
+              {% else %}bg-secondary{% endif %}">
+              {{ s.get_status_display }}
+            </span>
+          </div>
+          <p class="mt-2 mb-0 text-muted" style="font-size:.85rem;">{{ s.content|truncatechars:100 }}</p>
+        </div>
+      </div>
+    </a>
+    {% empty %}
+    <div class="text-center text-muted py-5">
+      <p style="font-size:2rem;">📭</p>
+      <p>건의사항이 없습니다.</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+<style>.suggestion-card:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(108,99,255,.15)!important;transition:.15s;}</style>
+{% endblock %}

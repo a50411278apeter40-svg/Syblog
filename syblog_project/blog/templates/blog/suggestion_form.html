@@ -1,0 +1,57 @@
+{% extends 'blog/base.html' %}
+{% block title %}건의사항 보내기{% endblock %}
+{% block content %}
+<div class="container mt-4 mb-5" style="max-width:700px;">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <a href="{% url 'blog:suggestion_list' %}" class="btn btn-sm btn-outline-secondary rounded-pill">← 내 건의함</a>
+    <h4 class="mb-0 fw-bold">✉️ 건의사항 보내기</h4>
+  </div>
+
+  {% if error %}
+  <div class="alert alert-danger rounded-3">{{ error }}</div>
+  {% endif %}
+
+  <div class="card shadow-sm" style="border-radius:16px;border:none;">
+    <div class="card-body p-4 p-md-5">
+      <div class="mb-3 p-3 rounded-3" style="background:#f8f7ff;border:1px solid #e0d6ff;">
+        <p class="mb-0" style="font-size:.85rem;">📌 건의사항은 관리자 알림함으로 즉시 전달됩니다. 답변은 내 알림함에서 확인하세요.</p>
+      </div>
+      <form method="post">
+        {% csrf_token %}
+        <!-- 카테고리 -->
+        <div class="mb-3">
+          <label class="form-label fw-semibold">유형</label>
+          <select name="category" class="form-select rounded-3">
+            {% for val, label in categories %}
+            <option value="{{ val }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <!-- 제목 -->
+        <div class="mb-3">
+          <label class="form-label fw-semibold">제목</label>
+          <input type="text" name="title" class="form-control rounded-3"
+                 placeholder="건의 제목을 입력하세요" maxlength="200" required>
+        </div>
+        <!-- 내용 -->
+        <div class="mb-3">
+          <label class="form-label fw-semibold">내용</label>
+          <textarea name="content" class="form-control rounded-3" rows="7"
+                    placeholder="버그 재현 방법, 개선 사항, 기타 의견을 자세히 작성해주세요." required></textarea>
+        </div>
+        <!-- 익명 -->
+        <div class="form-check mb-4">
+          <input class="form-check-input" type="checkbox" name="is_anonymous" id="anonymous-check">
+          <label class="form-check-label" for="anonymous-check" style="font-size:.9rem;">
+            🎭 익명으로 보내기 (관리자에게 작성자 이름이 표시되지 않습니다)
+          </label>
+        </div>
+        <div class="d-flex gap-2 justify-content-end">
+          <a href="{% url 'blog:suggestion_list' %}" class="btn btn-outline-secondary rounded-pill px-4">취소</a>
+          <button type="submit" class="btn btn-primary rounded-pill px-5 fw-bold">📤 보내기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

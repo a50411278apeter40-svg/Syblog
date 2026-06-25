@@ -376,3 +376,114 @@ class AiWebTask(models.Model):
 
     def __str__(self):
         return f'Task({self.pk}) {self.project} [{self.status}]'
+
+
+# ─── 게시판 ────────────────────────────────────────────────────
+
+class Board(models.Model):
+    """게시판 종류 (자유게시판, 질문게시판 등)"""
+    name        = models.CharField(max_length=60, unique=True)
+    slug        = models.SlugField(max_length=60, unique=True, allow_unicode=True)
+    description = models.CharField(max_length=200, blank=True)
+    icon        = models.CharField(max_length=10, default='📋')
+    order       = models.PositiveSmallIntegerField(default=0)
+    is_active   = models.BooleanField(default=True)
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'pk']
+
+    def __str__(self):
+        return self.name
+
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse('blog:board_detail', kwargs={'slug': self.slug})
+
+
+class BoardPost(models.Model):
+    """게시판 게시글"""
+    board      = models.ForeignKey(Board, on_delete=models.CASCADE, related_name='posts')
+    author     = models.ForeignKey(User, on_delete=models.CASCADE, related_name='board_posts')
+    title      = models.CharField(max_length=200)
+    content    = models.TextField()
+    views      = models.PositiveIntegerField(default=0)
+    is_pinned  = models.BooleanField(default=False)          # 공지/고정글
+    is_blocked = models.BooleanField(default=False)          # 악성글 차단
+    block_reason = models.CharField(max_length=300, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-is_pinned', '-created_at']
+
+    def __str__(self):
+        return self.title
+
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse('blog:board_post_detail', kwargs={'board_slug': self.board.slug, 'pk': self.pk})
+
+    def comment_count(self):
+        return self.board_comments.filter(is_blocked=False).count()
+
+
+class BoardComment(models.Model):
+    """게시판 댓글"""
+    post       = models.ForeignKey(BoardPost, on_delete=models.CASCADE, related_name='board_comments')
+    author     = models.ForeignKey(User, on_delete=models.CASCADE, related_name='board_comments')
+    content    = models.TextField(max_length=1000)
+    parent     = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='replies')
+    is_blocked = models.BooleanField(default=False)
+    block_reason = models.CharField(max_length=300, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f'{self.author.username}: {self.content[:40]}'
+
+
+class BoardPostLike(models.Model):
+    """게시판 게시글 좋아요"""
+    post   = models.ForeignKey(BoardPost, on_delete=models.CASCADE, related_name='likes')
+    user   = models.ForeignKey(User, on_delete=models.CASCADE, related_name='board_post_likes')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('post', 'user')
+
+
+# ─── 관리자 건의함 ──────────────────────────────────────────────
+
+class Suggestion(models.Model):
+    """사용자 → 관리자 건의함"""
+    CATEGORY_CHOICES = [
+        ('bug',         '🐛 버그 신고'),
+        ('improvement', '💡 개선 제안'),
+        ('content',     '📝 콘텐츠 관련'),
+        ('account',     '👤 계정 문제'),
+        ('other',       '💬 기타'),
+    ]
+    STATUS_CHOICES = [
+        ('pending',     '⏳ 검토 중'),
+        ('in_progress', '🔧 처리 중'),
+        ('resolved',    '✅ 해결됨'),
+        ('rejected',    '❌ 반려'),
+    ]
+    author     = models.ForeignKey(User, on_delete=models.CASCADE, related_name='suggestions')
+    category   = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='other')
+    title      = models.CharField(max_length=200)
+    content    = models.TextField()
+    status     = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    admin_reply = models.TextField(blank=True)
+    is_anonymous = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'[{self.get_category_display()}] {self.title}'

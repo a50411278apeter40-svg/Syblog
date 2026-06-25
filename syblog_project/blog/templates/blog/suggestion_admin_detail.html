@@ -1,0 +1,55 @@
+{% extends 'blog/base.html' %}
+{% block title %}건의사항 답변 - {{ sugg.title }}{% endblock %}
+{% block content %}
+<div class="container mt-4 mb-5" style="max-width:720px;">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <a href="{% url 'blog:suggestion_admin_list' %}" class="btn btn-sm btn-outline-secondary rounded-pill">← 건의함 목록</a>
+    <h4 class="mb-0 fw-bold">📋 건의사항 상세</h4>
+  </div>
+
+  <!-- 원문 -->
+  <div class="card shadow-sm mb-3" style="border-radius:16px;border:none;">
+    <div class="card-body p-4">
+      <div class="d-flex flex-wrap gap-2 mb-2">
+        <span class="badge rounded-pill" style="background:#6c63ff;color:#fff;">{{ sugg.get_category_display }}</span>
+        {% if sugg.is_anonymous %}<span class="badge bg-secondary">익명</span>{% endif %}
+      </div>
+      <h5 class="fw-bold mb-1">{{ sugg.title }}</h5>
+      <small class="text-muted">
+        {{ sugg.created_at|date:"Y.m.d H:i" }}
+        {% if not sugg.is_anonymous %} · {{ sugg.author.username }}{% endif %}
+      </small>
+      <hr>
+      <p style="white-space:pre-wrap;line-height:1.8;">{{ sugg.content }}</p>
+    </div>
+  </div>
+
+  <!-- 답변 폼 -->
+  <div class="card shadow-sm" style="border-radius:16px;border:none;">
+    <div class="card-body p-4">
+      <h6 class="fw-bold mb-3">✍️ 관리자 답변 작성</h6>
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label class="form-label fw-semibold">처리 상태</label>
+          <select name="status" class="form-select rounded-3">
+            {% for val, label in status_choices %}
+            <option value="{{ val }}" {% if sugg.status == val %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">답변</label>
+          <textarea name="admin_reply" class="form-control rounded-3" rows="5"
+                    placeholder="사용자에게 전달할 답변을 입력하세요...">{{ sugg.admin_reply }}</textarea>
+          <div class="form-text">저장 시 사용자 알림함으로 자동 전송됩니다.</div>
+        </div>
+        <div class="d-flex gap-2 justify-content-end">
+          <a href="{% url 'blog:suggestion_admin_list' %}" class="btn btn-outline-secondary rounded-pill px-4">취소</a>
+          <button type="submit" class="btn btn-primary rounded-pill px-5 fw-bold">💾 저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

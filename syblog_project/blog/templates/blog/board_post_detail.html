@@ -1,0 +1,263 @@
+{% extends 'blog/base.html' %}
+{% block title %}{{ post.title }} - {{ board.name }}{% endblock %}
+{% block content %}
+<div class="container mt-4 mb-5" style="max-width:820px;">
+  <!-- 빵부스러기 -->
+  <nav class="mb-3" style="font-size:.85rem;">
+    <a href="{% url 'blog:board_list' %}" class="text-decoration-none text-muted">게시판</a>
+    <span class="mx-1 text-muted">/</span>
+    <a href="{% url 'blog:board_detail' board.slug %}" class="text-decoration-none text-muted">{{ board.name }}</a>
+    <span class="mx-1 text-muted">/</span>
+    <span class="text-dark fw-semibold">{{ post.title }}</span>
+  </nav>
+
+  <!-- 게시글 카드 -->
+  <div class="card shadow-sm mb-3" style="border-radius:16px;border:none;">
+    <div class="card-body p-4 p-md-5">
+      <h2 class="fw-bold mb-2" style="word-break:break-word;">
+        {% if post.is_pinned %}<span class="badge bg-danger me-2" style="font-size:.6em;vertical-align:middle;">📌 공지</span>{% endif %}
+        {{ post.title }}
+      </h2>
+      <div class="d-flex flex-wrap gap-2 mb-3 text-muted" style="font-size:.82rem;">
+        <span>👤 {{ post.author.username }}</span>
+        <span>·</span>
+        <span>🕐 {{ post.created_at|date:"Y.m.d H:i" }}</span>
+        <span>·</span>
+        <span>👁 조회 {{ post.views }}</span>
+        <span>·</span>
+        <span>💬 댓글 {{ post.board_comments.count }}</span>
+      </div>
+      <hr style="border-color:#eee;">
+      <div class="post-content" style="line-height:1.85;white-space:pre-wrap;word-break:break-word;">{{ post.content }}</div>
+      <hr style="border-color:#eee;">
+
+      <!-- 좋아요 + 액션 버튼 -->
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-2">
+        <button id="like-btn" onclick="toggleLike()"
+                class="btn {% if liked %}btn-danger{% else %}btn-outline-danger{% endif %} rounded-pill px-4"
+                {% if not user.is_authenticated %}disabled title="로그인 후 이용하세요"{% endif %}>
+          ❤️ <span id="like-count">{{ like_count }}</span>
+        </button>
+        <div class="d-flex gap-2">
+          {% if user == post.author or user.is_staff %}
+          <a href="{% url 'blog:board_post_edit' board.slug post.pk %}"
+             class="btn btn-sm btn-outline-primary rounded-pill">✏️ 수정</a>
+          <form method="post" action="{% url 'blog:board_post_delete' board.slug post.pk %}"
+                onsubmit="return confirm('정말 삭제하시겠습니까?')" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill">🗑 삭제</button>
+          </form>
+          {% endif %}
+          <a href="{% url 'blog:board_detail' board.slug %}" class="btn btn-sm btn-outline-secondary rounded-pill">목록</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 댓글 목록 -->
+  <div class="card shadow-sm mb-3" style="border-radius:16px;border:none;">
+    <div class="card-body p-4">
+      <h5 class="fw-bold mb-3">💬 댓글 <span class="text-primary">{{ post.board_comments.count }}</span></h5>
+      <div id="comment-list">
+        {% for comment in comments %}
+        <div class="comment-item mb-3" id="comment-{{ comment.pk }}">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <strong style="font-size:.9rem;">{{ comment.author.username }}</strong>
+              <span class="text-muted ms-2" style="font-size:.75rem;">{{ comment.created_at|date:"Y.m.d H:i" }}</span>
+            </div>
+            <div class="d-flex gap-1">
+              {% if user.is_authenticated %}
+              <button onclick="replyTo({{ comment.pk }}, '{{ comment.author.username }}')"
+                      class="btn btn-xs btn-link text-muted p-0" style="font-size:.78rem;">↩ 답글</button>
+              {% endif %}
+              {% if user == comment.author or user.is_staff %}
+              <button onclick="deleteComment({{ comment.pk }})"
+                      class="btn btn-xs btn-link text-danger p-0 ms-2" style="font-size:.78rem;">삭제</button>
+              {% endif %}
+            </div>
+          </div>
+          <div class="mt-1" style="font-size:.92rem;white-space:pre-wrap;word-break:break-word;">{{ comment.content }}</div>
+
+          <!-- 대댓글 -->
+          {% for reply in comment.replies.all %}
+          {% if not reply.is_blocked %}
+          <div class="ms-4 mt-2 ps-3" style="border-left:2px solid #e0d6ff;" id="comment-{{ reply.pk }}">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <span class="text-primary fw-semibold" style="font-size:.85rem;">↩ {{ reply.author.username }}</span>
+                <span class="text-muted ms-2" style="font-size:.73rem;">{{ reply.created_at|date:"Y.m.d H:i" }}</span>
+              </div>
+              {% if user == reply.author or user.is_staff %}
+              <button onclick="deleteComment({{ reply.pk }})"
+                      class="btn btn-xs btn-link text-danger p-0" style="font-size:.75rem;">삭제</button>
+              {% endif %}
+            </div>
+            <div class="mt-1" style="font-size:.9rem;white-space:pre-wrap;">{{ reply.content }}</div>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+        <hr style="border-color:#f0f0f0;margin:.5rem 0;">
+        {% empty %}
+        <p class="text-muted text-center py-3" id="no-comment-msg">첫 댓글을 작성해보세요!</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- 댓글 작성 -->
+  {% if user.is_authenticated %}
+  <div class="card shadow-sm" style="border-radius:16px;border:none;">
+    <div class="card-body p-4">
+      <div id="reply-info" class="d-none alert alert-info py-2 mb-2" style="border-radius:8px;font-size:.85rem;">
+        <span id="reply-info-text"></span>
+        <button onclick="cancelReply()" class="btn btn-xs btn-link text-danger p-0 ms-2">✕ 취소</button>
+      </div>
+      <div id="comment-toxic-alert" class="alert alert-danger d-none mb-2" style="border-radius:8px;">
+        <strong>🚫</strong> <span id="comment-toxic-reason"></span>
+      </div>
+      <textarea id="comment-input" rows="3" class="form-control rounded-3 mb-2"
+                placeholder="댓글을 입력하세요..."></textarea>
+      <div class="d-flex justify-content-end">
+        <button onclick="submitComment()" class="btn btn-primary rounded-pill px-4 fw-semibold">💬 댓글 등록</button>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="card shadow-sm text-center py-4" style="border-radius:16px;border:none;">
+    <a href="/accounts/login/?next={{ request.path }}" class="btn btn-primary rounded-pill px-5">로그인하고 댓글 달기</a>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+const CSRF      = '{{ csrf_token }}';
+const BOARD_SLUG = '{{ board.slug }}';
+const POST_PK   = {{ post.pk }};
+let replyParentId = null;
+
+// 좋아요
+function toggleLike() {
+  fetch(`/blog/boards/${BOARD_SLUG}/posts/${POST_PK}/like/`, {
+    method: 'POST', headers: {'X-CSRFToken': CSRF}
+  })
+  .then(r => r.json())
+  .then(d => {
+    document.getElementById('like-count').textContent = d.count;
+    const btn = document.getElementById('like-btn');
+    if (d.liked) {
+      btn.classList.replace('btn-outline-danger','btn-danger');
+    } else {
+      btn.classList.replace('btn-danger','btn-outline-danger');
+    }
+  });
+}
+
+// 답글 설정
+function replyTo(pk, username) {
+  replyParentId = pk;
+  const info = document.getElementById('reply-info');
+  info.classList.remove('d-none');
+  document.getElementById('reply-info-text').textContent = `@${username}에게 답글`;
+  document.getElementById('comment-input').focus();
+}
+function cancelReply() {
+  replyParentId = null;
+  document.getElementById('reply-info').classList.add('d-none');
+}
+
+// 댓글 실시간 악성 감지
+let toxicTimer = null;
+document.getElementById('comment-input')?.addEventListener('input', function() {
+  clearTimeout(toxicTimer);
+  toxicTimer = setTimeout(() => {
+    const text = this.value.trim();
+    if (!text) { document.getElementById('comment-toxic-alert').classList.add('d-none'); return; }
+    fetch('{% url "blog:board_check_toxic" %}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({ text })
+    }).then(r => r.json()).then(d => {
+      const alert = document.getElementById('comment-toxic-alert');
+      if (d.toxic) {
+        alert.classList.remove('d-none');
+        document.getElementById('comment-toxic-reason').textContent = d.reason;
+      } else {
+        alert.classList.add('d-none');
+      }
+    }).catch(() => {});
+  }, 500);
+});
+
+// 댓글 등록
+function submitComment() {
+  const input = document.getElementById('comment-input');
+  const content = input.value.trim();
+  if (!content) { alert('댓글을 입력하세요.'); return; }
+
+  fetch(`/blog/boards/${BOARD_SLUG}/posts/${POST_PK}/comment/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+    body: JSON.stringify({ content, parent_id: replyParentId })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.error) {
+      document.getElementById('comment-toxic-alert').classList.remove('d-none');
+      document.getElementById('comment-toxic-reason').textContent = d.error;
+      return;
+    }
+    document.getElementById('comment-toxic-alert').classList.add('d-none');
+    document.getElementById('no-comment-msg')?.remove();
+    input.value = '';
+    cancelReply();
+
+    const list = document.getElementById('comment-list');
+    const div = document.createElement('div');
+    div.className = 'comment-item mb-3';
+    div.id = `comment-${d.comment_id}`;
+    div.innerHTML = `
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <strong style="font-size:.9rem;">${d.author}</strong>
+          <span class="text-muted ms-2" style="font-size:.75rem;">${d.created_at}</span>
+        </div>
+      </div>
+      <div class="mt-1" style="font-size:.92rem;white-space:pre-wrap;">${escHtml(d.content)}</div>
+    `;
+    if (d.parent_id) {
+      const parent = document.getElementById(`comment-${d.parent_id}`);
+      if (parent) {
+        parent.insertAdjacentElement('beforeend', div);
+        div.classList.add('ms-4','mt-2','ps-3');
+        div.style.borderLeft = '2px solid #e0d6ff';
+      } else { list.appendChild(div); }
+    } else {
+      const hr = document.createElement('hr');
+      hr.style.cssText = 'border-color:#f0f0f0;margin:.5rem 0;';
+      list.appendChild(div); list.appendChild(hr);
+    }
+  });
+}
+
+// 댓글 삭제
+function deleteComment(pk) {
+  if (!confirm('댓글을 삭제하시겠습니까?')) return;
+  fetch(`/blog/boards/comments/${pk}/delete/`, {
+    method: 'POST', headers: { 'X-CSRFToken': CSRF }
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.ok) {
+      const el = document.getElementById(`comment-${pk}`);
+      if (el) el.remove();
+    }
+  });
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+{% endblock %}

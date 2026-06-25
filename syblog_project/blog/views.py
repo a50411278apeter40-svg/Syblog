@@ -3191,3 +3191,327 @@ button{{margin-top:16px;background:#1f6feb;color:#fff;border:none;
     except Exception as e:
         return HttpResponse(f'프록시 오류: {str(e)[:200]}', status=500)
 
+
+
+# ═══════════════════════════════════════════════════════════════
+#  게시판 + 건의함  (Board & Suggestion)
+# ═══════════════════════════════════════════════════════════════
+
+# ── 악성글 키워드 필터 ──────────────────────────────────────────
+_TOXIC_PATTERNS = [
+    # 욕설/혐오
+    r'씨발|시발|ㅅㅂ|개새|개년|병신|좆|보지|자지|미친|존나|ㅈㄴ|ㄱㅅ끼|창녀|걸레년|쓰레기|찐따',
+    # 폭력/협박
+    r'죽여|죽어라|살인|칼로|폭탄|폭발물|테러',
+    # 스팸/광고
+    r'대출\s*상담|불법\s*도박|카지노\s*추천|성인\s*사이트|클릭\s*하세요.*돈',
+    # 개인정보 유도
+    r'계좌번호.*알려|주민번호.*입력|비밀번호.*보내',
+]
+import re as _re_board
+_TOXIC_RE = _re_board.compile('|'.join(_TOXIC_PATTERNS), _re_board.IGNORECASE)
+
+def _detect_toxic(text: str):
+    """악성/부적절 텍스트 감지. (이유, bool) 반환"""
+    if not text:
+        return None, False
+    m = _TOXIC_RE.search(text)
+    if m:
+        return f"부적절한 표현이 포함되어 있습니다: '{m.group()}'", True
+    # 반복 문자 스팸 감지 (같은 문자 10번 이상)
+    if _re_board.search(r'(.)\1{9,}', text):
+        return "스팸성 반복 문자가 감지되었습니다.", True
+    # 외부 링크 과다 (5개 이상)
+    if len(_re_board.findall(r'https?://', text)) >= 5:
+        return "지나치게 많은 외부 링크가 포함되어 있습니다.", True
+    return None, False
+
+def _send_notification(recipient, sender, ntype, message, url=''):
+    """알림 생성 헬퍼"""
+    from blog.models import Notification as _Notif
+    _Notif.objects.create(
+        recipient=recipient,
+        sender=sender,
+        ntype=ntype,
+        message=message,
+        url=url,
+    )
+
+# ── 게시판 목록 ─────────────────────────────────────────────────
+def board_list(request):
+    from blog.models import Board as _Board
+    boards = _Board.objects.filter(is_active=True)
+    return render(request, 'blog/board_list.html', {'boards': boards})
+
+# ── 게시판 상세(글 목록) ────────────────────────────────────────
+def board_detail(request, slug):
+    from blog.models import Board as _Board, BoardPost as _BP
+    board = get_object_or_404(_Board, slug=slug, is_active=True)
+    q = request.GET.get('q', '').strip()
+    posts = _BP.objects.filter(board=board, is_blocked=False)
+    if q:
+        posts = posts.filter(
+            _Q(title__icontains=q) | _Q(content__icontains=q)
+        )
+    from django.core.paginator import Paginator
+    paginator = Paginator(posts, 20)
+    page_obj = paginator.get_page(request.GET.get('page', 1))
+    return render(request, 'blog/board_detail.html', {
+        'board': board,
+        'page_obj': page_obj,
+        'q': q,
+    })
+
+# ── 게시글 상세 ─────────────────────────────────────────────────
+def board_post_detail(request, board_slug, pk):
+    from blog.models import Board as _Board, BoardPost as _BP, BoardComment as _BC, BoardPostLike as _BL
+    board = get_object_or_404(_Board, slug=board_slug)
+    post = get_object_or_404(_BP, pk=pk, board=board, is_blocked=False)
+    # 조회수
+    _BP.objects.filter(pk=pk).update(views=_F('views') + 1)
+    post.refresh_from_db(fields=['views'])
+    comments = _BC.objects.filter(post=post, is_blocked=False, parent=None).prefetch_related('replies')
+    liked = False
+    if request.user.is_authenticated:
+        liked = _BL.objects.filter(post=post, user=request.user).exists()
+    return render(request, 'blog/board_post_detail.html', {
+        'board': board,
+        'post': post,
+        'comments': comments,
+        'liked': liked,
+        'like_count': post.likes.count(),
+    })
+
+# ── 게시글 작성 ─────────────────────────────────────────────────
+@login_required
+def board_post_create(request, slug):
+    from blog.models import Board as _Board, BoardPost as _BP
+    board = get_object_or_404(_Board, slug=slug, is_active=True)
+    if request.method == 'POST':
+        title   = request.POST.get('title', '').strip()
+        content = request.POST.get('content', '').strip()
+        if not title or not content:
+            return render(request, 'blog/board_post_form.html', {
+                'board': board, 'error': '제목과 내용을 모두 입력하세요.', 'action': 'create',
+            })
+        # ── 악성글 감지 ──
+        reason, is_toxic = _detect_toxic(title + ' ' + content)
+        if is_toxic:
+            return render(request, 'blog/board_post_form.html', {
+                'board': board,
+                'error': f'🚫 게시글을 등록할 수 없습니다.\n{reason}\n\n커뮤니티 규칙에 맞는 건전한 글을 작성해 주세요.',
+                'action': 'create',
+                'title': title,
+                'content': content,
+            })
+        _BP.objects.create(board=board, author=request.user, title=title, content=content)
+        messages.success(request, '✅ 게시글이 등록되었습니다.')
+        return redirect('blog:board_detail', slug=slug)
+    return render(request, 'blog/board_post_form.html', {'board': board, 'action': 'create'})
+
+# ── 게시글 수정 ─────────────────────────────────────────────────
+@login_required
+def board_post_edit(request, board_slug, pk):
+    from blog.models import Board as _Board, BoardPost as _BP
+    board = get_object_or_404(_Board, slug=board_slug)
+    post = get_object_or_404(_BP, pk=pk, board=board)
+    if post.author != request.user and not request.user.is_staff:
+        messages.error(request, '수정 권한이 없습니다.')
+        return redirect('blog:board_post_detail', board_slug=board_slug, pk=pk)
+    if request.method == 'POST':
+        title   = request.POST.get('title', '').strip()
+        content = request.POST.get('content', '').strip()
+        reason, is_toxic = _detect_toxic(title + ' ' + content)
+        if is_toxic:
+            return render(request, 'blog/board_post_form.html', {
+                'board': board, 'post': post,
+                'error': f'🚫 {reason}', 'action': 'edit',
+                'title': title, 'content': content,
+            })
+        post.title = title
+        post.content = content
+        post.save()
+        messages.success(request, '✅ 게시글이 수정되었습니다.')
+        return redirect('blog:board_post_detail', board_slug=board_slug, pk=pk)
+    return render(request, 'blog/board_post_form.html', {
+        'board': board, 'post': post,
+        'action': 'edit', 'title': post.title, 'content': post.content,
+    })
+
+# ── 게시글 삭제 ─────────────────────────────────────────────────
+@login_required
+def board_post_delete(request, board_slug, pk):
+    from blog.models import Board as _Board, BoardPost as _BP
+    board = get_object_or_404(_Board, slug=board_slug)
+    post = get_object_or_404(_BP, pk=pk, board=board)
+    if post.author != request.user and not request.user.is_staff:
+        messages.error(request, '삭제 권한이 없습니다.')
+        return redirect('blog:board_post_detail', board_slug=board_slug, pk=pk)
+    if request.method == 'POST':
+        post.delete()
+        messages.success(request, '게시글이 삭제되었습니다.')
+        return redirect('blog:board_detail', slug=board_slug)
+    return render(request, 'blog/board_post_delete_confirm.html', {'post': post, 'board': board})
+
+# ── 댓글 작성 (AJAX) ───────────────────────────────────────────
+@login_required
+@require_POST
+def board_comment_create(request, board_slug, pk):
+    from blog.models import Board as _Board, BoardPost as _BP, BoardComment as _BC
+    board = get_object_or_404(_Board, slug=board_slug)
+    post  = get_object_or_404(_BP, pk=pk, board=board, is_blocked=False)
+    try:
+        body    = _json_mod.loads(request.body)
+        content = body.get('content', '').strip()
+        parent_id = body.get('parent_id')
+    except Exception:
+        return JsonResponse({'error': '잘못된 요청'}, status=400)
+    if not content:
+        return JsonResponse({'error': '내용을 입력하세요.'}, status=400)
+    reason, is_toxic = _detect_toxic(content)
+    if is_toxic:
+        return JsonResponse({'error': f'🚫 {reason}'}, status=400)
+    parent = None
+    if parent_id:
+        try:
+            parent = _BC.objects.get(pk=parent_id, post=post)
+        except _BC.DoesNotExist:
+            pass
+    comment = _BC.objects.create(post=post, author=request.user, content=content, parent=parent)
+    # 게시글 작성자에게 알림 (자신 댓글 제외)
+    if post.author != request.user:
+        _send_notification(
+            recipient=post.author,
+            sender=request.user,
+            ntype='comment',
+            message=f'{request.user.username}님이 "{post.title}"에 댓글을 달았습니다.',
+            url=post.get_absolute_url(),
+        )
+    return JsonResponse({
+        'ok': True,
+        'comment_id': comment.pk,
+        'author': request.user.username,
+        'content': comment.content,
+        'created_at': comment.created_at.strftime('%Y.%m.%d %H:%M'),
+        'parent_id': parent.pk if parent else None,
+    })
+
+# ── 댓글 삭제 (AJAX) ───────────────────────────────────────────
+@login_required
+@require_POST
+def board_comment_delete(request, comment_pk):
+    from blog.models import BoardComment as _BC
+    comment = get_object_or_404(_BC, pk=comment_pk)
+    if comment.author != request.user and not request.user.is_staff:
+        return JsonResponse({'error': '권한 없음'}, status=403)
+    comment.delete()
+    return JsonResponse({'ok': True})
+
+# ── 게시글 좋아요 (AJAX) ───────────────────────────────────────
+@login_required
+@require_POST
+def board_post_like(request, board_slug, pk):
+    from blog.models import Board as _Board, BoardPost as _BP, BoardPostLike as _BL
+    post = get_object_or_404(_BP, pk=pk, board__slug=board_slug, is_blocked=False)
+    obj, created = _BL.objects.get_or_create(post=post, user=request.user)
+    if not created:
+        obj.delete()
+        liked = False
+    else:
+        liked = True
+    return JsonResponse({'liked': liked, 'count': post.likes.count()})
+
+# ── 악성글 실시간 검사 API (타이핑 중 미리 확인) ────────────────
+@require_POST
+def board_check_toxic(request):
+    try:
+        body = _json_mod.loads(request.body)
+        text = body.get('text', '')
+    except Exception:
+        return JsonResponse({'ok': True})
+    reason, is_toxic = _detect_toxic(text)
+    return JsonResponse({'toxic': is_toxic, 'reason': reason or ''})
+
+# ── 건의함 목록/제출 ───────────────────────────────────────────
+@login_required
+def suggestion_list(request):
+    from blog.models import Suggestion as _Sugg
+    my_suggestions = _Sugg.objects.filter(author=request.user)
+    return render(request, 'blog/suggestion_list.html', {'suggestions': my_suggestions})
+
+@login_required
+def suggestion_create(request):
+    from blog.models import Suggestion as _Sugg
+    if request.method == 'POST':
+        category    = request.POST.get('category', 'other')
+        title       = request.POST.get('title', '').strip()
+        content     = request.POST.get('content', '').strip()
+        is_anonymous = request.POST.get('is_anonymous') == 'on'
+        if not title or not content:
+            return render(request, 'blog/suggestion_form.html', {
+                'error': '제목과 내용을 입력하세요.',
+                'categories': _Sugg.CATEGORY_CHOICES,
+            })
+        sugg = _Sugg.objects.create(
+            author=request.user,
+            category=category,
+            title=title,
+            content=content,
+            is_anonymous=is_anonymous,
+        )
+        # ── 관리자 전체에게 알림 전송 ──
+        from django.contrib.auth import get_user_model as _gum
+        _User = _gum()
+        admins = _User.objects.filter(is_staff=True)
+        display_name = '익명' if is_anonymous else request.user.username
+        for admin in admins:
+            _send_notification(
+                recipient=admin,
+                sender=None if is_anonymous else request.user,
+                ntype='mention',
+                message=f'📬 새 건의사항: [{sugg.get_category_display()}] {title} (by {display_name})',
+                url=f'/blog/suggestions/admin/{sugg.pk}/',
+            )
+        messages.success(request, '✅ 건의사항이 접수되었습니다. 관리자가 검토 후 답변드립니다.')
+        return redirect('blog:suggestion_list')
+    from blog.models import Suggestion as _Sugg2
+    return render(request, 'blog/suggestion_form.html', {'categories': _Sugg2.CATEGORY_CHOICES})
+
+# ── 건의함 관리자 목록 ──────────────────────────────────────────
+@staff_member_required
+def suggestion_admin_list(request):
+    from blog.models import Suggestion as _Sugg
+    status_filter = request.GET.get('status', '')
+    suggestions = _Sugg.objects.all()
+    if status_filter:
+        suggestions = suggestions.filter(status=status_filter)
+    return render(request, 'blog/suggestion_admin_list.html', {
+        'suggestions': suggestions,
+        'status_choices': _Sugg.STATUS_CHOICES,
+        'status_filter': status_filter,
+    })
+
+# ── 건의함 관리자 상세/답변 ─────────────────────────────────────
+@staff_member_required
+def suggestion_admin_detail(request, pk):
+    from blog.models import Suggestion as _Sugg
+    sugg = get_object_or_404(_Sugg, pk=pk)
+    if request.method == 'POST':
+        sugg.status      = request.POST.get('status', sugg.status)
+        sugg.admin_reply = request.POST.get('admin_reply', '').strip()
+        sugg.save()
+        # 작성자에게 알림
+        _send_notification(
+            recipient=sugg.author,
+            sender=request.user,
+            ntype='mention',
+            message=f'✅ 건의사항 "{sugg.title}"에 관리자 답변이 등록되었습니다.',
+            url=f'/blog/suggestions/',
+        )
+        messages.success(request, '답변이 저장되었습니다.')
+        return redirect('blog:suggestion_admin_detail', pk=pk)
+    return render(request, 'blog/suggestion_admin_detail.html', {
+        'sugg': sugg,
+        'status_choices': _Sugg.STATUS_CHOICES,
+    })
+

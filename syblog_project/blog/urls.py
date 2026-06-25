@@ -90,6 +90,24 @@ urlpatterns = [
     path('ai-webdev/<int:pk>/proxy/<int:port>/<path:path>', views.ai_webdev_proxy, name='ai_webdev_proxy_path'),
     path('ai-webdev/<int:pk>/clear-history/', views.ai_webdev_clear_history, name='ai_webdev_clear_history'),
     path('ai/credit/info/', views.ai_credit_info, name='ai_credit_info'),
+
+    # ── 게시판 ──────────────────────────────────────
+    path('boards/', views.board_list, name='board_list'),
+    path('boards/<slug:slug>/', views.board_detail, name='board_detail'),
+    path('boards/<slug:slug>/new/', views.board_post_create, name='board_post_create'),
+    path('boards/<slug:board_slug>/posts/<int:pk>/', views.board_post_detail, name='board_post_detail'),
+    path('boards/<slug:board_slug>/posts/<int:pk>/edit/', views.board_post_edit, name='board_post_edit'),
+    path('boards/<slug:board_slug>/posts/<int:pk>/delete/', views.board_post_delete, name='board_post_delete'),
+    path('boards/<slug:board_slug>/posts/<int:pk>/comment/', views.board_comment_create, name='board_comment_create'),
+    path('boards/<slug:board_slug>/posts/<int:pk>/like/', views.board_post_like, name='board_post_like'),
+    path('boards/comments/<int:comment_pk>/delete/', views.board_comment_delete, name='board_comment_delete'),
+    path('boards/check-toxic/', views.board_check_toxic, name='board_check_toxic'),
+
+    # ── 건의함 ──────────────────────────────────────
+    path('suggestions/', views.suggestion_list, name='suggestion_list'),
+    path('suggestions/new/', views.suggestion_create, name='suggestion_create'),
+    path('suggestions/admin/', views.suggestion_admin_list, name='suggestion_admin_list'),
+    path('suggestions/admin/<int:pk>/', views.suggestion_admin_detail, name='suggestion_admin_detail'),
 ]
 
     # ── AI 크레딧 & 스트리밍 & 웹개발 ─────────────────────────────

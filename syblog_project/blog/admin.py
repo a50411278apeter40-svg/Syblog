@@ -91,3 +91,31 @@ class AiWebProjectAdmin(admin.ModelAdmin):
 class AiWebSessionAdmin(admin.ModelAdmin):
     list_display = ('project', 'role', 'created_at')
     list_filter = ('role',)
+
+# ── 게시판 관리 ──────────────────────────────────────────────────
+from blog.models import Board, BoardPost, BoardComment, BoardPostLike, Suggestion
+
+@admin.register(Board)
+class BoardAdmin(admin.ModelAdmin):
+    list_display = ('name', 'slug', 'icon', 'order', 'is_active')
+    list_editable = ('order', 'is_active')
+    prepopulated_fields = {'slug': ('name',)}
+
+@admin.register(BoardPost)
+class BoardPostAdmin(admin.ModelAdmin):
+    list_display = ('title', 'board', 'author', 'views', 'is_pinned', 'is_blocked', 'created_at')
+    list_filter = ('board', 'is_blocked', 'is_pinned')
+    list_editable = ('is_pinned', 'is_blocked')
+    search_fields = ('title', 'content', 'author__username')
+
+@admin.register(BoardComment)
+class BoardCommentAdmin(admin.ModelAdmin):
+    list_display = ('post', 'author', 'content', 'is_blocked', 'created_at')
+    list_filter = ('is_blocked',)
+    list_editable = ('is_blocked',)
+
+@admin.register(Suggestion)
+class SuggestionAdmin(admin.ModelAdmin):
+    list_display = ('title', 'author', 'category', 'status', 'is_anonymous', 'created_at')
+    list_filter = ('category', 'status')
+    search_fields = ('title', 'content', 'author__username')

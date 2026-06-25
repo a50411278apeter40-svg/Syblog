@@ -1,0 +1,18 @@
+{% extends 'blog/base.html' %}
+{% block title %}게시글 삭제 확인{% endblock %}
+{% block content %}
+<div class="container mt-5 mb-5" style="max-width:500px;">
+  <div class="card shadow-sm text-center p-5" style="border-radius:16px;border:none;">
+    <p style="font-size:2.5rem;">🗑️</p>
+    <h4 class="fw-bold mb-2">게시글을 삭제하시겠습니까?</h4>
+    <p class="text-muted mb-4" style="word-break:break-word;">「{{ post.title }}」</p>
+    <div class="d-flex gap-3 justify-content-center">
+      <a href="{% url 'blog:board_post_detail' board.slug post.pk %}" class="btn btn-outline-secondary rounded-pill px-4">취소</a>
+      <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger rounded-pill px-4">삭제</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

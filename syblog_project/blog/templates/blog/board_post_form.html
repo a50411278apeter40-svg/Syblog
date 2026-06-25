@@ -1,0 +1,110 @@
+{% extends 'blog/base.html' %}
+{% block title %}{% if action == 'edit' %}글 수정{% else %}새 글 작성{% endif %} - {{ board.name }}{% endblock %}
+{% block content %}
+<div class="container mt-4 mb-5" style="max-width:760px;">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <a href="{% url 'blog:board_detail' board.slug %}" class="btn btn-sm btn-outline-secondary rounded-pill">← 목록</a>
+    <h4 class="mb-0 fw-bold">{% if action == 'edit' %}✏️ 글 수정{% else %}✏️ 새 글 작성{% endif %}</h4>
+  </div>
+
+  <!-- 악성글 경고 배너 -->
+  <div id="toxic-warning" class="alert alert-danger d-none mb-3" role="alert" style="border-radius:10px;">
+    <strong>🚫 작성 불가:</strong> <span id="toxic-reason"></span>
+  </div>
+
+  {% if error %}
+  <div class="alert alert-danger mb-3" style="border-radius:10px;white-space:pre-line;">{{ error }}</div>
+  {% endif %}
+
+  <div class="card shadow-sm" style="border-radius:16px;border:none;">
+    <div class="card-body p-4">
+      <form method="post" id="board-post-form">
+        {% csrf_token %}
+        <!-- 제목 -->
+        <div class="mb-3">
+          <label class="form-label fw-semibold">제목</label>
+          <input type="text" name="title" id="post-title" class="form-control rounded-3"
+                 value="{{ title|default:'' }}" maxlength="200"
+                 placeholder="제목을 입력하세요" autocomplete="off" required>
+          <div id="title-toxic-indicator" class="form-text text-danger d-none"></div>
+        </div>
+        <!-- 내용 -->
+        <div class="mb-4">
+          <label class="form-label fw-semibold">내용</label>
+          <textarea name="content" id="post-content" class="form-control rounded-3"
+                    rows="12" placeholder="내용을 입력하세요 (Markdown 지원)" required
+                    style="resize:vertical;font-size:.93rem;">{{ content|default:'' }}</textarea>
+          <div id="content-toxic-indicator" class="form-text text-danger d-none"></div>
+        </div>
+        <!-- 제출 -->
+        <div class="d-flex gap-2 justify-content-end">
+          <a href="{% url 'blog:board_detail' board.slug %}" class="btn btn-outline-secondary rounded-pill px-4">취소</a>
+          <button type="submit" id="submit-btn" class="btn btn-primary rounded-pill px-5 fw-bold">
+            {% if action == 'edit' %}수정 완료{% else %}등록하기{% endif %}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+const CSRF = '{{ csrf_token }}';
+let toxicTimer = null;
+let isToxic = false;
+
+function checkToxic(text) {
+  if (!text.trim()) {
+    hideToxicWarning();
+    return;
+  }
+  fetch('{% url "blog:board_check_toxic" %}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+    body: JSON.stringify({ text })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.toxic) {
+      showToxicWarning(d.reason);
+    } else {
+      hideToxicWarning();
+    }
+  })
+  .catch(() => {});
+}
+
+function showToxicWarning(reason) {
+  isToxic = true;
+  document.getElementById('toxic-warning').classList.remove('d-none');
+  document.getElementById('toxic-reason').textContent = reason;
+  document.getElementById('submit-btn').disabled = true;
+  document.getElementById('submit-btn').classList.add('btn-secondary');
+  document.getElementById('submit-btn').classList.remove('btn-primary');
+}
+function hideToxicWarning() {
+  isToxic = false;
+  document.getElementById('toxic-warning').classList.add('d-none');
+  document.getElementById('submit-btn').disabled = false;
+  document.getElementById('submit-btn').classList.remove('btn-secondary');
+  document.getElementById('submit-btn').classList.add('btn-primary');
+}
+
+function onInput() {
+  const text = (document.getElementById('post-title').value || '') + ' ' +
+               (document.getElementById('post-content').value || '');
+  clearTimeout(toxicTimer);
+  toxicTimer = setTimeout(() => checkToxic(text), 600);
+}
+
+document.getElementById('post-title').addEventListener('input', onInput);
+document.getElementById('post-content').addEventListener('input', onInput);
+
+document.getElementById('board-post-form').addEventListener('submit', function(e) {
+  if (isToxic) {
+    e.preventDefault();
+    document.getElementById('toxic-warning').scrollIntoView({ behavior: 'smooth' });
+  }
+});
+</script>
+{% endblock %}

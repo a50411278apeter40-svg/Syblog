@@ -28,6 +28,7 @@
                 <li class="nav-item"><a class="nav-link" href="{% url 'blog:search' %}"><i class="fas fa-search"></i> 검색</a></li>
                 <li class="nav-item"><a class="nav-link" href="/blog/series/"><i class="fas fa-layer-group"></i> 시리즈</a></li>
                 <li class="nav-item"><a class="nav-link" href="/challenges/"><i class="fas fa-gamepad"></i> 챌린지</a></li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'blog:board_list' %}"><i class="fas fa-comments"></i> 게시판</a></li>
                 <li class="nav-item"><a class="nav-link" href="/user/leaderboard/"><i class="fas fa-trophy"></i> 리더보드</a></li>
             </ul>
 
@@ -94,6 +95,7 @@
                             <a class="dropdown-item" href="/user/profile/"><i class="fas fa-user fa-fw"></i> 내 프로필</a>
                             <a class="dropdown-item" href="/user/profile/edit/"><i class="fas fa-edit fa-fw"></i> 프로필 수정</a>
                             <a class="dropdown-item" href="/blog/my-dashboard/"><i class="fas fa-chart-line fa-fw"></i> 내 대시보드</a>
+                            <a class="dropdown-item" href="{% url 'blog:suggestion_list' %}"><i class="fas fa-inbox fa-fw"></i> 건의함</a>
                             <a class="dropdown-item" href="/blog/my-bookmarks/"><i class="fas fa-bookmark fa-fw"></i> 내 북마크</a>
                             <a class="dropdown-item" href="/blog/notifications/"><i class="fas fa-bell fa-fw"></i> 알림</a>
                             <a class="dropdown-item" href="/blog/series/my/"><i class="fas fa-layer-group fa-fw"></i> 내 시리즈</a>
