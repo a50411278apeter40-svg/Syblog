@@ -676,18 +676,20 @@ def perform_restore():
 
         try:
             # ② flush — 외래키 제약 순서 문제를 피하기 위해 SQLite pragma 사용
+            # django_session 은 제외 → 복원 후 로그아웃 방지
+            _SKIP_TABLES = {'django_migrations', 'django_session'}
             from django.db import connection as _conn
             with _conn.cursor() as cur:
                 cur.execute('PRAGMA foreign_keys = OFF')
-                cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'django_migrations'")
-                tables = [r[0] for r in cur.fetchall()]
+                cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+                tables = [r[0] for r in cur.fetchall() if r[0] not in _SKIP_TABLES]
                 for t in tables:
                     try:
                         cur.execute(f'DELETE FROM "{t}"')
                     except Exception:
                         pass
                 cur.execute('PRAGMA foreign_keys = ON')
-            logger.info(f'[restore] flush 완료: {len(tables)}개 테이블')
+            logger.info(f'[restore] flush 완료: {len(tables)}개 테이블 (세션 테이블 유지)')
 
             # ③ loaddata
             r = _sub_restore.run(
