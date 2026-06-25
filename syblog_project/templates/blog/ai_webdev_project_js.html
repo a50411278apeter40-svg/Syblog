@@ -1005,13 +1005,25 @@ function renderMsg(role, content, toolCalls) {
   return bubble;
 }
 
-function appendUserMsg(content) {
+function appendUserMsg(content, files) {
   const msgs = document.getElementById('chat-messages');
   const empty = msgs.querySelector('div[style*="text-align:center"]');
   if (empty) empty.remove();
   const div = document.createElement('div');
   div.className = 'msg-user';
-  div.innerHTML = `<div class="bubble">${escHtml(content)}</div>`;
+  let html = content ? `<div class="bubble">${escHtml(content)}</div>` : '';
+  if (files && files.length > 0) {
+    html += '<div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;margin-top:4px;">';
+    for (const f of files) {
+      if (f.isImage && f.previewUrl) {
+        html += `<img src="${f.previewUrl}" style="max-width:120px;max-height:120px;border-radius:6px;border:1px solid #30363d;object-fit:cover;" title="${escHtml(f.name)}">`;
+      } else {
+        html += `<span style="background:#21262d;border:1px solid #30363d;border-radius:6px;padding:3px 8px;font-size:.75rem;color:#8b949e;">${fileIcon(f.name)} ${escHtml(f.name)}</span>`;
+      }
+    }
+    html += '</div>';
+  }
+  div.innerHTML = html;
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
 }
@@ -1087,11 +1099,82 @@ function extractToolCalls(text) {
 // ════════════════════════════════════════════════
 // 핵심: AI 채팅 전송 (스트리밍 + 도구 루프 + 백그라운드)
 // ════════════════════════════════════════════════
+// ── 첨부 파일 관리 ──
+let _pendingFiles = [];  // {file: File, name: string, isImage: bool, previewUrl: string|null}
+
+function onFileInputChange(input) {
+  for (const f of input.files) {
+    const isImg = f.type.startsWith('image/');
+    const previewUrl = isImg ? URL.createObjectURL(f) : null;
+    _pendingFiles.push({ file: f, name: f.name, isImage: isImg, previewUrl });
+  }
+  input.value = '';
+  renderAttachPreview();
+}
+
+function renderAttachPreview() {
+  const area = document.getElementById('attach-preview');
+  if (!area) return;
+  if (_pendingFiles.length === 0) { area.style.display = 'none'; area.innerHTML = ''; return; }
+  area.style.display = 'flex';
+  area.innerHTML = _pendingFiles.map((f, i) => {
+    const thumb = f.isImage
+      ? `<img src="${f.previewUrl}" style="width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid #30363d;">`
+      : `<span style="font-size:1.4rem;">${fileIcon(f.name)}</span>`;
+    return `<div style="position:relative;display:inline-flex;flex-direction:column;align-items:center;gap:2px;
+                         background:#161b22;border:1px solid #30363d;border-radius:6px;padding:4px 6px;cursor:default;"
+                 title="${escHtml(f.name)}">
+      ${thumb}
+      <span style="font-size:.62rem;color:#8b949e;max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(f.name)}</span>
+      <button onclick="removePendingFile(${i})" style="position:absolute;top:-5px;right:-5px;background:#da3633;color:#fff;border:none;
+              border-radius:50%;width:14px;height:14px;font-size:.6rem;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function removePendingFile(idx) {
+  if (_pendingFiles[idx] && _pendingFiles[idx].previewUrl) URL.revokeObjectURL(_pendingFiles[idx].previewUrl);
+  _pendingFiles.splice(idx, 1);
+  renderAttachPreview();
+}
+
+function fileIcon(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const map = {pdf:'📄', zip:'🗜️', tar:'🗜️', gz:'🗜️', mp4:'🎬', mp3:'🎵', wav:'🎵',
+                py:'🐍', js:'📜', ts:'📜', html:'🌐', css:'🎨', json:'📋',
+                md:'📝', txt:'📝', csv:'📊', xlsx:'📊', xls:'📊', docx:'📝'};
+  return map[ext] || '📎';
+}
+
+// 드래그앤드롭 지원
+document.addEventListener('DOMContentLoaded', () => {
+  const chatArea = document.getElementById('chat-input-area');
+  if (chatArea) {
+    chatArea.addEventListener('dragover', e => { e.preventDefault(); chatArea.style.outline = '2px dashed #58a6ff'; });
+    chatArea.addEventListener('dragleave', () => { chatArea.style.outline = ''; });
+    chatArea.addEventListener('drop', e => {
+      e.preventDefault();
+      chatArea.style.outline = '';
+      for (const f of e.dataTransfer.files) {
+        const isImg = f.type.startsWith('image/');
+        const previewUrl = isImg ? URL.createObjectURL(f) : null;
+        _pendingFiles.push({ file: f, name: f.name, isImage: isImg, previewUrl });
+      }
+      renderAttachPreview();
+    });
+  }
+});
+
 async function sendChat() {
   if (isSending) return;
   const input = document.getElementById('chat-input');
   const msg = input.value.trim();
-  if (!msg) return;
+  if (!msg && _pendingFiles.length === 0) return;
+
+  // 첨부 파일 스냅샷 (전송 중 변경 방지)
+  const filesToSend = [..._pendingFiles];
+  _pendingFiles = [];
+  renderAttachPreview();
 
   isSending = true;
   bgCancelFlag = false;
@@ -1103,7 +1186,8 @@ async function sendChat() {
   const stopBtn = document.getElementById('stop-btn');
   if (stopBtn) stopBtn.style.display = 'inline-block';
 
-  appendUserMsg(msg);
+  // 사용자 메시지 버블 (파일 첨부 미리보기 포함)
+  appendUserMsg(msg, filesToSend);
 
   // 서버에 task 시작 등록 (새로고침 후 복원용)
   fetch(`/blog/ai-webdev/${PROJECT_ID}/task/upsert/`, {
@@ -1127,6 +1211,7 @@ async function sendChat() {
   let currentMsg = msg;
   let continueLoop = true;
   let loopCount = 0;
+  let firstLoop = true;
   // 무한 루프 (사용자가 정지 버튼 누를 때까지)
 
   while (continueLoop && !bgCancelFlag) {
@@ -1140,16 +1225,32 @@ async function sendChat() {
     try {
       // 상태 버블은 유지 (단계 표시 없음)
 
-      // ★ 올바른 URL: /blog/ai-webdev/{PROJECT_ID}/chat/
-      const resp = await fetch(`/blog/ai-webdev/${PROJECT_ID}/chat/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-        body: JSON.stringify({
-          project_id: PROJECT_ID,
-          message: currentMsg,
-          tool_results: toolResultsToSend,
-        })
-      });
+      // ★ 첫 루프이고 파일이 있으면 multipart/form-data, 아니면 JSON
+      let resp;
+      if (firstLoop && filesToSend.length > 0) {
+        firstLoop = false;
+        const fd = new FormData();
+        fd.append('project_id', PROJECT_ID);
+        fd.append('message', currentMsg || '');
+        fd.append('tool_results', JSON.stringify(toolResultsToSend));
+        for (const f of filesToSend) fd.append('files', f.file, f.name);
+        resp = await fetch(`/blog/ai-webdev/${PROJECT_ID}/chat/`, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': CSRF },
+          body: fd,
+        });
+      } else {
+        firstLoop = false;
+        resp = await fetch(`/blog/ai-webdev/${PROJECT_ID}/chat/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+          body: JSON.stringify({
+            project_id: PROJECT_ID,
+            message: currentMsg,
+            tool_results: toolResultsToSend,
+          })
+        });
+      }
 
       // 402: 크레딧 부족
       if (resp.status === 402) {

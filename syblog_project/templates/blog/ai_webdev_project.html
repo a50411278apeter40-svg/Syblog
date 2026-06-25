@@ -658,7 +658,18 @@ button { touch-action: manipulation; }
         </div>
       </div>
       <div id="chat-input-area">
-        <textarea id="chat-input" rows="3" placeholder="AI에게 요청... (Ctrl+Enter 전송)"></textarea>
+        <!-- 파일 첨부 미리보기 영역 -->
+        <div id="attach-preview" style="display:none;flex-wrap:wrap;gap:6px;padding:6px 8px 0;border-bottom:1px solid #30363d;"></div>
+        <!-- 숨겨진 파일 input -->
+        <input type="file" id="chat-file-input" multiple accept="*/*" style="display:none" onchange="onFileInputChange(this)">
+        <div style="display:flex;align-items:flex-end;gap:6px;padding:6px 8px 0;">
+          <button onclick="document.getElementById('chat-file-input').click()"
+                  title="파일 첨부"
+                  style="flex-shrink:0;background:#21262d;border:1px solid #30363d;color:#8b949e;border-radius:6px;
+                         padding:5px 8px;font-size:1rem;cursor:pointer;line-height:1;" >📎</button>
+          <textarea id="chat-input" rows="3" style="flex:1;"
+                    placeholder="AI에게 요청... (Ctrl+Enter 전송)&#10;이미지/파일을 첨부할 수 있어요"></textarea>
+        </div>
         <div id="chat-send-row">
           <span style="display:flex;align-items:center;gap:6px;">
             <span class="credit-info" id="credit-info">

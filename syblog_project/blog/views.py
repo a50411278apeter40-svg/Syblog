@@ -2201,16 +2201,62 @@ def ai_webdev_chat(request, pk=None):
             'no_credit': True,
         }, status=402)
 
-    try:
-        body = _json_mod.loads(request.body)
-        project_id   = body.get('project_id')
-        message      = (body.get('message') or '').strip()
-        tool_results = body.get('tool_results', [])
-    except Exception as parse_err:
-        return JsonResponse({'error': f'잘못된 요청: {str(parse_err)[:80]}'}, status=400)
+    # ── 요청 파싱 (JSON or multipart/form-data) ──
+    uploaded_images = []   # [{"name":..., "base64":..., "mime":...}]
+    uploaded_files  = []   # [{"name":..., "path":... (저장 경로), "size":...}]
 
-    if not message:
-        return JsonResponse({'error': '메시지를 입력하세요'}, status=400)
+    content_type = request.content_type or ''
+    if 'multipart' in content_type or 'form-data' in content_type:
+        project_id   = request.POST.get('project_id', pk)
+        message      = (request.POST.get('message') or '').strip()
+        tool_results = _json_mod.loads(request.POST.get('tool_results', '[]'))
+
+        # 첨부 파일 처리
+        import base64 as _b64
+        _IMAGE_EXTS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'}
+        for _f in request.FILES.getlist('files'):
+            _ext = _os.path.splitext(_f.name)[1].lower()
+            _bytes = _f.read()
+            if _ext in _IMAGE_EXTS:
+                # 이미지 → base64 변환 후 multimodal에 전달
+                _mime = _f.content_type or f'image/{_ext.lstrip(".")}'
+                uploaded_images.append({
+                    'name': _f.name,
+                    'base64': _b64.b64encode(_bytes).decode(),
+                    'mime': _mime,
+                })
+            # 모든 파일 → 프로젝트 디렉토리에 저장
+            try:
+                from blog.models import AiWebProject as _AiWebProject2
+                _proj_tmp = _AiWebProject2.objects.get(pk=project_id, user=request.user)
+                _proj_dir = _get_project_dir(_proj_tmp.pk)
+                _save_path = _proj_dir / 'uploads' / _f.name
+                _save_path.parent.mkdir(parents=True, exist_ok=True)
+                _f.seek(0)
+                with open(_save_path, 'wb') as _sf:
+                    _sf.write(_f.read())
+                uploaded_files.append({
+                    'name': _f.name,
+                    'path': f'uploads/{_f.name}',
+                    'size': len(_bytes),
+                })
+            except Exception as _fe:
+                logger.warning(f'[chat-upload] 파일 저장 실패: {_fe}')
+    else:
+        try:
+            body = _json_mod.loads(request.body)
+            project_id   = body.get('project_id', pk)
+            message      = (body.get('message') or '').strip()
+            tool_results = body.get('tool_results', [])
+        except Exception as parse_err:
+            return JsonResponse({'error': f'잘못된 요청: {str(parse_err)[:80]}'}, status=400)
+
+    # tool_results가 None일 때 방어
+    if tool_results is None:
+        tool_results = []
+
+    if not message and not uploaded_images and not uploaded_files:
+        return JsonResponse({'error': '메시지나 파일을 입력하세요'}, status=400)
 
     if not project_id:
         return JsonResponse({'error': '프로젝트 ID가 없습니다.'}, status=400)
@@ -2254,18 +2300,45 @@ def ai_webdev_chat(request, pk=None):
         messages.append(h)
 
     # 도구 실행 결과가 있으면 포함
-    user_content = message
+    text_content = message or ''
     if tool_results:
         tool_summary = _json_stdlib.dumps(tool_results, ensure_ascii=False)[:3000]
-        user_content = f"{message}\n\n[이전 도구 실행 결과]:\n{tool_summary}"
+        text_content = f"{text_content}\n\n[이전 도구 실행 결과]:\n{tool_summary}"
+    if uploaded_files:
+        file_list = ', '.join(f['name'] for f in uploaded_files)
+        text_content += f"\n\n[업로드된 파일: {file_list}] — 파일은 프로젝트의 uploads/ 폴더에 저장됨"
 
-    messages.append({'role': 'user', 'content': user_content})
+    # 이미지가 있으면 multimodal content 구성 (GPT-4V / gpt-4o)
+    if uploaded_images:
+        import base64 as _b64_mc
+        user_content_parts = []
+        if text_content:
+            user_content_parts.append({'type': 'text', 'text': text_content})
+        for img in uploaded_images:
+            user_content_parts.append({
+                'type': 'image_url',
+                'image_url': {
+                    'url': f'data:{img["mime"]};base64,{img["base64"]}',
+                    'detail': 'high',
+                }
+            })
+        messages.append({'role': 'user', 'content': user_content_parts})
+    else:
+        messages.append({'role': 'user', 'content': text_content})
 
     # ── 사용자 메시지 DB 저장 ──
-    AiWebSession.objects.create(project=project, role='user', content=message)
+    db_msg = message
+    if uploaded_files:
+        db_msg += ' [첨부: ' + ', '.join(f['name'] for f in uploaded_files) + ']'
+    if uploaded_images:
+        db_msg += ' [이미지: ' + ', '.join(i['name'] for i in uploaded_images) + ']'
+    AiWebSession.objects.create(project=project, role='user', content=db_msg)
 
-    # ── g4f 모델 폴백 목록 ──
-    _G4F_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-3.5-turbo']
+    # ── g4f 모델 폴백 목록 (이미지 있으면 vision 모델 우선) ──
+    if uploaded_images:
+        _G4F_MODELS = ['gpt-4o', 'gpt-4-vision-preview', 'gpt-4o-mini']
+    else:
+        _G4F_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-3.5-turbo']
 
     # ── 스트리밍 생성기 ──
     def stream_response():
@@ -2393,6 +2466,50 @@ def ai_webdev_history(request, pk):
         'running_task': task_info,
     })
 
+
+
+@login_required
+def ai_webdev_upload(request, pk):
+    """AI 웹빌더 파일 업로드 — 스토리지 저장 + 이미지 목록 반환"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST only'}, status=405)
+    try:
+        project = AiWebProject.objects.get(pk=pk, user=request.user)
+    except Exception:
+        return JsonResponse({'error': '프로젝트 없음'}, status=404)
+
+    import base64 as _b64u
+    _IMAGE_EXTS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'}
+    proj_dir = _get_project_dir(project.pk)
+    upload_dir = proj_dir / 'uploads'
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    saved = []
+    images_b64 = []
+
+    for _f in request.FILES.getlist('files'):
+        _ext = _os.path.splitext(_f.name)[1].lower()
+        _bytes = _f.read()
+        _save_path = upload_dir / _f.name
+        with open(_save_path, 'wb') as _sf:
+            _sf.write(_bytes)
+        entry = {
+            'name': _f.name,
+            'path': f'uploads/{_f.name}',
+            'size': len(_bytes),
+            'is_image': _ext in _IMAGE_EXTS,
+        }
+        saved.append(entry)
+        if _ext in _IMAGE_EXTS:
+            _mime = _f.content_type or f'image/{_ext.lstrip(".")}'
+            images_b64.append({
+                'name': _f.name,
+                'mime': _mime,
+                'base64': _b64u.b64encode(_bytes).decode(),
+            })
+        logger.info(f'[upload] 저장: {_f.name} ({len(_bytes)} bytes) → {_save_path}')
+
+    return JsonResponse({'ok': True, 'saved': saved, 'images': images_b64})
 
 @login_required
 def ai_webdev_clear_history(request, pk):
