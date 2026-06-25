@@ -455,8 +455,10 @@ def perform_backup():
         # ① DB 덤프
         logger.info(f'[backup] DB 덤프 시작 ({now_str})')
         out = StringIO()
+        # 모든 데이터 백업 (contenttypes, auth.permission 제외는 loaddata 호환성 때문)
+        # sessions는 별도 유지하므로 여기선 포함해도 무방하나 복원 시 스킵됨
         call_command('dumpdata', natural_foreign=True,
-                     exclude=['auth.permission', 'contenttypes', 'admin.logentry', 'sessions'],
+                     exclude=['contenttypes', 'auth.permission', 'admin.logentry'],
                      stdout=out)
         backup_json = out.getvalue()
         backup_b64 = base64.b64encode(backup_json.encode('utf-8')).decode('utf-8')
@@ -691,9 +693,9 @@ def perform_restore():
                 cur.execute('PRAGMA foreign_keys = ON')
             logger.info(f'[restore] flush 완료: {len(tables)}개 테이블 (세션 테이블 유지)')
 
-            # ③ loaddata
+            # ③ loaddata — ignorenonexistent: 모델 불일치 무시, 안정성 향상
             r = _sub_restore.run(
-                [venv_py, manage_py, 'loaddata', tmp_fixture],
+                [venv_py, manage_py, 'loaddata', '--ignorenonexistent', tmp_fixture],
                 capture_output=True, text=True,
                 cwd=str(settings.BASE_DIR)
             )
