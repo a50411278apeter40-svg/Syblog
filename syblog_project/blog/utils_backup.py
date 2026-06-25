@@ -305,6 +305,93 @@ def _venv_all_to_zip_bytes(workspace_path):
     return buf.getvalue()
 
 
+
+def _venv_all_to_zip_bytes_safe(workspace_path):
+    """
+    venv → zip bytes, 안전한 버전:
+    - 각 프로젝트의 site-packages를 개별 처리
+    - 큰 파일은 스킵하여 메모리/시간 절약
+    - gunicorn SIGABRT 방지를 위해 단순 파일 크기 제한 적용
+    """
+    MAX_SINGLE_FILE_KB = 5 * 1024   # 파일 하나 5MB 이상이면 스킵
+    MAX_TOTAL_KB       = 30 * 1024  # 전체 30MB 초과 시 중단
+
+    if not os.path.isdir(workspace_path):
+        return b''
+
+    buf = io.BytesIO()
+    total_bytes = 0
+
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED, compresslevel=1) as zf:
+        for project_id in os.listdir(workspace_path):
+            proj_path = os.path.join(workspace_path, project_id)
+            if not os.path.isdir(proj_path):
+                continue
+            venv_dir = os.path.join(proj_path, '.venv')
+            if not os.path.isdir(venv_dir):
+                continue
+
+            # site-packages 경로 찾기
+            sp_base = os.path.join(venv_dir, 'lib')
+            if not os.path.isdir(sp_base):
+                continue
+            site_pkgs = None
+            for py_ver in os.listdir(sp_base):
+                sp = os.path.join(sp_base, py_ver, 'site-packages')
+                if os.path.isdir(sp):
+                    site_pkgs = sp
+                    break
+            if not site_pkgs:
+                continue
+
+            # site-packages → tar.gz (청크 단위, 큰 파일 스킵)
+            tgz_buf = io.BytesIO()
+            try:
+                with __import__('gzip').open(tgz_buf, 'wb', compresslevel=1) as gz:
+                    import tarfile as _tf
+                    with _tf.open(fileobj=gz, mode='w|') as tar:
+                        for dirpath, dirnames, filenames in os.walk(site_pkgs):
+                            # __pycache__ 스킵
+                            dirnames[:] = [d for d in dirnames if d != '__pycache__']
+                            for fname in filenames:
+                                fpath = os.path.join(dirpath, fname)
+                                try:
+                                    fsize = os.path.getsize(fpath)
+                                    if fsize > MAX_SINGLE_FILE_KB * 1024:
+                                        logger.debug(f'[venv-backup-safe] 큰 파일 스킵: {fpath} ({fsize//1024}KB)')
+                                        continue
+                                    arcname = os.path.relpath(fpath, site_pkgs)
+                                    tar.add(fpath, arcname=arcname)
+                                except Exception:
+                                    pass
+            except Exception as _e:
+                logger.warning(f'[venv-backup-safe] {project_id} tar 생성 실패: {_e}')
+                continue
+
+            tgz_bytes = tgz_buf.getvalue()
+            if not tgz_bytes:
+                continue
+
+            zf.writestr(f'{project_id}/site_packages.tar.gz', tgz_bytes)
+            total_bytes += len(tgz_bytes)
+            logger.info(f'[venv-backup-safe] {project_id}: {len(tgz_bytes)//1024}KB')
+
+            # Python 버전 기록
+            try:
+                r = subprocess.run(
+                    [os.path.join(venv_dir, 'bin', 'python3'), '--version'],
+                    capture_output=True, text=True, timeout=5
+                )
+                zf.writestr(f'{project_id}/python_version.txt', r.stdout.strip())
+            except Exception:
+                zf.writestr(f'{project_id}/python_version.txt', 'python3.11')
+
+            if total_bytes > MAX_TOTAL_KB * 1024:
+                logger.warning(f'[venv-backup-safe] 총 크기 {total_bytes//1024}KB 초과 → 나머지 프로젝트 스킵')
+                break
+
+    return buf.getvalue()
+
 def _zip_bytes_to_venv_all(venv_zip_bytes, workspace_path):
     """
     venv zip bytes → 각 프로젝트 .venv 복원.
@@ -410,24 +497,28 @@ def perform_backup():
             errors.append(f'웹빌더 백업 경고: {webdev_info_or_err}')
         logger.info(f'[backup] AI 웹빌더 파일 백업 완료 ({len(webdev_zip_bytes)//1024}KB)')
 
-        # ④ venv 백업 (site-packages tar.gz 묶음)
+        # ④ venv 백업 (site-packages tar.gz 묶음) — 청크 스트리밍 방식으로 메모리 절약
         logger.info(f'[backup] venv 백업 시작')
-        venv_zip_bytes = _venv_all_to_zip_bytes(WEBDEV_WORKSPACE_PATH)
         venv_backup_ok = False
         venv_info_or_err = None
+        venv_path = None
 
-        if venv_zip_bytes and len(venv_zip_bytes) > 100:
-            venv_path = f'backups/venv/syblog_venv_{now_str}.zip'
-            venv_backup_ok, venv_info_or_err = _upload_large_file_to_github(
-                token, repo, venv_path, venv_zip_bytes,
-                f'🐍 venv 백업 {now_str}'
-            )
-            if not venv_backup_ok:
-                errors.append(f'venv 백업 경고: {venv_info_or_err}')
-            logger.info(f'[backup] venv 백업 완료 ({len(venv_zip_bytes)//1024}KB)')
-        else:
-            logger.info(f'[backup] venv 없음 - 스킵')
-            venv_path = None
+        try:
+            venv_zip_bytes = _venv_all_to_zip_bytes_safe(WEBDEV_WORKSPACE_PATH)
+            if venv_zip_bytes and len(venv_zip_bytes) > 100:
+                venv_path = f'backups/venv/syblog_venv_{now_str}.zip'
+                venv_backup_ok, venv_info_or_err = _upload_large_file_to_github(
+                    token, repo, venv_path, venv_zip_bytes,
+                    f'🐍 venv 백업 {now_str}'
+                )
+                if not venv_backup_ok:
+                    errors.append(f'venv 백업 경고: {venv_info_or_err}')
+                logger.info(f'[backup] venv 백업 완료 ({len(venv_zip_bytes)//1024}KB)')
+            else:
+                logger.info(f'[backup] venv 없음 - 스킵')
+        except Exception as _ve:
+            logger.warning(f'[backup] venv 백업 실패 (무시하고 계속): {_ve}')
+            errors.append(f'venv 백업 경고: {_ve}')
 
         # ⑤ 메타 파일 (백업 파일끼리 쌍 기록)
         meta = {

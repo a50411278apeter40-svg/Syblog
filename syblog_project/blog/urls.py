@@ -71,6 +71,7 @@ urlpatterns = [
     path('ai-webdev/<int:pk>/', views.ai_webdev_project, name='ai_webdev_project'),
     path('ai-webdev/<int:pk>/chat/', views.ai_webdev_chat, name='ai_webdev_chat'),
     path('ai-webdev/<int:pk>/upload/', views.ai_webdev_upload, name='ai_webdev_upload'),
+    path('backup-status/', views.backup_status_api, name='backup_status_api'),
     path('ai-webdev/<int:pk>/tool/', views.ai_webdev_tool, name='ai_webdev_tool'),
     path('ai-webdev/<int:pk>/files/', views.ai_webdev_files, name='ai_webdev_files'),
 

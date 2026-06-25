@@ -138,14 +138,73 @@
         {% if messages %}
         <div class="mt-3">
             {% for message in messages %}
-            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}success{% endif %} mb-1">
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} mb-1">
                 {{ message }}
             </div>
             {% endfor %}
         </div>
         {% endif %}
+        <!-- 백업 진행 상태 표시 영역 -->
+        <div id="backup-status-box" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;border:1px solid #6c63ff;background:#f3f0ff;">
+          <span id="backup-status-icon">⏳</span>
+          <span id="backup-status-msg" style="font-weight:600;margin-left:6px;">백업 진행 중...</span>
+          <span id="backup-status-time" style="margin-left:10px;color:#888;font-size:.85rem;"></span>
+        </div>
     </div>
 </div>
+
+<script>
+// 백업 버튼 클릭 시 폴링 시작
+(function(){
+  var pollTimer = null;
+
+  document.querySelector('form[action*="backup-to-github"]').addEventListener('submit', function(e){
+    var box = document.getElementById('backup-status-box');
+    box.style.display = 'block';
+    document.getElementById('backup-status-icon').textContent = '⏳';
+    document.getElementById('backup-status-msg').textContent = '백업을 시작하는 중...';
+    document.getElementById('backup-status-time').textContent = '';
+    // 2초 후 폴링 시작
+    setTimeout(startPoll, 2000);
+  });
+
+  function startPoll(){
+    if (pollTimer) return;
+    pollTimer = setInterval(function(){
+      fetch('{% url "blog:backup_status_api" %}')
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          var box = document.getElementById('backup-status-box');
+          var icon = document.getElementById('backup-status-icon');
+          var msg  = document.getElementById('backup-status-msg');
+          var time = document.getElementById('backup-status-time');
+          box.style.display = 'block';
+          if (d.running) {
+            icon.textContent = '⏳';
+            msg.textContent  = '백업 진행 중... (1~2분 소요)';
+            time.textContent = d.started_at ? '시작: ' + d.started_at : '';
+            box.style.borderColor = '#6c63ff';
+            box.style.background  = '#f3f0ff';
+          } else if (d.result === true) {
+            icon.textContent = '✅';
+            msg.textContent  = '백업 완료! ' + (d.msg || '');
+            time.textContent = '';
+            box.style.borderColor = '#28a745';
+            box.style.background  = '#e9f9ee';
+            clearInterval(pollTimer); pollTimer = null;
+          } else if (d.result === false) {
+            icon.textContent = '❌';
+            msg.textContent  = '백업 실패: ' + (d.msg || '');
+            time.textContent = '';
+            box.style.borderColor = '#dc3545';
+            box.style.background  = '#fff0f0';
+            clearInterval(pollTimer); pollTimer = null;
+          }
+        }).catch(function(){});
+    }, 3000);
+  }
+})();
+</script>
 
 <!-- 최근 게시글 & 최근 사용자 -->
 <div class="row">

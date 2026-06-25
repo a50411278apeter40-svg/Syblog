@@ -480,17 +480,57 @@ import json
 
 from .utils_backup import perform_backup, perform_restore
 
+# ── 백업 진행 상태 추적 ──
+import threading as _threading
+_backup_status = {'running': False, 'result': None, 'msg': '', 'started_at': None}
+_backup_lock = _threading.Lock()
+
+def _run_backup_background():
+    """백그라운드 스레드에서 백업 실행 (gunicorn 타임아웃 우회)"""
+    import datetime as _dt
+    with _backup_lock:
+        _backup_status['running'] = True
+        _backup_status['result'] = None
+        _backup_status['msg'] = '백업 진행 중...'
+        _backup_status['started_at'] = _dt.datetime.now().strftime('%H:%M:%S')
+    try:
+        success, msg = perform_backup()
+        with _backup_lock:
+            _backup_status['running'] = False
+            _backup_status['result'] = success
+            _backup_status['msg'] = msg
+        logger.info(f'[backup-bg] 완료: success={success}, msg={msg}')
+    except Exception as _e:
+        with _backup_lock:
+            _backup_status['running'] = False
+            _backup_status['result'] = False
+            _backup_status['msg'] = str(_e)
+        logger.error(f'[backup-bg] 예외: {_e}', exc_info=True)
+
 @staff_member_required
 def backup_to_github(request):
     if request.method != 'POST':
         return redirect('blog:admin_dashboard')
-    
-    success, msg = perform_backup()
-    if success:
-        messages.success(request, f'✅ GitHub 전체 백업 완료! (모든 데이터 저장됨) → {msg}')
-    else:
-        messages.error(request, f'❌ 백업 실패: {msg}')
+
+    with _backup_lock:
+        already_running = _backup_status['running']
+
+    if already_running:
+        messages.warning(request, '⏳ 백업이 이미 진행 중입니다. 잠시 후 결과를 확인하세요.')
+        return redirect('blog:admin_dashboard')
+
+    # 백그라운드 스레드로 백업 실행 (gunicorn worker 타임아웃 방지)
+    t = _threading.Thread(target=_run_backup_background, daemon=True)
+    t.start()
+    messages.info(request, '🔄 백업이 백그라운드에서 시작되었습니다. 1~2분 후 결과를 확인하세요.')
     return redirect('blog:admin_dashboard')
+
+@staff_member_required  
+def backup_status_api(request):
+    """백업 진행 상태 JSON API"""
+    with _backup_lock:
+        status = dict(_backup_status)
+    return JsonResponse(status)
 
 @staff_member_required
 def restore_from_github(request):
