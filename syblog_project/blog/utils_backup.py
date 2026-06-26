@@ -68,6 +68,8 @@ def _upload_large_file_to_github(token, repo, file_path_in_repo, data_bytes, com
 
 
 def _download_file_from_github(token, repo, file_path_in_repo, info):
+    if not info:
+        info = {}
     if info.get('type', 'single') == 'single':
         res, st = _github_api('GET', f'/repos/{repo}/contents/{file_path_in_repo}', token)
         if st != 200:
@@ -441,8 +443,30 @@ def _zip_bytes_to_venv_all(venv_zip_bytes, workspace_path):
 
 
 # ── 백업 수행 ──────────────────────────────────────────────────
+
+# ══════════════════════════════════════════════════════════════
+#  perform_backup / perform_restore  —  완전 재설계 버전
+#  모든 데이터 누락 없이 백업/복원
+#
+#  백업 구성:
+#    backups/meta/syblog_meta_{ts}.json  ← 메타 (파일 경로 기록)
+#    backups/db/syblog_db_{ts}.json      ← dumpdata (sessions 포함 전체)
+#    backups/sessions/syblog_sessions_{ts}.json ← django_session SQL 직접 덤프
+#    backups/media/syblog_media_{ts}.zip ← 미디어 파일
+#    backups/webdev/syblog_webdev_{ts}.zip ← AI 웹빌더 파일
+#    backups/venv/syblog_venv_{ts}.zip   ← venv (선택)
+#
+#  복원 전략:
+#    1. DB flush (django_session, django_migrations 제외)
+#    2. loaddata --ignorenonexistent
+#    3. sessions 별도 복원 (SQL INSERT) → 로그아웃 방지
+#    4. 미디어 복원
+#    5. 웹빌더 파일 복원
+# ══════════════════════════════════════════════════════════════
+
 def perform_backup():
     from django.conf import settings
+    from django.db import connection as _dj_conn
     token = os.environ.get('GITHUB_TOKEN', '')
     repo = os.environ.get('GITHUB_REPO', 'a50411278apeter40-svg/Syblog')
     if not token:
@@ -450,92 +474,112 @@ def perform_backup():
 
     now_str = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
     errors = []
+    meta = {'timestamp': now_str}
 
     try:
-        # ① DB 덤프
-        logger.info(f'[backup] DB 덤프 시작 ({now_str})')
+        # ① DB 전체 덤프 (dumpdata — contenttypes/auth.permission 제외는 loaddata 호환성)
+        logger.info(f'[backup] DB 전체 덤프 시작 ({now_str})')
         out = StringIO()
-        # 모든 데이터 백업 (contenttypes, auth.permission 제외는 loaddata 호환성 때문)
-        # sessions는 별도 유지하므로 여기선 포함해도 무방하나 복원 시 스킵됨
-        call_command('dumpdata', natural_foreign=True,
-                     exclude=['contenttypes', 'auth.permission', 'admin.logentry'],
-                     stdout=out)
+        call_command(
+            'dumpdata',
+            natural_primary=True,
+            natural_foreign=True,
+            exclude=['contenttypes', 'auth.permission', 'django_migrations'],
+            stdout=out,
+        )
         backup_json = out.getvalue()
-        backup_b64 = base64.b64encode(backup_json.encode('utf-8')).decode('utf-8')
-
         db_path = f'backups/db/syblog_db_{now_str}.json'
-        res, st = _github_api('GET', f'/repos/{repo}/contents/{db_path}', token)
-        payload = {'message': f'🔒 DB 백업 {now_str}', 'content': backup_b64}
-        if st == 200:
-            payload['sha'] = res.get('sha', '')
-        result, status = _github_api('PUT', f'/repos/{repo}/contents/{db_path}', token, payload)
-        if status not in (200, 201):
-            return False, f'DB 백업 실패: {result.get("message","")}'
-        logger.info(f'[backup] DB 덤프 완료')
+        db_bytes = backup_json.encode('utf-8')
+        ok_db, info_db = _upload_large_file_to_github(
+            token, repo, db_path, db_bytes, f'🗄️ DB 전체 백업 {now_str}'
+        )
+        if not ok_db:
+            return False, f'DB 백업 실패: {info_db}'
+        meta['db_path'] = db_path
+        meta['db_info'] = info_db
+        meta['db_size_kb'] = round(len(db_bytes) / 1024, 1)
+        logger.info(f'[backup] DB 덤프 완료 ({meta["db_size_kb"]}KB)')
 
-        # ② 미디어 파일 zip 백업
+        # ② django_session 테이블 직접 SQL 덤프 (로그인 세션 완전 보존)
+        logger.info(f'[backup] sessions 직접 덤프 시작')
+        try:
+            with _dj_conn.cursor() as cur:
+                cur.execute('SELECT session_key, session_data, expire_date FROM django_session')
+                rows = cur.fetchall()
+            sessions_data = [
+                {'session_key': r[0], 'session_data': r[1],
+                 'expire_date': r[2].isoformat() if hasattr(r[2], 'isoformat') else str(r[2])}
+                for r in rows
+            ]
+            sessions_json = json.dumps(sessions_data, ensure_ascii=False).encode('utf-8')
+            sess_path = f'backups/sessions/syblog_sessions_{now_str}.json'
+            ok_sess, info_sess = _upload_large_file_to_github(
+                token, repo, sess_path, sessions_json, f'🔐 세션 백업 {now_str}'
+            )
+            if ok_sess:
+                meta['sessions_path'] = sess_path
+                meta['sessions_info'] = info_sess
+                meta['sessions_count'] = len(sessions_data)
+            else:
+                errors.append(f'세션 백업 경고: {info_sess}')
+            logger.info(f'[backup] sessions 덤프 완료 ({len(sessions_data)}개)')
+        except Exception as _se:
+            logger.warning(f'[backup] sessions 덤프 실패 (무시): {_se}')
+            errors.append(f'세션 백업 경고: {_se}')
+
+        # ③ 미디어 파일 zip 백업
         logger.info(f'[backup] 미디어 파일 백업 시작')
         media_root = getattr(settings, 'MEDIA_ROOT', os.path.join(settings.BASE_DIR, '_media'))
         media_zip_bytes = _media_to_zip_bytes(media_root)
-
         media_path = f'backups/media/syblog_media_{now_str}.zip'
-        ok, info_or_err = _upload_large_file_to_github(
-            token, repo, media_path, media_zip_bytes,
-            f'🖼️ 미디어 백업 {now_str}'
+        ok_media, info_media = _upload_large_file_to_github(
+            token, repo, media_path, media_zip_bytes, f'🖼️ 미디어 백업 {now_str}'
         )
-        if not ok:
-            errors.append(f'미디어 백업 경고: {info_or_err}')
-        logger.info(f'[backup] 미디어 파일 백업 완료 ({len(media_zip_bytes)//1024}KB)')
+        if not ok_media:
+            errors.append(f'미디어 백업 경고: {info_media}')
+        meta['media_path'] = media_path
+        meta['media_info'] = info_media if ok_media else None
+        meta['media_size_kb'] = round(len(media_zip_bytes) / 1024, 1)
+        logger.info(f'[backup] 미디어 완료 ({meta["media_size_kb"]}KB)')
 
-        # ③ AI 웹빌더 프로젝트 파일 백업 (.venv 제외)
+        # ④ AI 웹빌더 프로젝트 파일 백업 (.venv 제외)
         logger.info(f'[backup] AI 웹빌더 파일 백업 시작')
         webdev_zip_bytes = _webdev_to_zip_bytes(WEBDEV_WORKSPACE_PATH)
         webdev_path = f'backups/webdev/syblog_webdev_{now_str}.zip'
-        webdev_ok, webdev_info_or_err = _upload_large_file_to_github(
-            token, repo, webdev_path, webdev_zip_bytes,
-            f'🛠️ AI웹빌더 백업 {now_str}'
+        ok_webdev, info_webdev = _upload_large_file_to_github(
+            token, repo, webdev_path, webdev_zip_bytes, f'🛠️ AI웹빌더 백업 {now_str}'
         )
-        if not webdev_ok:
-            errors.append(f'웹빌더 백업 경고: {webdev_info_or_err}')
-        logger.info(f'[backup] AI 웹빌더 파일 백업 완료 ({len(webdev_zip_bytes)//1024}KB)')
+        if not ok_webdev:
+            errors.append(f'웹빌더 백업 경고: {info_webdev}')
+        meta['webdev_path'] = webdev_path
+        meta['webdev_info'] = info_webdev if ok_webdev else None
+        meta['webdev_size_kb'] = round(len(webdev_zip_bytes) / 1024, 1)
+        logger.info(f'[backup] AI 웹빌더 완료 ({meta["webdev_size_kb"]}KB)')
 
-        # ④ venv 백업 (site-packages tar.gz 묶음) — 청크 스트리밍 방식으로 메모리 절약
+        # ⑤ venv 백업 (메모리 초과 방지를 위해 safe 버전 사용)
         logger.info(f'[backup] venv 백업 시작')
-        venv_backup_ok = False
-        venv_info_or_err = None
-        venv_path = None
-
+        venv_zip_bytes = None
         try:
             venv_zip_bytes = _venv_all_to_zip_bytes_safe(WEBDEV_WORKSPACE_PATH)
             if venv_zip_bytes and len(venv_zip_bytes) > 100:
                 venv_path = f'backups/venv/syblog_venv_{now_str}.zip'
-                venv_backup_ok, venv_info_or_err = _upload_large_file_to_github(
-                    token, repo, venv_path, venv_zip_bytes,
-                    f'🐍 venv 백업 {now_str}'
+                ok_venv, info_venv = _upload_large_file_to_github(
+                    token, repo, venv_path, venv_zip_bytes, f'🐍 venv 백업 {now_str}'
                 )
-                if not venv_backup_ok:
-                    errors.append(f'venv 백업 경고: {venv_info_or_err}')
-                logger.info(f'[backup] venv 백업 완료 ({len(venv_zip_bytes)//1024}KB)')
+                if ok_venv:
+                    meta['venv_path'] = venv_path
+                    meta['venv_info'] = info_venv
+                    meta['venv_size_kb'] = round(len(venv_zip_bytes) / 1024, 1)
+                else:
+                    errors.append(f'venv 백업 경고: {info_venv}')
+                logger.info(f'[backup] venv 완료 ({meta.get("venv_size_kb", 0)}KB)')
             else:
-                logger.info(f'[backup] venv 없음 - 스킵')
+                logger.info('[backup] venv 없음 — 스킵')
         except Exception as _ve:
-            logger.warning(f'[backup] venv 백업 실패 (무시하고 계속): {_ve}')
+            logger.warning(f'[backup] venv 백업 실패 (무시): {_ve}')
             errors.append(f'venv 백업 경고: {_ve}')
 
-        # ⑤ 메타 파일 (백업 파일끼리 쌍 기록)
-        meta = {
-            'timestamp': now_str,
-            'db_path': db_path,
-            'media_path': media_path,
-            'media_info': info_or_err if ok else None,
-            'media_zip_size_kb': round(len(media_zip_bytes) / 1024, 1),
-            'webdev_path': webdev_path,
-            'webdev_info': webdev_info_or_err if webdev_ok else None,
-            'webdev_zip_size_kb': round(len(webdev_zip_bytes) / 1024, 1),
-            'venv_path': venv_path if venv_backup_ok else None,
-            'venv_info': venv_info_or_err if venv_backup_ok else None,
-            'venv_zip_size_kb': round(len(venv_zip_bytes) / 1024, 1) if venv_zip_bytes else 0,
-        }
+        # ⑥ 메타 파일 저장
         meta_b64 = base64.b64encode(json.dumps(meta, ensure_ascii=False).encode('utf-8')).decode('utf-8')
         meta_path = f'backups/meta/syblog_meta_{now_str}.json'
         res, st = _github_api('GET', f'/repos/{repo}/contents/{meta_path}', token)
@@ -544,160 +588,114 @@ def perform_backup():
             payload['sha'] = res.get('sha', '')
         _github_api('PUT', f'/repos/{repo}/contents/{meta_path}', token, payload)
 
-        msg = f'DB + 미디어 + AI웹빌더 + venv 백업 완료 ({now_str})'
+        db_kb = meta.get('db_size_kb', 0)
+        media_kb = meta.get('media_size_kb', 0)
+        webdev_kb = meta.get('webdev_size_kb', 0)
+        venv_kb = meta.get('venv_size_kb', 0)
+        msg = (f'전체 백업 완료 ({now_str}) | '
+               f'DB:{db_kb}KB 미디어:{media_kb}KB 웹빌더:{webdev_kb}KB venv:{venv_kb}KB')
         if errors:
-            msg += ' | 경고: ' + '; '.join(errors)
-        logger.info(f'[backup] 전체 백업 완료: {msg}')
+            msg += ' | 경고: ' + '; '.join(str(e) for e in errors)
+        logger.info(f'[backup] {msg}')
         return True, msg
 
     except Exception as e:
-        logger.error(f'[backup] 백업 중 예외 발생: {e}', exc_info=True)
+        logger.error(f'[backup] 예외: {e}', exc_info=True)
         return False, str(e)
 
 
 # ── 복원 수행 ──────────────────────────────────────────────────
 def perform_restore():
     from django.conf import settings
+    from django.db import connection as _dj_conn
     token = os.environ.get('GITHUB_TOKEN', '')
     repo = os.environ.get('GITHUB_REPO', 'a50411278apeter40-svg/Syblog')
     if not token:
         return False, 'GITHUB_TOKEN 환경변수가 설정되지 않았습니다.'
 
     try:
-        # ① 최신 메타 파일 찾기
+        # ① 최신 메타 파일 로드
         logger.info('[restore] 메타 파일 탐색 중...')
         result, status = _github_api('GET', f'/repos/{repo}/contents/backups/meta', token)
-        use_meta = status == 200 and result
+        if status != 200 or not result:
+            return False, f'백업 메타 목록 로드 실패 (status={status})'
 
-        if use_meta:
-            meta_files = sorted(
-                [f for f in result if f['name'].endswith('.json')],
-                key=lambda x: x['name'], reverse=True
+        meta_files = sorted(
+            [f for f in result if isinstance(f, dict) and f.get('name', '').endswith('.json')],
+            key=lambda x: x['name'], reverse=True
+        )
+        if not meta_files:
+            return False, '메타 파일이 없습니다. 먼저 백업을 실행하세요.'
+
+        fm, fst = _github_api('GET', f'/repos/{repo}/contents/{meta_files[0]["path"]}', token)
+        if fst != 200:
+            return False, '메타 파일 로드 실패'
+        meta_b64 = fm.get('content', '').replace('\n', '')
+        meta = json.loads(base64.b64decode(meta_b64).decode('utf-8'))
+        ts = meta.get('timestamp', '알 수 없음')
+        logger.info(f'[restore] 메타 로드 완료: {ts}')
+
+        # ② DB 파일 다운로드
+        logger.info('[restore] DB 백업 파일 다운로드 중...')
+        if not meta.get('db_path'):
+            return False, 'DB 백업 경로 정보가 없습니다.'
+
+        db_bytes, db_err = _download_file_from_github(
+            token, repo, meta['db_path'], meta.get('db_info')
+        )
+        if not db_bytes:
+            return False, f'DB 파일 다운로드 실패: {db_err}'
+        backup_text = db_bytes.decode('utf-8')
+        logger.info(f'[restore] DB 파일 다운로드 완료 ({len(db_bytes)//1024}KB)')
+
+        # ③ sessions 백업 다운로드 (있으면)
+        sessions_data = None
+        if meta.get('sessions_path') and meta.get('sessions_info'):
+            logger.info('[restore] sessions 백업 다운로드 중...')
+            sess_bytes, sess_err = _download_file_from_github(
+                token, repo, meta['sessions_path'], meta.get('sessions_info')
             )
-            if not meta_files:
-                use_meta = False
-
-        if use_meta:
-            latest_meta_res = meta_files[0]
-            fm, fst = _github_api('GET', f'/repos/{repo}/contents/{latest_meta_res["path"]}', token)
-            if fst != 200:
-                return False, '메타 파일 로드 실패'
-            meta_b64 = fm.get('content', '').replace('\n', '')
-            meta = json.loads(base64.b64decode(meta_b64).decode('utf-8'))
-
-            # DB 복원
-            logger.info('[restore] DB 복원 중...')
-            db_fm, db_st = _github_api('GET', f'/repos/{repo}/contents/{meta["db_path"]}', token)
-            if db_st != 200:
-                return False, 'DB 백업 파일 로드 실패'
-            db_b64 = db_fm.get('content', '').replace('\n', '')
-            backup_text = base64.b64decode(db_b64).decode('utf-8')
-
-            # 미디어 복원
-            if meta.get('media_path') and meta.get('media_info'):
-                logger.info('[restore] 미디어 파일 복원 중...')
-                zip_bytes, media_err = _download_file_from_github(
-                    token, repo, meta['media_path'], meta['media_info']
-                )
-                if zip_bytes:
-                    media_root = getattr(settings, 'MEDIA_ROOT', os.path.join(settings.BASE_DIR, '_media'))
-                    _zip_bytes_to_media(zip_bytes, media_root)
-                    logger.info('[restore] 미디어 파일 복원 완료')
-                else:
-                    logger.warning(f'[restore] 미디어 복원 실패: {media_err}')
-
-            # AI 웹빌더 파일 복원
-            if meta.get('webdev_path') and meta.get('webdev_info'):
-                logger.info('[restore] AI 웹빌더 파일 복원 중...')
-                webdev_zip_bytes, webdev_err = _download_file_from_github(
-                    token, repo, meta['webdev_path'], meta['webdev_info']
-                )
-                if webdev_zip_bytes:
-                    _zip_bytes_to_webdev(webdev_zip_bytes, WEBDEV_WORKSPACE_PATH)
-                    logger.info('[restore] AI 웹빌더 파일 복원 완료')
-                else:
-                    logger.warning(f'[restore] 웹빌더 복원 실패: {webdev_err}')
-
-            # venv 복원 (site-packages tar.gz 방식)
-            if meta.get('venv_path') and meta.get('venv_info'):
-                logger.info('[restore] venv 복원 시작 (site-packages 방식)...')
-                venv_zip_bytes, venv_err = _download_file_from_github(
-                    token, repo, meta['venv_path'], meta['venv_info']
-                )
-                if venv_zip_bytes:
-                    _zip_bytes_to_venv_all(venv_zip_bytes, WEBDEV_WORKSPACE_PATH)
-                    logger.info('[restore] venv 복원 완료')
-                else:
-                    logger.warning(f'[restore] venv 백업 없음, pip install 폴백: {venv_err}')
-                    # 구버전 백업: requirements.txt로 pip install
-                    _fallback_all_pip_install(WEBDEV_WORKSPACE_PATH)
+            if sess_bytes:
+                sessions_data = json.loads(sess_bytes.decode('utf-8'))
+                logger.info(f'[restore] sessions {len(sessions_data)}개 로드 완료')
             else:
-                # 구버전 백업: venv 백업 없음 → requirements.txt로 pip install
-                logger.info('[restore] venv 백업 없음 (구버전) → requirements.txt pip install 폴백')
-                _fallback_all_pip_install(WEBDEV_WORKSPACE_PATH)
+                logger.warning(f'[restore] sessions 다운로드 실패: {sess_err}')
 
-            ts = meta.get('timestamp', '알 수 없음')
-
-        else:
-            # 레거시 방식: backups/ 하위 JSON 직접 탐색
-            logger.info('[restore] 레거시 방식으로 복원 시도')
-            result, status = _github_api('GET', f'/repos/{repo}/contents/backups', token)
-            if status != 200:
-                return False, f'백업 파일 목록 로드 실패: {result.get("message","")}'
-            if not result:
-                return False, '백업 파일이 없습니다.'
-
-            json_files = sorted(
-                [f for f in result if f['name'].endswith('.json')],
-                key=lambda x: x['name'], reverse=True
-            )
-            if not json_files:
-                return False, '백업 JSON 파일이 없습니다.'
-
-            latest = json_files[0]
-            fm, fst = _github_api('GET', f'/repos/{repo}/contents/{latest["path"]}', token)
-            if fst != 200:
-                return False, '백업 파일 로드 실패'
-            b64 = fm.get('content', '').replace('\n', '')
-            backup_text = base64.b64decode(b64).decode('utf-8')
-            ts = latest['name'].replace('syblog_db_', '').replace('.json', '')
-
-        # DB 실제 복원 — 완전 덮어쓰기(flush → loaddata)
-        logger.info('[restore] DB flush 시작...')
+        # ④ DB flush (django_session, django_migrations 제외) + loaddata
+        logger.info('[restore] DB 복원 시작...')
         import tempfile as _tempfile
         import subprocess as _sub_restore
 
         venv_py = '/opt/render/project/src/.venv/bin/python3'
         manage_py = os.path.join(settings.BASE_DIR, 'manage.py')
 
-        # ① 임시 파일에 백업 JSON 저장
         with _tempfile.NamedTemporaryFile(mode='w', suffix='.json',
                                           delete=False, encoding='utf-8') as _tf:
             _tf.write(backup_text)
             tmp_fixture = _tf.name
 
         try:
-            # ② flush — 외래키 제약 순서 문제를 피하기 위해 SQLite pragma 사용
-            # django_session 은 제외 → 복원 후 로그아웃 방지
-            _SKIP_TABLES = {'django_migrations', 'django_session'}
-            from django.db import connection as _conn
-            with _conn.cursor() as cur:
+            # flush: sessions, migrations 제외하고 전부 삭제 (완전 덮어쓰기)
+            _SKIP = {'django_migrations', 'django_session'}
+            with _dj_conn.cursor() as cur:
                 cur.execute('PRAGMA foreign_keys = OFF')
-                cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
-                tables = [r[0] for r in cur.fetchall() if r[0] not in _SKIP_TABLES]
+                cur.execute(
+                    "SELECT name FROM sqlite_master "
+                    "WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+                )
+                tables = [r[0] for r in cur.fetchall() if r[0] not in _SKIP]
                 for t in tables:
                     try:
                         cur.execute(f'DELETE FROM "{t}"')
                     except Exception:
                         pass
                 cur.execute('PRAGMA foreign_keys = ON')
-            logger.info(f'[restore] flush 완료: {len(tables)}개 테이블 (세션 테이블 유지)')
+            logger.info(f'[restore] flush 완료 ({len(tables)}개 테이블, 세션 보존)')
 
-            # ③ loaddata — ignorenonexistent: 모델 불일치 무시, 안정성 향상
+            # loaddata
             r = _sub_restore.run(
                 [venv_py, manage_py, 'loaddata', '--ignorenonexistent', tmp_fixture],
-                capture_output=True, text=True,
-                cwd=str(settings.BASE_DIR)
+                capture_output=True, text=True, cwd=str(settings.BASE_DIR)
             )
             if r.returncode != 0:
                 logger.error(f'[restore] loaddata 실패: {r.stderr}')
@@ -709,12 +707,75 @@ def perform_restore():
             except Exception:
                 pass
 
-        logger.info(f'[restore] 복원 완료: {ts}')
-        return True, f'복원 완료 (백업 시각: {ts})'
+        # ⑤ sessions 복원 (SQL INSERT — 로그아웃 방지)
+        if sessions_data:
+            logger.info(f'[restore] sessions {len(sessions_data)}개 복원 중...')
+            try:
+                with _dj_conn.cursor() as cur:
+                    # 기존 세션 삭제 후 백업 세션 삽입
+                    cur.execute('DELETE FROM django_session')
+                    for s in sessions_data:
+                        cur.execute(
+                            'INSERT OR REPLACE INTO django_session '
+                            '(session_key, session_data, expire_date) VALUES (?,?,?)',
+                            (s['session_key'], s['session_data'], s['expire_date'])
+                        )
+                logger.info(f'[restore] sessions 복원 완료')
+            except Exception as _se:
+                logger.warning(f'[restore] sessions 복원 실패 (무시): {_se}')
+        else:
+            logger.info('[restore] sessions 백업 없음 — 현재 세션 유지')
+
+        # ⑥ 미디어 파일 복원
+        if meta.get('media_path'):
+            logger.info('[restore] 미디어 파일 복원 중...')
+            media_bytes, media_err = _download_file_from_github(
+                token, repo, meta['media_path'], meta.get('media_info')
+            )
+            if media_bytes:
+                media_root = getattr(settings, 'MEDIA_ROOT',
+                                     os.path.join(settings.BASE_DIR, '_media'))
+                _zip_bytes_to_media(media_bytes, media_root)
+                logger.info('[restore] 미디어 복원 완료')
+            else:
+                logger.warning(f'[restore] 미디어 복원 실패: {media_err}')
+
+        # ⑦ AI 웹빌더 파일 복원
+        if meta.get('webdev_path'):
+            logger.info('[restore] AI 웹빌더 파일 복원 중...')
+            webdev_bytes, webdev_err = _download_file_from_github(
+                token, repo, meta['webdev_path'], meta.get('webdev_info')
+            )
+            if webdev_bytes:
+                _zip_bytes_to_webdev(webdev_bytes, WEBDEV_WORKSPACE_PATH)
+                logger.info('[restore] AI 웹빌더 복원 완료')
+            else:
+                logger.warning(f'[restore] 웹빌더 복원 실패: {webdev_err}')
+
+        # ⑧ venv 복원
+        if meta.get('venv_path') and meta.get('venv_info'):
+            logger.info('[restore] venv 복원 중...')
+            venv_bytes, venv_err = _download_file_from_github(
+                token, repo, meta['venv_path'], meta.get('venv_info')
+            )
+            if venv_bytes:
+                _zip_bytes_to_venv_all(venv_bytes, WEBDEV_WORKSPACE_PATH)
+                logger.info('[restore] venv 복원 완료')
+            else:
+                logger.warning(f'[restore] venv 복원 실패, pip install 폴백: {venv_err}')
+                _fallback_all_pip_install(WEBDEV_WORKSPACE_PATH)
+        else:
+            logger.info('[restore] venv 백업 없음 → pip install 폴백')
+            _fallback_all_pip_install(WEBDEV_WORKSPACE_PATH)
+
+        logger.info(f'[restore] 전체 복원 완료: {ts}')
+        return True, f'전체 복원 완료 (백업 시각: {ts})'
 
     except Exception as e:
         logger.error(f'[restore] 복원 중 예외: {e}', exc_info=True)
         return False, str(e)
+
+
 
 
 def _fallback_all_pip_install(workspace_path):
