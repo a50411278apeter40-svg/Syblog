@@ -3283,6 +3283,7 @@ def board_detail(request, slug):
 # ── 게시글 상세 ─────────────────────────────────────────────────
 def board_post_detail(request, board_slug, pk):
     from blog.models import Board as _Board, BoardPost as _BP, BoardComment as _BC, BoardPostLike as _BL
+    from django.db.models import F as _F
     board = get_object_or_404(_Board, slug=board_slug)
     post = get_object_or_404(_BP, pk=pk, board=board, is_blocked=False)
     # 조회수
