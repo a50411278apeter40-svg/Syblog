@@ -2252,7 +2252,7 @@ def ai_webdev_chat(request, pk=None):
         tool_results = _json_mod.loads(request.POST.get('tool_results', '[]'))
 
         # 첨부 파일 처리
-        import base64 as _b64
+        import base64 as _b64, os as _os
         _IMAGE_EXTS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'}
         # project_id를 안전하게 정수로 변환
         _proj_id_safe = int(project_id) if project_id else int(pk)
@@ -2536,7 +2536,7 @@ def ai_webdev_upload(request, pk):
     except Exception:
         return JsonResponse({'error': '프로젝트 없음'}, status=404)
 
-    import base64 as _b64u
+    import base64 as _b64u, os as _os
     _IMAGE_EXTS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'}
     proj_dir = _get_project_dir(project.pk)
     upload_dir = proj_dir / 'uploads'
