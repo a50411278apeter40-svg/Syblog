@@ -497,7 +497,7 @@ class VirtualOSSession(models.Model):
     """사용자의 가상 OS 세션 (하드드라이브 + 상태 저장)"""
     user        = models.ForeignKey(User, on_delete=models.CASCADE, related_name='virtual_os_sessions')
     name        = models.CharField(max_length=100, default='내 가상 OS')
-    cpu_id      = models.CharField(max_length=80, default='intel_core_i9_14900k')
+    cpu_id      = models.CharField(max_length=80, default='i9_14900k')
     # 가상 메모리 크기 (MB)
     ram_mb      = models.PositiveIntegerField(default=512)
     # 가상 하드드라이브: 가상 크기(GB, 사용자 설정), 실제 저장 데이터(JSON)

@@ -3719,4 +3719,5 @@ def virtual_os_delete_session(request, pk):
         except Exception:
             pass
     sess.delete()
-    return JsonResponse({'ok': True})
+    from django.shortcuts import redirect
+    return redirect('blog:virtual_os_index')

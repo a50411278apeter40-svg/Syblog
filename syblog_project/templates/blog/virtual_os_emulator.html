@@ -967,11 +967,9 @@ class SoftCPU {
 
   /* v86 에뮬레이터에 패치 적용 */
   patch(emulator) {
-    try {
-      if (emulator?.v86?.cpu?.set_cpuid_level) {
-        emulator.v86.cpu.set_cpuid_level(this.spec.cpuid_max || 0x10);
-      }
-    } catch(e) {}
+    if (window.V86CPUBridge) {
+      window.V86CPUBridge.apply(emulator, this.spec.cpuid_max || 0x10, this.em);
+    }
   }
 
   /* CPU 정보 HTML */
@@ -1157,8 +1155,12 @@ async function startEmu() {
     fastboot:  false,
   };
 
-  /* SoftCPU 옵션 주입 */
+  /* SoftCPU 옵션 주입 (V86CPUBridge 사용) */
   softcpu.inject(opts, ram_mb);
+  // 메모리 크기 브릿지 정규화
+  if (window.V86CPUBridge) {
+    opts.memory_size = window.V86CPUBridge.normalize_memory(ram_mb, softcpu.spec);
+  }
 
   /* ISO 마운트 */
   {% if session.iso_name %}
