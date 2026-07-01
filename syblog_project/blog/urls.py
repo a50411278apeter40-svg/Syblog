@@ -118,6 +118,8 @@ urlpatterns = [
     path('virtual-os/<int:pk>/load-state/', views.virtual_os_load_state, name='virtual_os_load_state'),
     path('virtual-os/<int:pk>/save-vhd/', views.virtual_os_save_vhd, name='virtual_os_save_vhd'),
     path('virtual-os/<int:pk>/upload-iso/', views.virtual_os_upload_iso, name='virtual_os_upload_iso'),
+    path('virtual-os/<int:pk>/upload-chunk/', views.virtual_os_upload_chunk, name='virtual_os_upload_chunk'),
+    path('virtual-os/<int:pk>/upload-complete/', views.virtual_os_upload_complete, name='virtual_os_upload_complete'),
     path('virtual-os/<int:pk>/iso/', views.virtual_os_stream_iso, name='virtual_os_stream_iso'),
     path('virtual-os/<int:pk>/delete/', views.virtual_os_delete_session, name='virtual_os_delete'),
 ]

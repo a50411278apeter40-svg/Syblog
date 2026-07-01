@@ -3716,6 +3716,101 @@ def virtual_os_upload_iso(request, pk):
         logging.getLogger('django').error(f'[VOS] ISO upload error: {e}', exc_info=True)
         return JsonResponse({'error': str(e)[:200]}, status=500)
 
+@login_required
+def virtual_os_upload_chunk(request, pk):
+    """ISO 청크 분할 업로드 — 각 청크는 5MB 이하, 30초 제한 안 걸림"""
+    from blog.models import VirtualOSSession
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST only'}, status=405)
+
+    sess = get_object_or_404(VirtualOSSession, pk=pk, user=request.user)
+
+    chunk_data  = request.FILES.get('chunk')
+    chunk_index = int(request.POST.get('chunk_index', 0))
+    total_chunks= int(request.POST.get('total_chunks', 1))
+    file_name   = request.POST.get('file_name', 'disk.iso')
+    upload_id   = request.POST.get('upload_id', str(request.user.pk))
+
+    if not chunk_data:
+        return JsonResponse({'error': '청크 데이터 없음'}, status=400)
+
+    # 청크를 /tmp/syblog_chunks/<upload_id>/ 에 저장
+    import re as _re2
+    safe_name = _re2.sub(r'[^a-zA-Z0-9._\-]', '_', file_name)
+    chunk_dir = _vos_os.path.join('/tmp/syblog_chunks', upload_id)
+    _vos_os.makedirs(chunk_dir, exist_ok=True)
+
+    chunk_path = _vos_os.path.join(chunk_dir, f'chunk_{chunk_index:06d}')
+    try:
+        with open(chunk_path, 'wb') as f:
+            for piece in chunk_data.chunks():
+                f.write(piece)
+        return JsonResponse({'ok': True, 'chunk': chunk_index, 'total': total_chunks})
+    except Exception as e:
+        return JsonResponse({'error': str(e)[:200]}, status=500)
+
+
+@login_required
+def virtual_os_upload_complete(request, pk):
+    """모든 청크 병합 → ISO 완성"""
+    from blog.models import VirtualOSSession
+    import shutil, re as _re3
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST only'}, status=405)
+
+    sess = get_object_or_404(VirtualOSSession, pk=pk, user=request.user)
+
+    file_name   = request.POST.get('file_name', 'disk.iso')
+    upload_id   = request.POST.get('upload_id', str(request.user.pk))
+    total_chunks= int(request.POST.get('total_chunks', 1))
+    total_size  = int(request.POST.get('total_size', 0))
+
+    safe_name = _re3.sub(r'[^a-zA-Z0-9._\-]', '_', file_name)
+    chunk_dir = _vos_os.path.join('/tmp/syblog_chunks', upload_id)
+
+    # 청크 파일 존재 확인
+    missing = [i for i in range(total_chunks)
+               if not _vos_os.path.exists(_vos_os.path.join(chunk_dir, f'chunk_{i:06d}'))]
+    if missing:
+        return JsonResponse({'error': f'청크 누락: {missing[:5]}'}, status=400)
+
+    # 저장 경로
+    upload_dir = _vos_os.path.join(VIRT_OS_UPLOAD_DIR, str(request.user.pk))
+    _vos_os.makedirs(upload_dir, exist_ok=True)
+    save_path = _vos_os.path.join(upload_dir, safe_name)
+
+    try:
+        # 청크 순서대로 병합
+        with open(save_path, 'wb') as out:
+            for i in range(total_chunks):
+                cp = _vos_os.path.join(chunk_dir, f'chunk_{i:06d}')
+                with open(cp, 'rb') as cf:
+                    shutil.copyfileobj(cf, out, length=4*1024*1024)
+
+        # 청크 디렉토리 정리
+        shutil.rmtree(chunk_dir, ignore_errors=True)
+
+        # 이전 ISO 삭제
+        if sess.iso_path and sess.iso_path != save_path:
+            try: _vos_os.remove(sess.iso_path)
+            except: pass
+
+        # 세션 업데이트
+        actual_size = _vos_os.path.getsize(save_path)
+        sess.iso_path = save_path
+        sess.iso_name = safe_name
+        sess.save(update_fields=['iso_path','iso_name','last_used'])
+
+        return JsonResponse({
+            'ok': True,
+            'name': safe_name,
+            'size_mb': round(actual_size / 1024 / 1024, 1),
+        })
+    except Exception as e:
+        import logging
+        logging.getLogger('django').error(f'[VOS] chunk merge error: {e}', exc_info=True)
+        return JsonResponse({'error': str(e)[:200]}, status=500)
+
 
 @login_required
 def virtual_os_stream_iso(request, pk):

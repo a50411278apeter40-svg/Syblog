@@ -924,62 +924,121 @@ function onIsoSel(inp){ if(inp.files[0]) uploadIso(inp.files[0]); }
 
 function uploadIso(file){
   if(!file.name.match(/\.(iso|img)$/i)){ toast('ISO 또는 IMG 파일만 지원합니다', true); return; }
-  const dz=$id('iso-dz');
-  const sizeMB = (file.size/1024/1024).toFixed(0);
-  // XHR로 업로드해야 progress 이벤트 사용 가능
-  const xhr = new XMLHttpRequest();
-  xhr.open('POST', '/blog/virtual-os/'+SESSION_ID+'/upload-iso/');
-  xhr.setRequestHeader('X-CSRFToken', CSRF);
 
-  // ── 진행률 ──
-  xhr.upload.addEventListener('progress', ev=>{
-    if(!ev.lengthComputable) return;
-    const pct = Math.round(ev.loaded / ev.total * 100);
-    const sent = (ev.loaded/1024/1024).toFixed(0);
+  const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB — Render 30초 안에 충분히 전송 가능
+  const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+  const uploadId = Date.now() + '_' + Math.random().toString(36).slice(2);
+  const dz = $id('iso-dz');
+  const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+
+  let currentChunk = 0;
+  let startTime = Date.now();
+
+  function setBar(pct, sent, speed){
+    const eta = speed > 0 ? Math.round((file.size - sent) / speed) : 0;
+    const etaStr = eta > 0 ? (eta >= 60 ? Math.ceil(eta/60)+'분' : eta+'초') : '';
     dz.innerHTML =
-      '<i class="fas fa-spinner fa-spin"></i> 업로드 중... '+sent+' / '+sizeMB+'MB ('+pct+'%)<br>'+
-      '<div style="margin-top:6px;height:5px;background:#21262d;border-radius:3px;overflow:hidden;">'+
-      '<div style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,#58a6ff,#3fb950);transition:width .3s;"></div></div>';
-  });
+      '<i class="fas fa-spinner fa-spin"></i> 업로드 중... '+
+      (sent/1024/1024).toFixed(1)+' / '+sizeMB+'MB ('+pct+'%)'+
+      (etaStr ? ' — 남은시간 '+etaStr : '')+
+      '<div style="margin-top:6px;height:6px;background:#21262d;border-radius:3px;overflow:hidden;">'+
+      '<div style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,#58a6ff,#3fb950);transition:width .2s;"></div></div>'+
+      '<small style="color:var(--muted)">청크 '+currentChunk+' / '+totalChunks+'</small>';
+  }
 
-  // ── 완료 ──
-  xhr.addEventListener('load', ()=>{
+  async function uploadNextChunk(){
+    if(currentChunk >= totalChunks){
+      // 모든 청크 완료 → 병합 요청
+      await mergeChunks();
+      return;
+    }
+
+    const start = currentChunk * CHUNK_SIZE;
+    const end   = Math.min(start + CHUNK_SIZE, file.size);
+    const blob  = file.slice(start, end);
+
+    const fd = new FormData();
+    fd.append('chunk', blob, file.name);
+    fd.append('chunk_index', currentChunk);
+    fd.append('total_chunks', totalChunks);
+    fd.append('file_name', file.name);
+    fd.append('upload_id', uploadId);
+
+    const chunkStart = Date.now();
+
     try {
-      const d = JSON.parse(xhr.responseText);
-      if(d.ok){
-        isoReady = true;
-        dz.innerHTML =
-          '<i class="fas fa-check-circle" style="color:var(--green)"></i> <b>'+d.name+'</b><br>'+
-          '<small style="color:#3fb950">'+d.size_mb+'MB — 업로드 완료! 에뮬레이터를 시작하면 바로 부팅됩니다.</small>';
-        toast('ISO 업로드 완료 ('+d.size_mb+'MB)');
-        // 에뮬레이터가 이미 실행 중이면 재시작 안내
-        if(emulator){ toast('ISO 적용을 위해 에뮬레이터를 재시작하세요'); }
+      const r = await fetch('/blog/virtual-os/'+SESSION_ID+'/upload-chunk/', {
+        method:'POST',
+        headers:{'X-CSRFToken': CSRF},
+        body: fd,
+      });
+
+      if(!r.ok){
+        const err = await r.text();
+        throw new Error('서버 오류 '+r.status+': '+err.slice(0,100));
+      }
+
+      const d = await r.json();
+      if(!d.ok) throw new Error(d.error || '청크 업로드 실패');
+
+      currentChunk++;
+      const elapsed = (Date.now() - startTime) / 1000;
+      const sentBytes = currentChunk * CHUNK_SIZE;
+      const speed = sentBytes / elapsed; // bytes/sec
+      const pct = Math.round(currentChunk / totalChunks * 100);
+      setBar(pct, Math.min(sentBytes, file.size), speed);
+
+      // 재귀 — 다음 청크
+      await uploadNextChunk();
+
+    } catch(e) {
+      // 실패 시 3회 재시도
+      if(!uploadNextChunk._retry) uploadNextChunk._retry = {};
+      uploadNextChunk._retry[currentChunk] = (uploadNextChunk._retry[currentChunk] || 0) + 1;
+      if(uploadNextChunk._retry[currentChunk] <= 3){
+        toast('청크 '+currentChunk+' 재시도 ('+uploadNextChunk._retry[currentChunk]+'/3)...', false);
+        await new Promise(r=>setTimeout(r, 1500));
+        await uploadNextChunk();
       } else {
         dz.innerHTML='<i class="fas fa-cloud-upload-alt"></i><br>클릭 또는 ISO 드래그';
-        toast('업로드 실패: '+(d.error||xhr.status), true);
+        toast('업로드 실패 (청크 '+currentChunk+'): '+e.message, true);
+      }
+    }
+  }
+
+  async function mergeChunks(){
+    dz.innerHTML='<i class="fas fa-cog fa-spin"></i> 파일 병합 중...';
+    const fd = new FormData();
+    fd.append('file_name', file.name);
+    fd.append('upload_id', uploadId);
+    fd.append('total_chunks', totalChunks);
+    fd.append('total_size', file.size);
+    try {
+      const r = await fetch('/blog/virtual-os/'+SESSION_ID+'/upload-complete/', {
+        method:'POST',
+        headers:{'X-CSRFToken': CSRF},
+        body: fd,
+      });
+      const d = await r.json();
+      if(d.ok){
+        isoReady = true;
+        dz.innerHTML=
+          '<i class="fas fa-check-circle" style="color:var(--green)"></i> <b>'+d.name+'</b><br>'+
+          '<small style="color:#3fb950">'+d.size_mb+'MB 업로드 완료! 에뮬레이터를 시작하면 바로 부팅됩니다.</small>';
+        toast('ISO 업로드 완료 ('+d.size_mb+'MB)');
+      } else {
+        dz.innerHTML='<i class="fas fa-cloud-upload-alt"></i><br>클릭 또는 ISO 드래그';
+        toast('병합 실패: '+(d.error||'알 수 없는 오류'), true);
       }
     } catch(e){
       dz.innerHTML='<i class="fas fa-cloud-upload-alt"></i><br>클릭 또는 ISO 드래그';
-      toast('응답 파싱 오류: '+e.message, true);
+      toast('병합 오류: '+e.message, true);
     }
-  });
+  }
 
-  xhr.addEventListener('error', ()=>{
-    dz.innerHTML='<i class="fas fa-cloud-upload-alt"></i><br>클릭 또는 ISO 드래그';
-    toast('네트워크 오류 — 업로드 실패', true);
-  });
-
-  xhr.addEventListener('timeout', ()=>{
-    dz.innerHTML='<i class="fas fa-cloud-upload-alt"></i><br>클릭 또는 ISO 드래그';
-    toast('업로드 시간 초과', true);
-  });
-
-  // Render 프리 티어 타임아웃 10분
-  xhr.timeout = 10 * 60 * 1000;
-
-  const fd = new FormData();
-  fd.append('iso', file);
-  xhr.send(fd);
+  // 시작
+  setBar(0, 0, 0);
+  uploadNextChunk();
 }
 
 /* ── VHD ── */
