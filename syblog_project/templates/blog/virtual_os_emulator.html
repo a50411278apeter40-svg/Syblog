@@ -4,7 +4,7 @@
 
 {% block full_page %}
 <style>
-*{box-sizing:border-box;margin:0;padding:0;}
+*{box-sizing:border-box;}
 body{overflow:hidden !important;}
 :root{
   --bg:#0d1117;--card:#161b22;--border:#30363d;
@@ -12,168 +12,167 @@ body{overflow:hidden !important;}
   --blue:#58a6ff;--green:#3fb950;--red:#f85149;
   --yellow:#d29922;--purple:#bc8cff;
 }
-html,body{height:100%;overflow:hidden;}
 #vos-wrap{display:flex;flex-direction:column;height:calc(100vh - 56px);background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;}
 
 /* ── 툴바 ── */
 #vos-tb{
-  display:flex;align-items:center;gap:6px;padding:5px 10px;
+  display:flex;align-items:center;gap:5px;padding:4px 8px;
   background:var(--card);border-bottom:1px solid var(--border);
-  flex-shrink:0;flex-wrap:wrap;min-height:44px;
+  flex-shrink:0;flex-wrap:wrap;min-height:42px;
 }
-.tb-name{font-weight:700;font-size:.9rem;white-space:nowrap;margin-right:2px;}
+.tb-name{font-weight:700;font-size:.88rem;white-space:nowrap;margin-right:2px;}
 .tb-sep{width:1px;height:20px;background:var(--border);margin:0 2px;flex-shrink:0;}
 .tb-btn{
   display:inline-flex;align-items:center;gap:4px;
   background:#21262d;border:1px solid var(--border);color:var(--text);
-  border-radius:7px;padding:4px 9px;font-size:.76rem;cursor:pointer;
-  white-space:nowrap;transition:.15s;line-height:1.4;
+  border-radius:7px;padding:4px 9px;font-size:.74rem;cursor:pointer;
+  white-space:nowrap;transition:.15s;line-height:1.4;user-select:none;
 }
 .tb-btn:hover{border-color:var(--blue);color:var(--blue);}
 .tb-btn.g:hover{border-color:var(--green);color:var(--green);}
 .tb-btn.r:hover{border-color:var(--red);color:var(--red);}
-.tb-btn.y:hover{border-color:var(--yellow);color:var(--yellow);}
-.tb-btn:disabled{opacity:.4;cursor:not-allowed;}
-.tb-btn:disabled:hover{border-color:var(--border);color:var(--text);}
+.tb-btn:disabled,.tb-btn[disabled]{opacity:.35;cursor:not-allowed;pointer-events:none;}
 .sd{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0;}
 .sd.run{background:var(--green);box-shadow:0 0 6px var(--green);}
 .sd.pause{background:var(--yellow);}
-#cpu-sel{background:#21262d;border:1px solid var(--border);color:var(--text);border-radius:7px;padding:3px 7px;font-size:.75rem;max-width:220px;cursor:pointer;}
-#cpu-sel:focus{outline:none;border-color:var(--blue);}
+#cpu-sel{background:#21262d;border:1px solid var(--border);color:var(--text);border-radius:7px;padding:3px 7px;font-size:.73rem;max-width:200px;cursor:pointer;}
 .tb-sp{flex:1;}
 
 /* ── 바디 ── */
-#vos-body{display:flex;flex:1;overflow:hidden;}
+#vos-body{display:flex;flex:1;overflow:hidden;min-height:0;}
 
-/* ── 화면 ── */
-#screen-wrap{flex:1;display:flex;align-items:center;justify-content:center;background:#000;position:relative;overflow:hidden;}
-#screen-container{position:relative;line-height:0;}
-#screen-container canvas{display:block;max-width:100%;max-height:calc(100vh - 120px);image-rendering:pixelated;}
+/* ── 화면 영역 ── */
+#screen-wrap{flex:1;display:flex;align-items:center;justify-content:center;background:#000;position:relative;overflow:hidden;min-width:0;}
 
-/* ── 부팅 오버레이 ── */
-#boot-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#000;z-index:10;gap:14px;}
+/* v86 screen_container — ID는 반드시 screen_container (v86 내부 hardcode) */
+#screen_container{position:relative;line-height:0;display:flex;align-items:center;justify-content:center;}
+#screen_container canvas{display:block;image-rendering:pixelated;max-width:100%;cursor:default;}
+
+/* ── 부팅 오버레이 — screen-wrap에 absolute, z-index 높게 ── */
+#boot-ov{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.92);z-index:50;gap:14px;
+}
 #boot-ov.hidden{display:none;}
 .b-spin{width:44px;height:44px;border:3px solid #333;border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg)}}
-#boot-msg{color:var(--muted);font-size:.88rem;}
-#boot-prog{width:220px;height:3px;background:#333;border-radius:2px;overflow:hidden;}
-#boot-fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--green));width:0%;transition:width .3s;}
+#boot-msg{color:var(--muted);font-size:.88rem;text-align:center;}
+#boot-prog-wrap{width:240px;height:4px;background:#333;border-radius:2px;overflow:hidden;}
+#boot-prog-fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--green));width:0%;transition:width .4s linear;}
 
 /* ── 사이드패널 ── */
 #vos-side{
-  width:270px;flex-shrink:0;background:var(--card);
+  width:260px;flex-shrink:0;background:var(--card);
   border-left:1px solid var(--border);overflow-y:auto;
   transition:width .2s;
 }
 #vos-side.closed{width:0;overflow:hidden;}
-.s-sec{padding:12px 14px;border-bottom:1px solid var(--border);}
-.s-lbl{font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px;}
-.s-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;font-size:.8rem;}
+.s-sec{padding:11px 13px;border-bottom:1px solid var(--border);}
+.s-lbl{font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px;}
+.s-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;font-size:.78rem;}
 .s-val{color:var(--blue);font-weight:600;}
-.s-inp{width:100%;background:#21262d;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 8px;font-size:.78rem;}
+.s-inp{width:100%;background:#21262d;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 8px;font-size:.76rem;}
 .s-inp:focus{outline:none;border-color:var(--blue);}
-.s-btn{width:100%;background:#21262d;border:1px solid var(--border);color:var(--text);border-radius:7px;padding:6px;font-size:.78rem;cursor:pointer;margin-top:5px;transition:.15s;text-align:center;display:flex;align-items:center;justify-content:center;gap:5px;}
+.s-btn{width:100%;background:#21262d;border:1px solid var(--border);color:var(--text);border-radius:7px;padding:6px;font-size:.76rem;cursor:pointer;margin-top:5px;transition:.15s;text-align:center;display:flex;align-items:center;justify-content:center;gap:5px;}
 .s-btn:hover{border-color:var(--blue);color:var(--blue);}
 .s-btn.g:hover{border-color:var(--green);color:var(--green);}
 .s-btn.r:hover{border-color:var(--red);color:var(--red);}
 .vhd-bar{height:5px;background:#21262d;border-radius:3px;overflow:hidden;margin-top:4px;}
 .vhd-fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--purple));transition:width .5s;}
-.chip{display:inline-block;background:#21262d;border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:.7rem;margin:2px;}
+.chip{display:inline-block;background:#21262d;border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:.68rem;margin:2px;}
 
-/* ── 드롭존 ── */
+/* ── ISO 드롭존 ── */
 #iso-dz{
-  border:2px dashed var(--border);border-radius:9px;padding:14px;
-  text-align:center;font-size:.78rem;color:var(--muted);cursor:pointer;transition:.2s;
+  border:2px dashed var(--border);border-radius:9px;padding:12px;
+  text-align:center;font-size:.76rem;color:var(--muted);cursor:pointer;transition:.2s;
 }
 #iso-dz:hover,#iso-dz.over{border-color:var(--blue);color:var(--blue);}
-#iso-fi{display:none;}
 
 /* ── 상태바 ── */
 #vos-sb{
   background:var(--card);border-top:1px solid var(--border);
-  padding:3px 12px;font-size:.7rem;color:var(--muted);
-  display:flex;align-items:center;gap:14px;flex-shrink:0;
+  padding:3px 10px;font-size:.68rem;color:var(--muted);
+  display:flex;align-items:center;gap:12px;flex-shrink:0;
 }
 
 /* ── 플로팅 키보드 ── */
 #fkb{
-  position:fixed;bottom:68px;left:50%;transform:translateX(-50%);
+  position:fixed;bottom:60px;left:50%;transform:translateX(-50%);
   background:rgba(22,27,34,.97);border:1px solid var(--border);
-  border-radius:14px;padding:10px;z-index:200;
-  box-shadow:0 10px 36px rgba(0,0,0,.6);display:none;
-  backdrop-filter:blur(12px);user-select:none;touch-action:none;
+  border-radius:13px;padding:9px;z-index:200;
+  box-shadow:0 10px 36px rgba(0,0,0,.7);display:none;
+  backdrop-filter:blur(10px);user-select:none;touch-action:none;
 }
 #fkb.show{display:block;}
-.fkb-handle{text-align:center;color:var(--muted);font-size:.68rem;margin-bottom:5px;cursor:grab;padding:2px 0;}
-.krow{display:flex;gap:3px;margin-bottom:3px;justify-content:center;flex-wrap:wrap;}
+.fkb-handle{text-align:center;color:var(--muted);font-size:.66rem;margin-bottom:5px;cursor:grab;padding:2px 0;}
+.krow{display:flex;gap:3px;margin-bottom:3px;justify-content:center;}
 .kk{
-  min-width:30px;height:33px;background:#21262d;border:1px solid var(--border);
-  border-radius:6px;color:var(--text);font-size:.72rem;cursor:pointer;
+  min-width:30px;height:32px;background:#21262d;border:1px solid var(--border);
+  border-radius:5px;color:var(--text);font-size:.7rem;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
-  transition:.1s;padding:0 5px;border-bottom:3px solid #30363d;
+  transition:.08s;padding:0 5px;border-bottom:2px solid #30363d;
 }
-.kk:active,.kk.pr{background:var(--blue);color:#fff;border-bottom-width:1px;transform:translateY(2px);}
-.kk.w{min-width:52px;}.kk.ww{min-width:74px;}.kk.sp{min-width:160px;}
+.kk:active,.kk.pr{background:var(--blue);color:#fff;border-bottom-width:1px;transform:translateY(1px);}
+.kk.w{min-width:50px;}.kk.ww{min-width:70px;}.kk.sp{min-width:150px;}
 
 /* ── 플로팅 마우스패드 ── */
 #fpad{
-  position:fixed;bottom:68px;right:14px;
+  position:fixed;bottom:60px;right:12px;
   background:rgba(22,27,34,.97);border:1px solid var(--border);
-  border-radius:14px;padding:10px;z-index:200;
-  box-shadow:0 10px 36px rgba(0,0,0,.6);display:none;
-  backdrop-filter:blur(12px);user-select:none;touch-action:none;
+  border-radius:13px;padding:10px;z-index:200;
+  box-shadow:0 10px 36px rgba(0,0,0,.7);display:none;
+  backdrop-filter:blur(10px);user-select:none;touch-action:none;
 }
 #fpad.show{display:block;}
-.pad-area{width:190px;height:120px;background:#21262d;border:1px solid var(--border);border-radius:9px;cursor:crosshair;position:relative;overflow:hidden;}
-.pad-cur{position:absolute;width:9px;height:9px;background:var(--blue);border-radius:50%;pointer-events:none;transform:translate(-50%,-50%);box-shadow:0 0 5px var(--blue);}
-.pad-btns{display:flex;gap:5px;margin-top:6px;}
-.pb{flex:1;background:#21262d;border:1px solid var(--border);color:var(--text);border-radius:7px;padding:5px 0;font-size:.72rem;cursor:pointer;text-align:center;transition:.1s;}
+.pad-area{width:180px;height:110px;background:#21262d;border:1px solid var(--border);border-radius:9px;cursor:crosshair;position:relative;overflow:hidden;touch-action:none;}
+.pad-cur{position:absolute;width:8px;height:8px;background:var(--blue);border-radius:50%;pointer-events:none;transform:translate(-50%,-50%);box-shadow:0 0 4px var(--blue);}
+.pad-btns{display:flex;gap:4px;margin-top:5px;}
+.pb{flex:1;background:#21262d;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 0;font-size:.7rem;cursor:pointer;text-align:center;transition:.1s;}
 .pb:active{background:var(--blue);color:#fff;}
-.sens-row{display:flex;align-items:center;gap:5px;margin-top:5px;font-size:.7rem;color:var(--muted);}
+.sens-row{display:flex;align-items:center;gap:5px;margin-top:5px;font-size:.68rem;color:var(--muted);}
 .sens-row input{flex:1;}
 
 /* ── 모달 ── */
-.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:300;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:300;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
 .modal-bg.show{display:flex;}
-.modal-box{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:460px;width:90%;max-height:80vh;overflow-y:auto;}
-.modal-box h3{font-size:1rem;font-weight:700;margin-bottom:14px;}
-.modal-box label{display:block;font-size:.78rem;color:var(--muted);margin-bottom:3px;margin-top:10px;}
-.modal-box input,.modal-box select{width:100%;background:#21262d;border:1px solid var(--border);color:var(--text);border-radius:7px;padding:7px 9px;font-size:.82rem;}
+.modal-box{background:var(--card);border:1px solid var(--border);border-radius:13px;padding:20px;max-width:440px;width:90%;max-height:80vh;overflow-y:auto;}
+.modal-box h3{font-size:.97rem;font-weight:700;margin-bottom:13px;}
+.modal-box label{display:block;font-size:.75rem;color:var(--muted);margin-bottom:3px;margin-top:9px;}
+.modal-box input,.modal-box select{width:100%;background:#21262d;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 8px;font-size:.8rem;}
 .modal-box input:focus,.modal-box select:focus{outline:none;border-color:var(--blue);}
-.mf{display:flex;gap:7px;margin-top:18px;justify-content:flex-end;}
-.mb{padding:7px 18px;border-radius:7px;font-size:.82rem;cursor:pointer;border:1px solid var(--border);transition:.15s;}
+.mf{display:flex;gap:7px;margin-top:16px;justify-content:flex-end;}
+.mb{padding:6px 16px;border-radius:7px;font-size:.8rem;cursor:pointer;border:1px solid var(--border);transition:.15s;}
 .mb.p{background:var(--blue);border-color:var(--blue);color:#fff;}
 .mb.p:hover{opacity:.85;}
 .mb.c{background:#21262d;color:var(--text);}
 
-/* ── CPU 목록 ── */
-.cpu-list{display:flex;flex-direction:column;gap:5px;max-height:380px;overflow-y:auto;}
-.cpu-item{display:flex;align-items:center;gap:9px;padding:9px;border:1px solid var(--border);border-radius:9px;cursor:pointer;transition:.15s;}
+/* ── CPU 모달 ── */
+.cpu-list{display:flex;flex-direction:column;gap:4px;max-height:360px;overflow-y:auto;}
+.cpu-item{display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:.12s;}
 .cpu-item:hover,.cpu-item.sel{border-color:var(--blue);background:#1f2937;}
-.cpu-item.sel{background:rgba(88,166,255,.08);}
-.cpu-ic{font-size:1.1rem;flex-shrink:0;width:28px;text-align:center;}
+.cpu-item.sel{background:rgba(88,166,255,.1);}
+.cpu-ic{font-size:1rem;flex-shrink:0;width:26px;text-align:center;}
 .cpu-inf{flex:1;min-width:0;}
-.cpu-nm{font-size:.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.cpu-ds{font-size:.7rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.arch-tag{font-size:.65rem;padding:1px 5px;border-radius:3px;margin-left:4px;vertical-align:middle;}
+.cpu-nm{font-size:.78rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cpu-ds{font-size:.68rem;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.arch-tag{font-size:.62rem;padding:1px 5px;border-radius:3px;margin-left:3px;vertical-align:middle;}
 .arch-64{background:rgba(63,185,80,.15);color:var(--green);}
 .arch-32{background:rgba(210,153,34,.15);color:var(--yellow);}
-.cpu-group{font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;padding:6px 0 2px;letter-spacing:.06em;}
+.cpu-group-hd{font-size:.67rem;font-weight:700;color:var(--muted);text-transform:uppercase;padding:6px 0 2px;letter-spacing:.06em;}
 
 /* ── 토스트 ── */
-#toast{
-  position:fixed;bottom:75px;left:50%;transform:translateX(-50%);
+#vos-toast{
+  position:fixed;bottom:68px;left:50%;transform:translateX(-50%);
   background:#1f2937;border:1px solid var(--border);border-radius:9px;
-  padding:8px 18px;font-size:.82rem;z-index:400;opacity:0;
+  padding:7px 16px;font-size:.8rem;z-index:400;opacity:0;
   transition:opacity .3s;pointer-events:none;white-space:nowrap;
 }
-#toast.show{opacity:1;}
+#vos-toast.show{opacity:1;}
 
-/* ── 반응형 ── */
 @media(max-width:700px){
   #vos-side{display:none;}
-  #vos-side.closed{display:none;}
-  .kk.sp{min-width:100px;}
+  .kk.sp{min-width:90px;}
 }
 </style>
 
@@ -184,42 +183,41 @@ html,body{height:100%;overflow:hidden;}
     <div class="tb-name" id="tb-name">{{ session.name }}</div>
     <div class="tb-sep"></div>
 
-    <button class="tb-btn g" onclick="startEmu()" id="btn-s"><i class="fas fa-play fa-xs"></i> 시작</button>
-    <button class="tb-btn y" onclick="pauseEmu()" id="btn-p" disabled><i class="fas fa-pause fa-xs"></i> 일시정지</button>
-    <button class="tb-btn r" onclick="stopEmu()" id="btn-x" disabled><i class="fas fa-stop fa-xs"></i> 정지</button>
-    <button class="tb-btn" onclick="resetEmu()" id="btn-r" disabled><i class="fas fa-redo fa-xs"></i> 재시작</button>
+    <button class="tb-btn" id="btn-s" onclick="startEmu()"><i class="fas fa-play fa-xs"></i> 시작</button>
+    <button class="tb-btn" id="btn-p" onclick="pauseEmu()" disabled><i class="fas fa-pause fa-xs"></i> 일시정지</button>
+    <button class="tb-btn" id="btn-x" onclick="stopEmu()" disabled><i class="fas fa-stop fa-xs"></i> 정지</button>
+    <button class="tb-btn" id="btn-r" onclick="resetEmu()" disabled><i class="fas fa-redo fa-xs"></i> 재시작</button>
 
     <div class="tb-sep"></div>
-
     <select id="cpu-sel" onchange="onCpuChange(this.value)" title="CPU 선택"></select>
-
     <div class="tb-sep"></div>
 
     <button class="tb-btn" onclick="toggleKb()" title="가상 키보드"><i class="fas fa-keyboard fa-xs"></i></button>
-    <button class="tb-btn" onclick="togglePad()" title="가상 마우스패드"><i class="fas fa-mouse fa-xs"></i></button>
-    <button class="tb-btn" onclick="openCpuModal()" title="CPU 선택"><i class="fas fa-microchip fa-xs"></i> CPU</button>
-
+    <button class="tb-btn" onclick="togglePad()" title="마우스패드"><i class="fas fa-mouse fa-xs"></i></button>
+    <button class="tb-btn" onclick="emuFullscreen()" title="전체화면"><i class="fas fa-expand fa-xs"></i></button>
+    <button class="tb-btn" onclick="openCpuModal()"><i class="fas fa-microchip fa-xs"></i> CPU</button>
     <div class="tb-sep"></div>
 
-    <button class="tb-btn g" onclick="saveState()" title="상태 저장"><i class="fas fa-save fa-xs"></i> 저장</button>
-    <button class="tb-btn" onclick="loadState()" id="btn-ld" {% if not session.state_data %}disabled{% endif %} title="상태 불러오기"><i class="fas fa-folder-open fa-xs"></i> 불러오기</button>
+    <button class="tb-btn" id="btn-sv" onclick="saveState()"><i class="fas fa-save fa-xs"></i> 저장</button>
+    <button class="tb-btn" id="btn-ld" onclick="loadState()" {% if not session.state_data %}disabled{% endif %}><i class="fas fa-folder-open fa-xs"></i> 불러오기</button>
 
     <div class="tb-sp"></div>
-
     <button class="tb-btn" onclick="toggleSide()"><i class="fas fa-sliders-h fa-xs"></i> 설정</button>
     <a href="{% url 'blog:virtual_os_index' %}" class="tb-btn"><i class="fas fa-arrow-left fa-xs"></i> 목록</a>
   </div>
 
   <!-- 바디 -->
   <div id="vos-body">
-    <!-- 에뮬레이터 화면 -->
+    <!-- 에뮬레이터 화면 영역 -->
     <div id="screen-wrap">
-      <div id="screen-container">
-        <div id="boot-ov" class="hidden">
-          <div class="b-spin"></div>
-          <div id="boot-msg">에뮬레이터 준비 중...</div>
-          <div id="boot-prog"><div id="boot-fill"></div></div>
-        </div>
+      <!-- v86 공식 ID: screen_container -->
+      <div id="screen_container"></div>
+
+      <!-- 부팅 오버레이 — screen-wrap에 absolute -->
+      <div id="boot-ov">
+        <div class="b-spin"></div>
+        <div id="boot-msg">준비 중...</div>
+        <div id="boot-prog-wrap"><div id="boot-prog-fill"></div></div>
       </div>
     </div>
 
@@ -235,21 +233,17 @@ html,body{height:100%;overflow:hidden;}
           {% if session.iso_name %}
           <i class="fas fa-check-circle" style="color:var(--green)"></i> {{ session.iso_name }}
           {% else %}
-          <i class="fas fa-cloud-upload-alt"></i> 클릭하거나 ISO 파일을 드래그
+          <i class="fas fa-cloud-upload-alt"></i><br>클릭 또는 ISO 드래그
           {% endif %}
         </div>
-        <input type="file" id="iso-fi" accept=".iso,.img" onchange="onIsoSel(this)">
-        {% if session.iso_name %}
-        <div style="font-size:.7rem;color:var(--muted);margin-top:4px;text-align:center;"><i class="fas fa-info-circle"></i> 재시작 후 적용</div>
-        {% endif %}
+        <input type="file" id="iso-fi" accept=".iso,.img" style="display:none" onchange="onIsoSel(this)">
       </div>
 
       <!-- 가상 HDD -->
       <div class="s-sec">
         <div class="s-lbl"><i class="fas fa-hdd"></i> 가상 하드드라이브</div>
         <div class="s-row"><span>가상 크기</span><span class="s-val" id="vhd-v">{{ session.vhd_size_gb }}GB</span></div>
-        <div class="s-row"><span>실제 사용</span><span class="s-val" id="vhd-a">—</span></div>
-        <div class="vhd-bar"><div class="vhd-fill" id="vhd-bar" style="width:0%"></div></div>
+        <div class="vhd-bar"><div class="vhd-fill" id="vhd-bar" style="width:1%"></div></div>
         <button class="s-btn" onclick="openVhdModal()"><i class="fas fa-cogs"></i> HDD 크기 설정</button>
       </div>
 
@@ -257,17 +251,18 @@ html,body{height:100%;overflow:hidden;}
       <div class="s-sec">
         <div class="s-lbl"><i class="fas fa-memory"></i> 메모리</div>
         <div class="s-row"><span>RAM</span><span class="s-val" id="ram-d">{{ session.ram_mb }}MB</span></div>
-        <input type="range" id="ram-sl" min="128" max="2048" step="128" value="{{ session.ram_mb }}" oninput="onRamChange(this.value)" style="width:100%;margin-top:5px;">
-        <div style="display:flex;justify-content:space-between;font-size:.66rem;color:var(--muted);"><span>128MB</span><span>2GB</span></div>
+        <input type="range" id="ram-sl" min="128" max="2048" step="128" value="{{ session.ram_mb }}"
+               oninput="onRamChange(this.value)" style="width:100%;margin-top:5px;accent-color:var(--blue);">
+        <div style="display:flex;justify-content:space-between;font-size:.65rem;color:var(--muted);"><span>128MB</span><span>2GB</span></div>
       </div>
 
       <!-- CPU 정보 -->
       <div class="s-sec">
         <div class="s-lbl"><i class="fas fa-microchip"></i> CPU 정보</div>
-        <div id="cpu-info-box" style="font-size:.75rem;line-height:1.8;color:var(--muted);"></div>
+        <div id="cpu-info-box" style="font-size:.73rem;line-height:1.85;color:var(--muted);"></div>
       </div>
 
-      <!-- 이름 -->
+      <!-- 세션 이름 -->
       <div class="s-sec">
         <div class="s-lbl"><i class="fas fa-tag"></i> 세션 이름</div>
         <input type="text" class="s-inp" id="sname" value="{{ session.name }}" maxlength="100">
@@ -276,10 +271,10 @@ html,body{height:100%;overflow:hidden;}
 
       <!-- 통계 -->
       <div class="s-sec">
-        <div class="s-lbl"><i class="fas fa-chart-bar"></i> 통계</div>
-        <div style="font-size:.76rem;color:var(--muted);line-height:1.9;">
-          <div>세션 ID: <span class="chip">{{ session.pk }}</span></div>
-          <div>부팅 횟수: <span class="chip">{{ session.boot_count }}</span></div>
+        <div class="s-lbl"><i class="fas fa-chart-bar"></i> 세션 정보</div>
+        <div style="font-size:.74rem;color:var(--muted);line-height:2;">
+          <div>ID: <span class="chip">{{ session.pk }}</span></div>
+          <div>부팅: <span class="chip">{{ session.boot_count }}회</span></div>
           <div>상태: <span class="chip" id="st-saved">{% if session.state_data %}저장됨{% else %}없음{% endif %}</span></div>
         </div>
       </div>
@@ -288,15 +283,16 @@ html,body{height:100%;overflow:hidden;}
 
   <!-- 상태바 -->
   <div id="vos-sb">
-    <span id="sb-cpu"><i class="fas fa-microchip"></i> {{ session.cpu_id }}</span>
+    <span id="sb-cpu"><i class="fas fa-microchip"></i> —</span>
     <span id="sb-ram"><i class="fas fa-memory"></i> {{ session.ram_mb }}MB</span>
+    <span id="sb-hdd"><i class="fas fa-hdd"></i> {{ session.vhd_size_gb }}GB</span>
     <span id="sb-time"><i class="fas fa-clock"></i> 00:00</span>
     <div style="flex:1"></div>
-    <span id="sb-msg">준비됨 — 시작 버튼을 눌러주세요</span>
+    <span id="sb-msg">준비됨 — 시작 버튼을 눌러 가상 OS를 시작하세요</span>
   </div>
 </div>
 
-<!-- ── 플로팅 가상 키보드 ── -->
+<!-- 플로팅 가상 키보드 -->
 <div id="fkb">
   <div class="fkb-handle" id="kb-hnd"><i class="fas fa-grip-lines"></i> 가상 키보드</div>
   <div class="krow">
@@ -304,41 +300,45 @@ html,body{height:100%;overflow:hidden;}
     <div class="kk" data-k="F1">F1</div><div class="kk" data-k="F2">F2</div><div class="kk" data-k="F3">F3</div><div class="kk" data-k="F4">F4</div>
     <div class="kk" data-k="F5">F5</div><div class="kk" data-k="F6">F6</div><div class="kk" data-k="F7">F7</div><div class="kk" data-k="F8">F8</div>
     <div class="kk" data-k="F9">F9</div><div class="kk" data-k="F10">F10</div><div class="kk" data-k="F11">F11</div><div class="kk" data-k="F12">F12</div>
-    <div class="kk" data-k="Delete">Del</div><div class="kk" data-k="Insert">Ins</div>
+    <div class="kk" data-k="Delete">Del</div>
   </div>
   <div class="krow">
     <div class="kk" data-k="Backquote">`</div>
-    <div class="kk" data-k="Digit1">1</div><div class="kk" data-k="Digit2">2</div><div class="kk" data-k="Digit3">3</div><div class="kk" data-k="Digit4">4</div>
-    <div class="kk" data-k="Digit5">5</div><div class="kk" data-k="Digit6">6</div><div class="kk" data-k="Digit7">7</div><div class="kk" data-k="Digit8">8</div>
-    <div class="kk" data-k="Digit9">9</div><div class="kk" data-k="Digit0">0</div>
-    <div class="kk" data-k="Minus">-</div><div class="kk" data-k="Equal">=</div>
+    <div class="kk" data-k="Digit1">1</div><div class="kk" data-k="Digit2">2</div><div class="kk" data-k="Digit3">3</div>
+    <div class="kk" data-k="Digit4">4</div><div class="kk" data-k="Digit5">5</div><div class="kk" data-k="Digit6">6</div>
+    <div class="kk" data-k="Digit7">7</div><div class="kk" data-k="Digit8">8</div><div class="kk" data-k="Digit9">9</div>
+    <div class="kk" data-k="Digit0">0</div><div class="kk" data-k="Minus">-</div><div class="kk" data-k="Equal">=</div>
     <div class="kk ww" data-k="Backspace"><i class="fas fa-backspace fa-xs"></i></div>
   </div>
   <div class="krow">
     <div class="kk w" data-k="Tab">Tab</div>
-    <div class="kk" data-k="KeyQ">Q</div><div class="kk" data-k="KeyW">W</div><div class="kk" data-k="KeyE">E</div><div class="kk" data-k="KeyR">R</div>
-    <div class="kk" data-k="KeyT">T</div><div class="kk" data-k="KeyY">Y</div><div class="kk" data-k="KeyU">U</div><div class="kk" data-k="KeyI">I</div>
-    <div class="kk" data-k="KeyO">O</div><div class="kk" data-k="KeyP">P</div>
-    <div class="kk" data-k="BracketLeft">[</div><div class="kk" data-k="BracketRight">]</div><div class="kk" data-k="Backslash">\</div>
+    <div class="kk" data-k="KeyQ">Q</div><div class="kk" data-k="KeyW">W</div><div class="kk" data-k="KeyE">E</div>
+    <div class="kk" data-k="KeyR">R</div><div class="kk" data-k="KeyT">T</div><div class="kk" data-k="KeyY">Y</div>
+    <div class="kk" data-k="KeyU">U</div><div class="kk" data-k="KeyI">I</div><div class="kk" data-k="KeyO">O</div>
+    <div class="kk" data-k="KeyP">P</div><div class="kk" data-k="BracketLeft">[</div><div class="kk" data-k="BracketRight">]</div>
+    <div class="kk" data-k="Backslash">\</div>
   </div>
   <div class="krow">
     <div class="kk ww" data-k="CapsLock">Caps</div>
-    <div class="kk" data-k="KeyA">A</div><div class="kk" data-k="KeyS">S</div><div class="kk" data-k="KeyD">D</div><div class="kk" data-k="KeyF">F</div>
-    <div class="kk" data-k="KeyG">G</div><div class="kk" data-k="KeyH">H</div><div class="kk" data-k="KeyJ">J</div><div class="kk" data-k="KeyK">K</div>
-    <div class="kk" data-k="KeyL">L</div><div class="kk" data-k="Semicolon">;</div><div class="kk" data-k="Quote">'</div>
-    <div class="kk ww" data-k="Enter"><i class="fas fa-level-down-alt fa-rotate-90 fa-xs"></i></div>
+    <div class="kk" data-k="KeyA">A</div><div class="kk" data-k="KeyS">S</div><div class="kk" data-k="KeyD">D</div>
+    <div class="kk" data-k="KeyF">F</div><div class="kk" data-k="KeyG">G</div><div class="kk" data-k="KeyH">H</div>
+    <div class="kk" data-k="KeyJ">J</div><div class="kk" data-k="KeyK">K</div><div class="kk" data-k="KeyL">L</div>
+    <div class="kk" data-k="Semicolon">;</div><div class="kk" data-k="Quote">'</div>
+    <div class="kk ww" data-k="Enter">Enter</div>
   </div>
   <div class="krow">
     <div class="kk ww" data-k="ShiftLeft">Shift</div>
-    <div class="kk" data-k="KeyZ">Z</div><div class="kk" data-k="KeyX">X</div><div class="kk" data-k="KeyC">C</div><div class="kk" data-k="KeyV">V</div>
-    <div class="kk" data-k="KeyB">B</div><div class="kk" data-k="KeyN">N</div><div class="kk" data-k="KeyM">M</div>
-    <div class="kk" data-k="Comma">,</div><div class="kk" data-k="Period">.</div><div class="kk" data-k="Slash">/</div>
-    <div class="kk ww" data-k="ShiftRight">Shift</div>
+    <div class="kk" data-k="KeyZ">Z</div><div class="kk" data-k="KeyX">X</div><div class="kk" data-k="KeyC">C</div>
+    <div class="kk" data-k="KeyV">V</div><div class="kk" data-k="KeyB">B</div><div class="kk" data-k="KeyN">N</div>
+    <div class="kk" data-k="KeyM">M</div><div class="kk" data-k="Comma">,</div><div class="kk" data-k="Period">.</div>
+    <div class="kk" data-k="Slash">/</div><div class="kk ww" data-k="ShiftRight">Shift</div>
   </div>
   <div class="krow">
-    <div class="kk" data-k="ControlLeft">Ctrl</div><div class="kk" data-k="AltLeft">Alt</div>
+    <div class="kk" data-k="ControlLeft">Ctrl</div>
+    <div class="kk" data-k="AltLeft">Alt</div>
     <div class="kk sp" data-k="Space">Space</div>
-    <div class="kk" data-k="AltRight">Alt</div><div class="kk" data-k="ControlRight">Ctrl</div>
+    <div class="kk" data-k="AltRight">Alt</div>
+    <div class="kk" data-k="ControlRight">Ctrl</div>
     <div class="kk" data-k="ArrowLeft"><i class="fas fa-arrow-left fa-xs"></i></div>
     <div class="kk" data-k="ArrowUp"><i class="fas fa-arrow-up fa-xs"></i></div>
     <div class="kk" data-k="ArrowDown"><i class="fas fa-arrow-down fa-xs"></i></div>
@@ -346,1148 +346,701 @@ html,body{height:100%;overflow:hidden;}
   </div>
 </div>
 
-<!-- ── 플로팅 마우스패드 ── -->
+<!-- 플로팅 마우스패드 -->
 <div id="fpad">
-  <div style="font-size:.7rem;color:var(--muted);text-align:center;margin-bottom:6px;cursor:grab;" id="pad-hnd"><i class="fas fa-grip-lines"></i> 가상 마우스패드</div>
+  <div style="font-size:.68rem;color:var(--muted);text-align:center;margin-bottom:6px;cursor:grab;" id="pad-hnd"><i class="fas fa-grip-lines"></i> 마우스패드</div>
   <div class="pad-area" id="pad-area"><div class="pad-cur" id="pad-cur"></div></div>
   <div class="pad-btns">
-    <div class="pb" onpointerdown="padBtn(0,true)" onpointerup="padBtn(0,false)">좌클릭</div>
-    <div class="pb" onpointerdown="padBtn(1,true)" onpointerup="padBtn(1,false)">중간</div>
-    <div class="pb" onpointerdown="padBtn(2,true)" onpointerup="padBtn(2,false)">우클릭</div>
+    <div class="pb" id="pb-l">좌클릭</div>
+    <div class="pb" id="pb-m">중간</div>
+    <div class="pb" id="pb-r">우클릭</div>
   </div>
   <div class="sens-row">
     <i class="fas fa-tachometer-alt fa-xs"></i>
-    <input type="range" id="sens-sl" min="1" max="10" value="4" oninput="setSens(this.value)">
+    <input type="range" id="sens-sl" min="1" max="10" value="4" oninput="padSens=+this.value;document.getElementById('sens-v').textContent=this.value">
     <span id="sens-v">4</span>
   </div>
 </div>
 
-<!-- ── VHD 모달 ── -->
+<!-- VHD 모달 -->
 <div class="modal-bg" id="vhd-modal">
   <div class="modal-box">
-    <h3><i class="fas fa-hdd"></i> 가상 하드드라이브 크기 설정</h3>
-    <label>가상 크기 (GB)</label>
-    <input type="number" id="vhd-inp" min="1" max="2000" step="1" value="{{ session.vhd_size_gb }}" placeholder="예: 80">
-    <div style="font-size:.75rem;color:var(--muted);margin-top:7px;line-height:1.6;">
-      <i class="fas fa-info-circle"></i> 동적 할당 방식 — 실제 사용량만큼만 저장되며, OS에서는 설정한 크기로 인식합니다.
-    </div>
+    <h3><i class="fas fa-hdd"></i> 가상 하드드라이브 크기</h3>
+    <label>가상 크기 (GB) — 동적 할당, 실제 사용량만큼만 저장</label>
+    <input type="number" id="vhd-inp" min="1" max="2000" step="1" value="{{ session.vhd_size_gb }}">
     <div class="mf">
-      <button class="mb c" onclick="closeVhdModal()">취소</button>
+      <button class="mb c" onclick="closeModal('vhd-modal')">취소</button>
       <button class="mb p" onclick="applyVhd()"><i class="fas fa-check"></i> 적용</button>
     </div>
   </div>
 </div>
 
-<!-- ── CPU 선택 모달 ── -->
+<!-- CPU 모달 -->
 <div class="modal-bg" id="cpu-modal">
   <div class="modal-box">
     <h3><i class="fas fa-microchip"></i> CPU 선택</h3>
-    <input type="text" id="cpu-search" placeholder="CPU 이름 검색..." oninput="filterCpu(this.value)" style="margin-bottom:10px;">
+    <input type="text" id="cpu-search" placeholder="검색..." oninput="filterCpu(this.value)"
+           style="margin-bottom:10px;width:100%;background:#21262d;border:1px solid var(--border);color:var(--text);border-radius:7px;padding:6px 9px;font-size:.8rem;">
     <div class="cpu-list" id="cpu-list"></div>
     <div class="mf">
-      <button class="mb c" onclick="closeCpuModal()">취소</button>
+      <button class="mb c" onclick="closeModal('cpu-modal')">취소</button>
       <button class="mb p" onclick="applyCpu()"><i class="fas fa-check"></i> 선택</button>
     </div>
   </div>
 </div>
 
 <!-- 토스트 -->
-<div id="toast"></div>
+<div id="vos-toast"></div>
 
-<!-- v86 라이브러리 -->
+<!-- v86 -->
 <script src="{% static 'blog/v86/libv86.js' %}"></script>
+<script src="{% static 'blog/v86/cpu_patch.js' %}"></script>
 
 <script>
 'use strict';
-
-/* ══════════════════════════════════════════════════════
-   CPU 데이터베이스 — 소프트웨어 구현 방식
-   각 CPU는 실제 하드웨어 동작을 JS 객체로 완전 구현
-══════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════
+   CPU 데이터베이스 — JS 소프트웨어 구현
+   각 CPU는 실제 스펙을 JS 객체로 완전 정의
+════════════════════════════════════════════════════ */
 const CPU_DB = {
-
   /* ── Intel 14세대 ── */
-  'i9_14900k': {
-    label:'Intel Core i9-14900K', gen:'Raptor Lake Refresh', vendor:'Intel',
-    group:'Intel 최신', arch:'x86_64', icon:'fas fa-bolt', color:'#4fc3f7',
-    cores:24, ecores:16, pcores:8, threads:32,
-    base_mhz:3200, boost_mhz:5800, tdp:125,
-    l1i:32, l1d:48, l2:2048, l3:36864,
-    pcie:5, mem:'DDR5/DDR4', year:2023,
-    desc:'24코어 32스레드 | 최대 5.8GHz | PCIe 5.0 | AVX2',
-    features:['AVX2','AES-NI','AVX-VNNI','VAES','SGX-disabled'],
-    /* 실제 CPU 소프트웨어 구현 */
-    cpuid_max: 0x20,
-    exec_model: {
-      ipc: 5.5,               // Instructions Per Cycle
-      fetch_width: 6,         // 명령 패치 폭
-      decode_width: 6,
-      execution_ports: 12,
-      branch_predictor: 'Enhanced_TAGE',
-      reorder_buffer: 512,
-      store_buffer: 100,
-      load_buffer: 192,
-      l1_latency_cy: 4,
-      l2_latency_cy: 14,
-      l3_latency_cy: 48,
-      mem_latency_ns: 70,
-    },
-    mem_config: { channels:2, type:'DDR5-5600', ecc:false },
-    perf_score: 95,
-    v86_opts: { cpuid_level:0x20, memory_size: null, boot_order:0x132 },
-  },
-
-  'i7_14700k': {
-    label:'Intel Core i7-14700K', gen:'Raptor Lake Refresh', vendor:'Intel',
-    group:'Intel 최신', arch:'x86_64', icon:'fas fa-bolt', color:'#4fc3f7',
-    cores:20, ecores:12, pcores:8, threads:28,
-    base_mhz:3400, boost_mhz:5600, tdp:125,
-    l1i:32, l1d:48, l2:1792, l3:33792,
-    pcie:5, mem:'DDR5/DDR4', year:2023,
-    desc:'20코어 28스레드 | 최대 5.6GHz | PCIe 5.0',
-    features:['AVX2','AES-NI','AVX-VNNI'],
-    cpuid_max:0x20,
-    exec_model:{ ipc:5.4, fetch_width:6, decode_width:6, execution_ports:12, reorder_buffer:512, perf_score:88 },
-    perf_score:88,
-    v86_opts:{ cpuid_level:0x20, memory_size:null },
-  },
-
-  'i5_14600k': {
-    label:'Intel Core i5-14600K', gen:'Raptor Lake Refresh', vendor:'Intel',
-    group:'Intel 최신', arch:'x86_64', icon:'fas fa-bolt', color:'#4fc3f7',
-    cores:14, ecores:8, pcores:6, threads:20,
-    base_mhz:3500, boost_mhz:5300, tdp:125,
-    l1i:32, l1d:48, l2:1280, l3:24576,
-    pcie:5, mem:'DDR5/DDR4', year:2023,
-    desc:'14코어 20스레드 | 최대 5.3GHz | 가성비 최강',
-    features:['AVX2','AES-NI'],
-    cpuid_max:0x20,
-    exec_model:{ ipc:5.2, fetch_width:6, execution_ports:12, reorder_buffer:512 },
-    perf_score:78,
-    v86_opts:{ cpuid_level:0x20, memory_size:null },
-  },
-
+  'i9_14900k':{label:'Intel Core i9-14900K',gen:'Raptor Lake Refresh',vendor:'Intel',group:'Intel 14세대',arch:'x86_64',icon:'fas fa-bolt',color:'#4fc3f7',cores:24,threads:32,base_mhz:3200,boost_mhz:5800,tdp:125,l1i:32,l1d:48,l2:2048,l3:36864,mem:'DDR5/DDR4',year:2023,desc:'24C/32T | 5.8GHz | PCIe5',features:['AVX2','AES-NI','AVX-VNNI'],cpuid_max:0x20,ram_limit_mb:65536,v86_memory_mb:null},
+  'i7_14700k':{label:'Intel Core i7-14700K',gen:'Raptor Lake Refresh',vendor:'Intel',group:'Intel 14세대',arch:'x86_64',icon:'fas fa-bolt',color:'#4fc3f7',cores:20,threads:28,base_mhz:3400,boost_mhz:5600,tdp:125,l1i:32,l1d:48,l2:1792,l3:33792,mem:'DDR5/DDR4',year:2023,desc:'20C/28T | 5.6GHz | PCIe5',features:['AVX2','AES-NI'],cpuid_max:0x20,ram_limit_mb:65536,v86_memory_mb:null},
+  'i5_14600k':{label:'Intel Core i5-14600K',gen:'Raptor Lake Refresh',vendor:'Intel',group:'Intel 14세대',arch:'x86_64',icon:'fas fa-bolt',color:'#4fc3f7',cores:14,threads:20,base_mhz:3500,boost_mhz:5300,tdp:125,l1i:32,l1d:48,l2:1280,l3:24576,mem:'DDR5/DDR4',year:2023,desc:'14C/20T | 5.3GHz | 가성비',features:['AVX2','AES-NI'],cpuid_max:0x20,ram_limit_mb:65536,v86_memory_mb:null},
   /* ── Intel 13세대 ── */
-  'i9_13900k': {
-    label:'Intel Core i9-13900K', gen:'Raptor Lake', vendor:'Intel',
-    group:'Intel 13세대', arch:'x86_64', icon:'fas fa-microchip', color:'#29b6f6',
-    cores:24, ecores:16, pcores:8, threads:32,
-    base_mhz:3000, boost_mhz:5800, tdp:125,
-    l1i:32, l1d:48, l2:2048, l3:36864,
-    pcie:5, mem:'DDR5/DDR4', year:2022,
-    desc:'24코어 32스레드 | 최대 5.8GHz | PCIe 5.0',
-    features:['AVX2','AES-NI','AVXVNNI'],
-    cpuid_max:0x1F,
-    exec_model:{ ipc:5.3, fetch_width:6, execution_ports:12, reorder_buffer:512 },
-    perf_score:93,
-    v86_opts:{ cpuid_level:0x1F, memory_size:null },
-  },
-
-  'i7_13700k': {
-    label:'Intel Core i7-13700K', gen:'Raptor Lake', vendor:'Intel',
-    group:'Intel 13세대', arch:'x86_64', icon:'fas fa-microchip', color:'#29b6f6',
-    cores:16, ecores:8, pcores:8, threads:24,
-    base_mhz:3400, boost_mhz:5400, tdp:125,
-    l1i:32, l1d:48, l2:1024, l3:30720,
-    pcie:5, mem:'DDR5/DDR4', year:2022,
-    desc:'16코어 24스레드 | 최대 5.4GHz',
-    features:['AVX2','AES-NI'],
-    cpuid_max:0x1F,
-    exec_model:{ ipc:5.1, fetch_width:6, execution_ports:12, reorder_buffer:512 },
-    perf_score:82,
-    v86_opts:{ cpuid_level:0x1F, memory_size:null },
-  },
-
+  'i9_13900k':{label:'Intel Core i9-13900K',gen:'Raptor Lake',vendor:'Intel',group:'Intel 13세대',arch:'x86_64',icon:'fas fa-microchip',color:'#29b6f6',cores:24,threads:32,base_mhz:3000,boost_mhz:5800,tdp:125,l1i:32,l1d:48,l2:2048,l3:36864,mem:'DDR5/DDR4',year:2022,desc:'24C/32T | 5.8GHz',features:['AVX2','AES-NI'],cpuid_max:0x1F,ram_limit_mb:65536,v86_memory_mb:null},
+  'i7_13700k':{label:'Intel Core i7-13700K',gen:'Raptor Lake',vendor:'Intel',group:'Intel 13세대',arch:'x86_64',icon:'fas fa-microchip',color:'#29b6f6',cores:16,threads:24,base_mhz:3400,boost_mhz:5400,tdp:125,l1i:32,l1d:48,l2:1024,l3:30720,mem:'DDR5/DDR4',year:2022,desc:'16C/24T | 5.4GHz',features:['AVX2','AES-NI'],cpuid_max:0x1F,ram_limit_mb:65536,v86_memory_mb:null},
+  'i5_13600k':{label:'Intel Core i5-13600K',gen:'Raptor Lake',vendor:'Intel',group:'Intel 13세대',arch:'x86_64',icon:'fas fa-microchip',color:'#29b6f6',cores:14,threads:20,base_mhz:3500,boost_mhz:5100,tdp:125,l1i:32,l1d:48,l2:1280,l3:24576,mem:'DDR5/DDR4',year:2022,desc:'14C/20T | 5.1GHz',features:['AVX2','AES-NI'],cpuid_max:0x1F,ram_limit_mb:65536,v86_memory_mb:null},
   /* ── Intel 12세대 ── */
-  'i9_12900k': {
-    label:'Intel Core i9-12900K', gen:'Alder Lake', vendor:'Intel',
-    group:'Intel 12세대', arch:'x86_64', icon:'fas fa-microchip', color:'#039be5',
-    cores:16, ecores:8, pcores:8, threads:24,
-    base_mhz:3200, boost_mhz:5200, tdp:125,
-    l1i:32, l1d:48, l2:1280, l3:30720,
-    pcie:5, mem:'DDR5/DDR4', year:2021,
-    desc:'16코어 24스레드 | PCIe 5.0 최초 | P+E 하이브리드',
-    features:['AVX2','AES-NI','AVX-512 disabled'],
-    cpuid_max:0x1F,
-    exec_model:{ ipc:4.9, fetch_width:6, execution_ports:12, reorder_buffer:512 },
-    perf_score:80,
-    v86_opts:{ cpuid_level:0x1F, memory_size:null },
-  },
-
-  'i5_12600k': {
-    label:'Intel Core i5-12600K', gen:'Alder Lake', vendor:'Intel',
-    group:'Intel 12세대', arch:'x86_64', icon:'fas fa-microchip', color:'#039be5',
-    cores:10, ecores:4, pcores:6, threads:16,
-    base_mhz:3700, boost_mhz:4900, tdp:125,
-    l1i:32, l1d:48, l2:1250, l3:20480,
-    pcie:5, mem:'DDR5/DDR4', year:2021,
-    desc:'10코어 16스레드 | 가성비 강자',
-    features:['AVX2','AES-NI'],
-    cpuid_max:0x1F,
-    exec_model:{ ipc:4.8, fetch_width:6, execution_ports:12, reorder_buffer:512 },
-    perf_score:70,
-    v86_opts:{ cpuid_level:0x1F, memory_size:null },
-  },
-
-  /* ── Intel Xeon ── */
-  'xeon_w9_3595x': {
-    label:'Intel Xeon W9-3595X', gen:'Sapphire Rapids', vendor:'Intel',
-    group:'Intel Xeon 서버', arch:'x86_64', icon:'fas fa-server', color:'#0288d1',
-    cores:60, ecores:0, pcores:60, threads:120,
-    base_mhz:2500, boost_mhz:4800, tdp:350,
-    l1i:48, l1d:48, l2:2048, l3:75000,
-    pcie:5, mem:'DDR5 ECC 8ch', year:2023,
-    desc:'60코어 120스레드 | AVX-512 | AMX | 워크스테이션 최강',
-    features:['AVX-512','AMX','TMUL','AVX-VNNI','DL-Boost'],
-    cpuid_max:0x1F,
-    exec_model:{ ipc:5.0, fetch_width:6, execution_ports:12, reorder_buffer:512, avx512:true, amx:true },
-    perf_score:98,
-    v86_opts:{ cpuid_level:0x1F, memory_size:null },
-  },
-
-  'xeon_e5_2699v4': {
-    label:'Intel Xeon E5-2699 v4', gen:'Broadwell-EP', vendor:'Intel',
-    group:'Intel Xeon 서버', arch:'x86_64', icon:'fas fa-server', color:'#0288d1',
-    cores:22, ecores:0, pcores:22, threads:44,
-    base_mhz:2200, boost_mhz:3600, tdp:145,
-    l1i:32, l1d:32, l2:256, l3:55000,
-    pcie:3, mem:'DDR4 ECC 4ch', year:2016,
-    desc:'22코어 44스레드 | 서버 랙 정석 | AVX2',
-    features:['AVX2','AES-NI','TSX'],
-    cpuid_max:0x14,
-    exec_model:{ ipc:3.8, fetch_width:4, execution_ports:8, reorder_buffer:192 },
-    perf_score:62,
-    v86_opts:{ cpuid_level:0x14, memory_size:null },
-  },
-
-  'xeon_gold_6338': {
-    label:'Intel Xeon Gold 6338', gen:'Ice Lake SP', vendor:'Intel',
-    group:'Intel Xeon 서버', arch:'x86_64', icon:'fas fa-server', color:'#0288d1',
-    cores:32, ecores:0, pcores:32, threads:64,
-    base_mhz:2000, boost_mhz:3200, tdp:205,
-    l1i:32, l1d:48, l2:1280, l3:49152,
-    pcie:4, mem:'DDR4 ECC 8ch', year:2021,
-    desc:'32코어 64스레드 | Ice Lake | AVX-512 | 클라우드 핵심',
-    features:['AVX-512','AVX-VNNI','AES-NI','DL-Boost'],
-    cpuid_max:0x1F,
-    exec_model:{ ipc:4.5, fetch_width:5, execution_ports:10, reorder_buffer:352, avx512:true },
-    perf_score:75,
-    v86_opts:{ cpuid_level:0x1F, memory_size:null },
-  },
-
-  /* ── Intel 올드 ── */
-  'core2_quad_q9550': {
-    label:'Intel Core 2 Quad Q9550', gen:'Yorkfield', vendor:'Intel',
-    group:'Intel 레거시', arch:'x86_64', icon:'fas fa-history', color:'#78909c',
-    cores:4, ecores:0, pcores:4, threads:4,
-    base_mhz:2833, boost_mhz:2833, tdp:95,
-    l1i:32, l1d:32, l2:6144, l3:0,
-    pcie:1, mem:'DDR2/DDR3', year:2008,
-    desc:'4코어 4스레드 | SSE4.1 | FSB 1333MHz',
-    features:['SSE4.1','SSSE3'],
-    cpuid_max:0xD,
-    exec_model:{ ipc:2.8, fetch_width:4, execution_ports:6, reorder_buffer:96 },
-    perf_score:15,
-    v86_opts:{ cpuid_level:0xD, memory_size:null },
-  },
-
-  'i7_2600k': {
-    label:'Intel Core i7-2600K', gen:'Sandy Bridge', vendor:'Intel',
-    group:'Intel 레거시', arch:'x86_64', icon:'fas fa-history', color:'#78909c',
-    cores:4, ecores:0, pcores:4, threads:8,
-    base_mhz:3400, boost_mhz:3800, tdp:95,
-    l1i:32, l1d:32, l2:256, l3:8192,
-    pcie:3, mem:'DDR3', year:2011,
-    desc:'4코어 8스레드 | AVX 1세대 최초 | 오버클럭 전설',
-    features:['AVX','AES-NI','SSE4.2'],
-    cpuid_max:0xD,
-    exec_model:{ ipc:3.2, fetch_width:4, execution_ports:6, reorder_buffer:168 },
-    perf_score:22,
-    v86_opts:{ cpuid_level:0xD, memory_size:null },
-  },
-
-  'i7_8700k': {
-    label:'Intel Core i7-8700K', gen:'Coffee Lake', vendor:'Intel',
-    group:'Intel 레거시', arch:'x86_64', icon:'fas fa-history', color:'#78909c',
-    cores:6, ecores:0, pcores:6, threads:12,
-    base_mhz:3700, boost_mhz:4700, tdp:95,
-    l1i:32, l1d:32, l2:256, l3:12288,
-    pcie:3, mem:'DDR4', year:2017,
-    desc:'6코어 12스레드 | 4.7GHz | 게이밍 최강 (당시)',
-    features:['AVX2','AES-NI','FMA3'],
-    cpuid_max:0x16,
-    exec_model:{ ipc:4.0, fetch_width:4, execution_ports:8, reorder_buffer:224 },
-    perf_score:45,
-    v86_opts:{ cpuid_level:0x16, memory_size:null },
-  },
-
-  'pentium4_prescott': {
-    label:'Intel Pentium 4 3.8GHz', gen:'Prescott', vendor:'Intel',
-    group:'Intel 레거시', arch:'x86', icon:'fas fa-history', color:'#546e7a',
-    cores:1, ecores:0, pcores:1, threads:2,
-    base_mhz:3800, boost_mhz:3800, tdp:115,
-    l1i:12, l1d:16, l2:1024, l3:0,
-    pcie:1, mem:'DDR/RDRAM', year:2004,
-    desc:'1코어 HT | SSE3 최초 탑재 | 뜨거운 Prescott',
-    features:['SSE3','HT','NetBurst'],
-    cpuid_max:0x5,
-    exec_model:{ ipc:0.8, fetch_width:3, execution_ports:6, reorder_buffer:126, netburst:true },
-    perf_score:3,
-    v86_opts:{ cpuid_level:0x5, memory_size:256*1024*1024 },
-  },
-
-  'pentium_mmx': {
-    label:'Intel Pentium MMX 200MHz', gen:'P55C', vendor:'Intel',
-    group:'Intel 레거시', arch:'x86', icon:'fas fa-history', color:'#455a64',
-    cores:1, ecores:0, pcores:1, threads:1,
-    base_mhz:200, boost_mhz:200, tdp:17,
-    l1i:16, l1d:16, l2:0, l3:0,
-    pcie:0, mem:'EDO/SDRAM', year:1997,
-    desc:'MMX 멀티미디어 명령어 최초 | Socket 7',
-    features:['MMX'],
-    cpuid_max:0x1,
-    exec_model:{ ipc:0.5, fetch_width:2, execution_ports:2, reorder_buffer:0, mmx:true },
-    perf_score:1,
-    v86_opts:{ cpuid_level:0x1, memory_size:64*1024*1024 },
-  },
-
+  'i9_12900k':{label:'Intel Core i9-12900K',gen:'Alder Lake',vendor:'Intel',group:'Intel 12세대',arch:'x86_64',icon:'fas fa-microchip',color:'#039be5',cores:16,threads:24,base_mhz:3200,boost_mhz:5200,tdp:125,l1i:32,l1d:48,l2:1280,l3:30720,mem:'DDR5/DDR4',year:2021,desc:'16C/24T | 5.2GHz | P+E 하이브리드',features:['AVX2','AES-NI'],cpuid_max:0x1F,ram_limit_mb:65536,v86_memory_mb:null},
+  'i5_12600k':{label:'Intel Core i5-12600K',gen:'Alder Lake',vendor:'Intel',group:'Intel 12세대',arch:'x86_64',icon:'fas fa-microchip',color:'#039be5',cores:10,threads:16,base_mhz:3700,boost_mhz:4900,tdp:125,l1i:32,l1d:48,l2:1250,l3:20480,mem:'DDR5/DDR4',year:2021,desc:'10C/16T | 4.9GHz',features:['AVX2','AES-NI'],cpuid_max:0x1F,ram_limit_mb:65536,v86_memory_mb:null},
+  /* ── Intel Xeon 서버 ── */
+  'xeon_w9_3595x':{label:'Intel Xeon W9-3595X',gen:'Sapphire Rapids-W',vendor:'Intel',group:'Intel Xeon 서버',arch:'x86_64',icon:'fas fa-server',color:'#0288d1',cores:60,threads:120,base_mhz:2500,boost_mhz:4800,tdp:350,l1i:48,l1d:48,l2:2048,l3:75000,mem:'DDR5 ECC 8ch',year:2023,desc:'60C/120T | AVX-512 | AMX | 워크스테이션 최강',features:['AVX-512','AMX','AES-NI'],cpuid_max:0x1F,ram_limit_mb:131072,v86_memory_mb:null},
+  'xeon_gold_6338':{label:'Intel Xeon Gold 6338',gen:'Ice Lake SP',vendor:'Intel',group:'Intel Xeon 서버',arch:'x86_64',icon:'fas fa-server',color:'#0288d1',cores:32,threads:64,base_mhz:2000,boost_mhz:3200,tdp:205,l1i:32,l1d:48,l2:1280,l3:49152,mem:'DDR4 ECC 8ch',year:2021,desc:'32C/64T | AVX-512 | 클라우드 핵심',features:['AVX-512','AES-NI'],cpuid_max:0x1F,ram_limit_mb:131072,v86_memory_mb:null},
+  'xeon_e5_2699v4':{label:'Intel Xeon E5-2699 v4',gen:'Broadwell-EP',vendor:'Intel',group:'Intel Xeon 서버',arch:'x86_64',icon:'fas fa-server',color:'#0288d1',cores:22,threads:44,base_mhz:2200,boost_mhz:3600,tdp:145,l1i:32,l1d:32,l2:256,l3:55000,mem:'DDR4 ECC 4ch',year:2016,desc:'22C/44T | 55MB L3 | 서버 정석',features:['AVX2','AES-NI','TSX'],cpuid_max:0x14,ram_limit_mb:65536,v86_memory_mb:null},
+  /* ── Intel 레거시 ── */
+  'i7_8700k':{label:'Intel Core i7-8700K',gen:'Coffee Lake',vendor:'Intel',group:'Intel 레거시',arch:'x86_64',icon:'fas fa-history',color:'#78909c',cores:6,threads:12,base_mhz:3700,boost_mhz:4700,tdp:95,l1i:32,l1d:32,l2:256,l3:12288,mem:'DDR4',year:2017,desc:'6C/12T | 4.7GHz | 게이밍 전설',features:['AVX2','AES-NI','FMA3'],cpuid_max:0x16,ram_limit_mb:16384,v86_memory_mb:null},
+  'i7_2600k':{label:'Intel Core i7-2600K',gen:'Sandy Bridge',vendor:'Intel',group:'Intel 레거시',arch:'x86_64',icon:'fas fa-history',color:'#78909c',cores:4,threads:8,base_mhz:3400,boost_mhz:3800,tdp:95,l1i:32,l1d:32,l2:256,l3:8192,mem:'DDR3',year:2011,desc:'4C/8T | AVX 1세대 | 오버클럭 전설',features:['AVX','AES-NI','SSE4.2'],cpuid_max:0xD,ram_limit_mb:8192,v86_memory_mb:null},
+  'core2_quad_q9550':{label:'Intel Core 2 Quad Q9550',gen:'Yorkfield',vendor:'Intel',group:'Intel 레거시',arch:'x86_64',icon:'fas fa-history',color:'#546e7a',cores:4,threads:4,base_mhz:2833,boost_mhz:2833,tdp:95,l1i:32,l1d:32,l2:6144,l3:0,mem:'DDR2/DDR3',year:2008,desc:'4C/4T | SSE4.1 | FSB 1333',features:['SSE4.1','SSSE3'],cpuid_max:0xD,ram_limit_mb:4096,v86_memory_mb:null},
+  'pentium4_prescott':{label:'Intel Pentium 4 3.8GHz',gen:'Prescott',vendor:'Intel',group:'레트로 CPU',arch:'x86',icon:'fas fa-ghost',color:'#546e7a',cores:1,threads:2,base_mhz:3800,boost_mhz:3800,tdp:115,l1i:12,l1d:16,l2:1024,l3:0,mem:'DDR/RDRAM',year:2004,desc:'1C/2T HT | SSE3 최초 | NetBurst',features:['SSE3','HT'],cpuid_max:0x5,ram_limit_mb:512,v86_memory_mb:256*1024*1024},
+  'pentium_mmx':{label:'Intel Pentium MMX 200MHz',gen:'P55C',vendor:'Intel',group:'레트로 CPU',arch:'x86',icon:'fas fa-ghost',color:'#455a64',cores:1,threads:1,base_mhz:200,boost_mhz:200,tdp:17,l1i:16,l1d:16,l2:0,l3:0,mem:'EDO/SDRAM',year:1997,desc:'MMX 최초 탑재 | Socket 7 | 32bit DOS',features:['MMX'],cpuid_max:0x1,ram_limit_mb:128,v86_memory_mb:64*1024*1024},
+  'intel_386dx':{label:'Intel 386 DX 40MHz',gen:'i386',vendor:'Intel',group:'레트로 CPU',arch:'x86',icon:'fas fa-ghost',color:'#37474f',cores:1,threads:1,base_mhz:40,boost_mhz:40,tdp:4,l1i:0,l1d:0,l2:0,l3:0,mem:'SIMM/ISA',year:1985,desc:'32bit PC의 시작 | 캐시 없음 | DOS',features:['32bit'],cpuid_max:0x1,ram_limit_mb:32,v86_memory_mb:16*1024*1024},
   /* ── AMD Ryzen 7000 ── */
-  'r9_7950x': {
-    label:'AMD Ryzen 9 7950X', gen:'Zen 4 Raphael', vendor:'AMD',
-    group:'AMD Ryzen 7000', arch:'x86_64', icon:'fas fa-fire', color:'#ef5350',
-    cores:16, ecores:0, pcores:16, threads:32,
-    base_mhz:4500, boost_mhz:5700, tdp:170,
-    l1i:32, l1d:32, l2:1024, l3:65536,
-    pcie:5, mem:'DDR5', year:2022,
-    desc:'16코어 32스레드 | Zen 4 | PCIe 5.0 | AVX2 | DDR5',
-    features:['AVX2','AES-NI','VAES','VPCLMULQDQ','RDRAND'],
-    cpuid_max:0x1F,
-    exec_model:{ ipc:5.5, fetch_width:4, execution_ports:6, reorder_buffer:320, zen_ver:4 },
-    perf_score:94,
-    v86_opts:{ cpuid_level:0x1F, memory_size:null },
-  },
-
-  'r9_7900x': {
-    label:'AMD Ryzen 9 7900X', gen:'Zen 4 Raphael', vendor:'AMD',
-    group:'AMD Ryzen 7000', arch:'x86_64', icon:'fas fa-fire', color:'#ef5350',
-    cores:12, ecores:0, pcores:12, threads:24,
-    base_mhz:4700, boost_mhz:5600, tdp:170,
-    l1i:32, l1d:32, l2:1024, l3:65536,
-    pcie:5, mem:'DDR5', year:2022,
-    desc:'12코어 24스레드 | Zen 4 | 5.6GHz',
-    features:['AVX2','AES-NI','VAES'],
-    cpuid_max:0x1F,
-    exec_model:{ ipc:5.4, fetch_width:4, execution_ports:6, reorder_buffer:320, zen_ver:4 },
-    perf_score:88,
-    v86_opts:{ cpuid_level:0x1F, memory_size:null },
-  },
-
-  'r7_7700x': {
-    label:'AMD Ryzen 7 7700X', gen:'Zen 4 Raphael', vendor:'AMD',
-    group:'AMD Ryzen 7000', arch:'x86_64', icon:'fas fa-fire', color:'#ef5350',
-    cores:8, ecores:0, pcores:8, threads:16,
-    base_mhz:4500, boost_mhz:5400, tdp:105,
-    l1i:32, l1d:32, l2:1024, l3:32768,
-    pcie:5, mem:'DDR5', year:2022,
-    desc:'8코어 16스레드 | Zen 4 | 가성비 Zen 4',
-    features:['AVX2','AES-NI','VAES'],
-    cpuid_max:0x1F,
-    exec_model:{ ipc:5.3, fetch_width:4, execution_ports:6, reorder_buffer:320, zen_ver:4 },
-    perf_score:80,
-    v86_opts:{ cpuid_level:0x1F, memory_size:null },
-  },
-
+  'r9_7950x':{label:'AMD Ryzen 9 7950X',gen:'Zen 4 Raphael',vendor:'AMD',group:'AMD Ryzen 7000',arch:'x86_64',icon:'fas fa-fire',color:'#ef5350',cores:16,threads:32,base_mhz:4500,boost_mhz:5700,tdp:170,l1i:32,l1d:32,l2:1024,l3:65536,mem:'DDR5',year:2022,desc:'16C/32T | 5.7GHz | Zen 4 | PCIe5',features:['AVX2','AES-NI','VAES'],cpuid_max:0x1F,ram_limit_mb:65536,v86_memory_mb:null},
+  'r9_7900x':{label:'AMD Ryzen 9 7900X',gen:'Zen 4',vendor:'AMD',group:'AMD Ryzen 7000',arch:'x86_64',icon:'fas fa-fire',color:'#ef5350',cores:12,threads:24,base_mhz:4700,boost_mhz:5600,tdp:170,l1i:32,l1d:32,l2:1024,l3:65536,mem:'DDR5',year:2022,desc:'12C/24T | 5.6GHz | Zen 4',features:['AVX2','AES-NI','VAES'],cpuid_max:0x1F,ram_limit_mb:65536,v86_memory_mb:null},
+  'r7_7700x':{label:'AMD Ryzen 7 7700X',gen:'Zen 4',vendor:'AMD',group:'AMD Ryzen 7000',arch:'x86_64',icon:'fas fa-fire',color:'#ef5350',cores:8,threads:16,base_mhz:4500,boost_mhz:5400,tdp:105,l1i:32,l1d:32,l2:1024,l3:32768,mem:'DDR5',year:2022,desc:'8C/16T | 5.4GHz | Zen 4',features:['AVX2','AES-NI'],cpuid_max:0x1F,ram_limit_mb:65536,v86_memory_mb:null},
   /* ── AMD Ryzen 5000 ── */
-  'r9_5950x': {
-    label:'AMD Ryzen 9 5950X', gen:'Zen 3 Vermeer', vendor:'AMD',
-    group:'AMD Ryzen 5000', arch:'x86_64', icon:'fas fa-fire', color:'#e53935',
-    cores:16, ecores:0, pcores:16, threads:32,
-    base_mhz:3400, boost_mhz:4900, tdp:105,
-    l1i:32, l1d:32, l2:512, l3:65536,
-    pcie:4, mem:'DDR4', year:2020,
-    desc:'16코어 32스레드 | Zen 3 | 8코어 하나의 CCX',
-    features:['AVX2','AES-NI','FMA3'],
-    cpuid_max:0x10,
-    exec_model:{ ipc:4.9, fetch_width:4, execution_ports:6, reorder_buffer:256, zen_ver:3 },
-    perf_score:90,
-    v86_opts:{ cpuid_level:0x10, memory_size:null },
-  },
-
-  'r5_5600x': {
-    label:'AMD Ryzen 5 5600X', gen:'Zen 3 Vermeer', vendor:'AMD',
-    group:'AMD Ryzen 5000', arch:'x86_64', icon:'fas fa-fire', color:'#e53935',
-    cores:6, ecores:0, pcores:6, threads:12,
-    base_mhz:3700, boost_mhz:4600, tdp:65,
-    l1i:32, l1d:32, l2:512, l3:32768,
-    pcie:4, mem:'DDR4', year:2020,
-    desc:'6코어 12스레드 | Zen 3 | 4.6GHz | 가성비 명작',
-    features:['AVX2','AES-NI','FMA3'],
-    cpuid_max:0x10,
-    exec_model:{ ipc:4.8, fetch_width:4, execution_ports:6, reorder_buffer:256, zen_ver:3 },
-    perf_score:72,
-    v86_opts:{ cpuid_level:0x10, memory_size:null },
-  },
-
+  'r9_5950x':{label:'AMD Ryzen 9 5950X',gen:'Zen 3 Vermeer',vendor:'AMD',group:'AMD Ryzen 5000',arch:'x86_64',icon:'fas fa-fire',color:'#e53935',cores:16,threads:32,base_mhz:3400,boost_mhz:4900,tdp:105,l1i:32,l1d:32,l2:512,l3:65536,mem:'DDR4',year:2020,desc:'16C/32T | 4.9GHz | Zen 3',features:['AVX2','AES-NI','FMA3'],cpuid_max:0x10,ram_limit_mb:32768,v86_memory_mb:null},
+  'r7_5800x':{label:'AMD Ryzen 7 5800X',gen:'Zen 3',vendor:'AMD',group:'AMD Ryzen 5000',arch:'x86_64',icon:'fas fa-fire',color:'#e53935',cores:8,threads:16,base_mhz:3800,boost_mhz:4700,tdp:105,l1i:32,l1d:32,l2:512,l3:32768,mem:'DDR4',year:2020,desc:'8C/16T | 4.7GHz | Zen 3',features:['AVX2','AES-NI'],cpuid_max:0x10,ram_limit_mb:32768,v86_memory_mb:null},
+  'r5_5600x':{label:'AMD Ryzen 5 5600X',gen:'Zen 3',vendor:'AMD',group:'AMD Ryzen 5000',arch:'x86_64',icon:'fas fa-fire',color:'#e53935',cores:6,threads:12,base_mhz:3700,boost_mhz:4600,tdp:65,l1i:32,l1d:32,l2:512,l3:32768,mem:'DDR4',year:2020,desc:'6C/12T | 4.6GHz | 가성비 명작',features:['AVX2','AES-NI'],cpuid_max:0x10,ram_limit_mb:32768,v86_memory_mb:null},
   /* ── AMD Ryzen 3000 ── */
-  'r9_3950x': {
-    label:'AMD Ryzen 9 3950X', gen:'Zen 2 Matisse', vendor:'AMD',
-    group:'AMD Ryzen 3000', arch:'x86_64', icon:'fas fa-fire', color:'#c62828',
-    cores:16, ecores:0, pcores:16, threads:32,
-    base_mhz:3500, boost_mhz:4700, tdp:105,
-    l1i:32, l1d:32, l2:512, l3:65536,
-    pcie:4, mem:'DDR4', year:2019,
-    desc:'16코어 32스레드 | Zen 2 | PCIe 4.0 최초',
-    features:['AVX2','AES-NI','PCIe4'],
-    cpuid_max:0x10,
-    exec_model:{ ipc:4.5, fetch_width:4, execution_ports:6, reorder_buffer:224, zen_ver:2 },
-    perf_score:80,
-    v86_opts:{ cpuid_level:0x10, memory_size:null },
-  },
-
-  'r5_3600': {
-    label:'AMD Ryzen 5 3600', gen:'Zen 2 Matisse', vendor:'AMD',
-    group:'AMD Ryzen 3000', arch:'x86_64', icon:'fas fa-fire', color:'#c62828',
-    cores:6, ecores:0, pcores:6, threads:12,
-    base_mhz:3600, boost_mhz:4200, tdp:65,
-    l1i:32, l1d:32, l2:512, l3:32768,
-    pcie:4, mem:'DDR4', year:2019,
-    desc:'6코어 12스레드 | Zen 2 | 4.2GHz | 전설의 가성비',
-    features:['AVX2','AES-NI'],
-    cpuid_max:0x10,
-    exec_model:{ ipc:4.3, fetch_width:4, execution_ports:6, reorder_buffer:224, zen_ver:2 },
-    perf_score:60,
-    v86_opts:{ cpuid_level:0x10, memory_size:null },
-  },
-
+  'r9_3950x':{label:'AMD Ryzen 9 3950X',gen:'Zen 2 Matisse',vendor:'AMD',group:'AMD Ryzen 3000',arch:'x86_64',icon:'fas fa-fire',color:'#c62828',cores:16,threads:32,base_mhz:3500,boost_mhz:4700,tdp:105,l1i:32,l1d:32,l2:512,l3:65536,mem:'DDR4',year:2019,desc:'16C/32T | 4.7GHz | PCIe4 최초',features:['AVX2','AES-NI'],cpuid_max:0x10,ram_limit_mb:32768,v86_memory_mb:null},
+  'r5_3600':{label:'AMD Ryzen 5 3600',gen:'Zen 2',vendor:'AMD',group:'AMD Ryzen 3000',arch:'x86_64',icon:'fas fa-fire',color:'#c62828',cores:6,threads:12,base_mhz:3600,boost_mhz:4200,tdp:65,l1i:32,l1d:32,l2:512,l3:32768,mem:'DDR4',year:2019,desc:'6C/12T | 4.2GHz | 전설의 가성비',features:['AVX2','AES-NI'],cpuid_max:0x10,ram_limit_mb:32768,v86_memory_mb:null},
   /* ── AMD EPYC ── */
-  'epyc_9654': {
-    label:'AMD EPYC 9654', gen:'Zen 4 Genoa', vendor:'AMD',
-    group:'AMD EPYC 서버', arch:'x86_64', icon:'fas fa-server', color:'#b71c1c',
-    cores:96, ecores:0, pcores:96, threads:192,
-    base_mhz:2400, boost_mhz:3700, tdp:360,
-    l1i:32, l1d:32, l2:1024, l3:384000,
-    pcie:5, mem:'DDR5 ECC 12ch', year:2022,
-    desc:'96코어 192스레드 | Zen 4 | PCIe 5.0 | 최대 서버 괴물',
-    features:['AVX2','AES-NI','VAES','AVX-512','SEV-SNP'],
-    cpuid_max:0x1F,
-    exec_model:{ ipc:5.2, fetch_width:4, execution_ports:6, reorder_buffer:320, zen_ver:4, sev:true },
-    perf_score:99,
-    v86_opts:{ cpuid_level:0x1F, memory_size:null },
-  },
-
-  'epyc_9554': {
-    label:'AMD EPYC 9554', gen:'Zen 4 Genoa', vendor:'AMD',
-    group:'AMD EPYC 서버', arch:'x86_64', icon:'fas fa-server', color:'#b71c1c',
-    cores:64, ecores:0, pcores:64, threads:128,
-    base_mhz:3100, boost_mhz:3750, tdp:360,
-    l1i:32, l1d:32, l2:1024, l3:262144,
-    pcie:5, mem:'DDR5 ECC 12ch', year:2022,
-    desc:'64코어 128스레드 | Zen 4 | 고클럭 EPYC',
-    features:['AVX2','AES-NI','VAES','SEV-SNP'],
-    cpuid_max:0x1F,
-    exec_model:{ ipc:5.1, fetch_width:4, execution_ports:6, reorder_buffer:320, zen_ver:4, sev:true },
-    perf_score:96,
-    v86_opts:{ cpuid_level:0x1F, memory_size:null },
-  },
-
-  'epyc_7742': {
-    label:'AMD EPYC 7742', gen:'Zen 2 Rome', vendor:'AMD',
-    group:'AMD EPYC 서버', arch:'x86_64', icon:'fas fa-server', color:'#b71c1c',
-    cores:64, ecores:0, pcores:64, threads:128,
-    base_mhz:2250, boost_mhz:3400, tdp:225,
-    l1i:32, l1d:32, l2:512, l3:262144,
-    pcie:4, mem:'DDR4 ECC 8ch', year:2019,
-    desc:'64코어 128스레드 | Zen 2 | AWS/GCP 핵심 CPU',
-    features:['AVX2','AES-NI','PCIe4'],
-    cpuid_max:0x10,
-    exec_model:{ ipc:4.5, fetch_width:4, execution_ports:6, reorder_buffer:224, zen_ver:2 },
-    perf_score:88,
-    v86_opts:{ cpuid_level:0x10, memory_size:null },
-  },
-
+  'epyc_9654':{label:'AMD EPYC 9654',gen:'Zen 4 Genoa',vendor:'AMD',group:'AMD EPYC 서버',arch:'x86_64',icon:'fas fa-server',color:'#b71c1c',cores:96,threads:192,base_mhz:2400,boost_mhz:3700,tdp:360,l1i:32,l1d:32,l2:1024,l3:384000,mem:'DDR5 ECC 12ch',year:2022,desc:'96C/192T | Zen 4 | 서버 최강',features:['AVX2','AES-NI','SEV-SNP'],cpuid_max:0x1F,ram_limit_mb:131072,v86_memory_mb:null},
+  'epyc_7742':{label:'AMD EPYC 7742',gen:'Zen 2 Rome',vendor:'AMD',group:'AMD EPYC 서버',arch:'x86_64',icon:'fas fa-server',color:'#b71c1c',cores:64,threads:128,base_mhz:2250,boost_mhz:3400,tdp:225,l1i:32,l1d:32,l2:512,l3:262144,mem:'DDR4 ECC 8ch',year:2019,desc:'64C/128T | Zen 2 | AWS/GCP 핵심',features:['AVX2','AES-NI'],cpuid_max:0x10,ram_limit_mb:131072,v86_memory_mb:null},
   /* ── AMD 레거시 ── */
-  'athlon64_x2_5000': {
-    label:'AMD Athlon 64 X2 5000+', gen:'Windsor', vendor:'AMD',
-    group:'AMD 레거시', arch:'x86_64', icon:'fas fa-history', color:'#757575',
-    cores:2, ecores:0, pcores:2, threads:2,
-    base_mhz:2600, boost_mhz:2600, tdp:89,
-    l1i:64, l1d:64, l2:512, l3:0,
-    pcie:1, mem:'DDR2', year:2006,
-    desc:'2코어 | 3DNow! | AMD 최초 64bit 주류 CPU',
-    features:['3DNow!','SSE3','x86-64'],
-    cpuid_max:0x1,
-    exec_model:{ ipc:2.0, fetch_width:3, execution_ports:5, reorder_buffer:72, dnow:true },
-    perf_score:5,
-    v86_opts:{ cpuid_level:0x1, memory_size:256*1024*1024 },
-  },
-
-  'phenom_ii_x6': {
-    label:'AMD Phenom II X6 1100T', gen:'Thuban', vendor:'AMD',
-    group:'AMD 레거시', arch:'x86_64', icon:'fas fa-history', color:'#757575',
-    cores:6, ecores:0, pcores:6, threads:6,
-    base_mhz:3300, boost_mhz:3700, tdp:125,
-    l1i:64, l1d:64, l2:512, l3:6144,
-    pcie:2, mem:'DDR3', year:2010,
-    desc:'6코어 | SSE4a | Turbo Core | AM3 소켓',
-    features:['SSE4a','3DNow!','HyperTransport'],
-    cpuid_max:0x6,
-    exec_model:{ ipc:2.5, fetch_width:3, execution_ports:5, reorder_buffer:72, dnow:true },
-    perf_score:18,
-    v86_opts:{ cpuid_level:0x6, memory_size:null },
-  },
-
-  'amd_k6_2': {
-    label:'AMD K6-2 400MHz', gen:'K6-2', vendor:'AMD',
-    group:'AMD 레거시', arch:'x86', icon:'fas fa-history', color:'#616161',
-    cores:1, ecores:0, pcores:1, threads:1,
-    base_mhz:400, boost_mhz:400, tdp:18,
-    l1i:32, l1d:32, l2:0, l3:0,
-    pcie:0, mem:'EDO/SDRAM', year:1998,
-    desc:'3DNow! 최초 탑재 | MMX 호환 | Socket 7',
-    features:['3DNow!','MMX'],
-    cpuid_max:0x1,
-    exec_model:{ ipc:0.7, fetch_width:2, execution_ports:3, reorder_buffer:0, dnow:true },
-    perf_score:2,
-    v86_opts:{ cpuid_level:0x1, memory_size:64*1024*1024 },
-  },
-
+  'athlon64_x2':{label:'AMD Athlon 64 X2 5000+',gen:'Windsor K8',vendor:'AMD',group:'AMD 레거시',arch:'x86_64',icon:'fas fa-history',color:'#757575',cores:2,threads:2,base_mhz:2600,boost_mhz:2600,tdp:89,l1i:64,l1d:64,l2:512,l3:0,mem:'DDR2',year:2006,desc:'2C | 3DNow! | AMD 64bit 주류 최초',features:['3DNow!','SSE3'],cpuid_max:0x1,ram_limit_mb:2048,v86_memory_mb:null},
+  'amd_k6_2':{label:'AMD K6-2 400MHz',gen:'K6-2',vendor:'AMD',group:'레트로 CPU',arch:'x86',icon:'fas fa-ghost',color:'#616161',cores:1,threads:1,base_mhz:400,boost_mhz:400,tdp:18,l1i:32,l1d:32,l2:0,l3:0,mem:'EDO/SDRAM',year:1998,desc:'3DNow! 최초 | MMX | Socket 7',features:['3DNow!','MMX'],cpuid_max:0x1,ram_limit_mb:128,v86_memory_mb:64*1024*1024},
   /* ── 가상화 CPU ── */
-  'qemu_kvm': {
-    label:'QEMU KVM Virtual CPU', gen:'QEMU 9.x', vendor:'Virtual',
-    group:'가상화 CPU', arch:'x86_64', icon:'fas fa-cube', color:'#9c27b0',
-    cores:1, ecores:0, pcores:1, threads:1,
-    base_mhz:2000, boost_mhz:2000, tdp:0,
-    l1i:32, l1d:32, l2:4096, l3:0,
-    pcie:0, mem:'가상', year:2024,
-    desc:'QEMU KVM 표준 가상 CPU | 빠른 에뮬레이션 | 클라우드 표준',
-    features:['SSE4.2','AES-NI','Hypervisor'],
-    cpuid_max:0xD,
-    exec_model:{ ipc:3.0, fetch_width:4, execution_ports:6, reorder_buffer:168, virtual:true },
-    perf_score:40,
-    v86_opts:{ cpuid_level:0xD, memory_size:null },
-  },
-
-  'vmware_virtual': {
-    label:'VMware Virtual CPU', gen:'VMware ESXi', vendor:'Virtual',
-    group:'가상화 CPU', arch:'x86_64', icon:'fas fa-cube', color:'#7b1fa2',
-    cores:4, ecores:0, pcores:4, threads:4,
-    base_mhz:2400, boost_mhz:3500, tdp:0,
-    l1i:32, l1d:32, l2:256, l3:8192,
-    pcie:0, mem:'가상', year:2024,
-    desc:'VMware ESXi 가상 CPU | vMotion 지원',
-    features:['SSE4.2','AVX','Hypervisor'],
-    cpuid_max:0xD,
-    exec_model:{ ipc:3.5, fetch_width:4, execution_ports:8, reorder_buffer:192, virtual:true },
-    perf_score:50,
-    v86_opts:{ cpuid_level:0xD, memory_size:null },
-  },
-
-  /* ── Apple Silicon (x86 에뮬레이션) ── */
-  'apple_m4_ultra': {
-    label:'Apple M4 Ultra (x86 emu)', gen:'M4 Ultra', vendor:'Apple',
-    group:'Apple Silicon', arch:'x86_64', icon:'fas fa-apple-alt', color:'#424242',
-    cores:32, ecores:20, pcores:12, threads:32,
-    base_mhz:3400, boost_mhz:4400, tdp:60,
-    l1i:192, l1d:128, l2:28672, l3:0,
-    pcie:5, mem:'LPDDR5 unified', year:2024,
-    desc:'32코어 | 통합 메모리 | x86 에뮬레이션 모드',
-    features:['Rosetta2-emu','NEON','AMX'],
-    cpuid_max:0x1F,
-    exec_model:{ ipc:8.0, fetch_width:8, execution_ports:16, reorder_buffer:1024, arm:true, emulated:true },
-    perf_score:92,
-    v86_opts:{ cpuid_level:0x1F, memory_size:null },
-  },
-
-  /* ── RISC-V 에뮬레이션 ── */
-  'riscv_sifive_p870': {
-    label:'SiFive P870 RISC-V (emu)', gen:'P870', vendor:'SiFive',
-    group:'RISC-V / 기타', arch:'x86_64', icon:'fas fa-microchip', color:'#00695c',
-    cores:4, ecores:0, pcores:4, threads:4,
-    base_mhz:2000, boost_mhz:2000, tdp:15,
-    l1i:64, l1d:64, l2:2048, l3:0,
-    pcie:4, mem:'DDR5', year:2024,
-    desc:'RISC-V RV64GC | 오픈 ISA | x86 에뮬레이션',
-    features:['RV64GC','SIMD','Crypto'],
-    cpuid_max:0x7,
-    exec_model:{ ipc:3.5, fetch_width:4, execution_ports:6, reorder_buffer:128, riscv:true, emulated:true },
-    perf_score:35,
-    v86_opts:{ cpuid_level:0x7, memory_size:null },
-  },
-
-  /* ── 레트로 ── */
-  'intel_386dx': {
-    label:'Intel 386 DX 40MHz', gen:'i386', vendor:'Intel',
-    group:'레트로 CPU', arch:'x86', icon:'fas fa-ghost', color:'#37474f',
-    cores:1, ecores:0, pcores:1, threads:1,
-    base_mhz:40, boost_mhz:40, tdp:4,
-    l1i:0, l1d:0, l2:0, l3:0,
-    pcie:0, mem:'SIMM/ISA', year:1985,
-    desc:'32bit PC의 시작 | 캐시 없음 | DOS 시대',
-    features:['32bit-protected','V86'],
-    cpuid_max:0x0,
-    exec_model:{ ipc:0.3, fetch_width:1, execution_ports:1, reorder_buffer:0, no_cache:true },
-    perf_score:0.5,
-    v86_opts:{ cpuid_level:0x1, memory_size:16*1024*1024 },
-  },
-
-  'intel_486dx2': {
-    label:'Intel 486 DX2 66MHz', gen:'i486', vendor:'Intel',
-    group:'레트로 CPU', arch:'x86', icon:'fas fa-ghost', color:'#37474f',
-    cores:1, ecores:0, pcores:1, threads:1,
-    base_mhz:66, boost_mhz:66, tdp:7,
-    l1i:8, l1d:8, l2:0, l3:0,
-    pcie:0, mem:'SIMM', year:1992,
-    desc:'내장 FPU 최초 | 8KB 온칩 캐시 | 클럭 더블링',
-    features:['FPU','8KB-cache'],
-    cpuid_max:0x1,
-    exec_model:{ ipc:0.4, fetch_width:1, execution_ports:1, reorder_buffer:0 },
-    perf_score:1,
-    v86_opts:{ cpuid_level:0x1, memory_size:32*1024*1024 },
-  },
+  'qemu_kvm':{label:'QEMU KVM vCPU',gen:'QEMU 9.x',vendor:'Virtual',group:'가상화 CPU',arch:'x86_64',icon:'fas fa-cube',color:'#9c27b0',cores:4,threads:4,base_mhz:2000,boost_mhz:2000,tdp:0,l1i:32,l1d:32,l2:4096,l3:0,mem:'가상',year:2024,desc:'QEMU KVM | 클라우드 표준 | 빠른 부팅',features:['SSE4.2','AES-NI','Hypervisor'],cpuid_max:0xD,ram_limit_mb:16384,v86_memory_mb:null},
+  'vmware_virtual':{label:'VMware Virtual CPU',gen:'VMware ESXi',vendor:'Virtual',group:'가상화 CPU',arch:'x86_64',icon:'fas fa-cube',color:'#7b1fa2',cores:4,threads:4,base_mhz:2400,boost_mhz:3500,tdp:0,l1i:32,l1d:32,l2:256,l3:8192,mem:'가상',year:2024,desc:'VMware ESXi | vMotion | 가상 인프라',features:['SSE4.2','AVX','Hypervisor'],cpuid_max:0xD,ram_limit_mb:16384,v86_memory_mb:null},
 };
 
-/* ══════════════════════════════════════════════════════
-   CPU 소프트웨어 에뮬레이션 코어
-══════════════════════════════════════════════════════ */
-class SoftCPU {
-  constructor(cpu_id) {
-    this.id   = cpu_id;
-    this.spec = CPU_DB[cpu_id] || CPU_DB['i9_14900k'];
-    this.em   = this.spec.exec_model || {};
-    this._cycle = 0;
-    this._icount = 0;
-  }
-
-  /* v86 옵션에 CPU 설정 주입 */
-  inject(opts, ram_mb) {
-    const s = this.spec;
-    opts.cpuid_level = s.cpuid_max || 0x10;
-    opts.memory_size = s.v86_opts.memory_size || (ram_mb * 1024 * 1024);
-    return opts;
-  }
-
-  /* v86 에뮬레이터에 패치 적용 */
-  patch(emulator) {
-    if (window.V86CPUBridge) {
-      window.V86CPUBridge.apply(emulator, this.spec.cpuid_max || 0x10, this.em);
-    }
-  }
-
-  /* CPU 정보 HTML */
-  info_html() {
-    const s = this.spec, em = this.em;
-    const f = s.features?.join(' · ') || '—';
-    return `
-      <div><b style="color:var(--text)">${s.label}</b></div>
-      <div>코어: ${s.cores}C / ${s.threads}T</div>
-      <div>클럭: ${(s.base_mhz/1000).toFixed(1)} ~ ${(s.boost_mhz/1000).toFixed(1)} GHz</div>
-      <div>L1i/d: ${s.l1i}/${s.l1d}KB</div>
-      <div>L2: ${s.l2 >= 1024 ? (s.l2/1024).toFixed(0)+'MB' : s.l2+'KB'}</div>
-      <div>L3: ${s.l3 >= 1024 ? (s.l3/1024).toFixed(0)+'MB' : (s.l3||0)+'KB'}</div>
-      <div>TDP: ${s.tdp}W | ${s.year}년</div>
-      <div style="margin-top:4px;color:#aaa;font-size:.68rem;">${f}</div>
-    `;
-  }
-}
-
-/* ══════════════════════════════════════════════════════
-   앱 상태
-══════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════
+   앱 전역 상태
+════════════════════════════════════════════════════ */
 const SESSION_ID = {{ session.pk }};
-const CSRF = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
-const WASM_URL    = "{% static 'blog/v86/v86.wasm' %}";
-const SEABIOS_URL = "{% static 'blog/v86/bios/seabios.bin' %}";
-const VGABIOS_URL = "{% static 'blog/v86/bios/vgabios.bin' %}";
+const CSRF       = (document.cookie.match(/csrftoken=([^;]+)/)||[])[1]||'';
+const WASM_URL   = "{% static 'blog/v86/v86.wasm' %}";
+const BIOS_URL   = "{% static 'blog/v86/bios/seabios.bin' %}";
+const VGABIOS_URL= "{% static 'blog/v86/bios/vgabios.bin' %}";
+
+// 세션 초기값 (Django 템플릿에서 주입)
+let CURRENT_CPU_ID = "{{ session.cpu_id }}";
+let ram_mb         = {{ session.ram_mb }};
+let vhd_gb         = {{ session.vhd_size_gb }};
+const HAS_STATE    = {% if session.state_data %}true{% else %}false{% endif %};
+const HAS_ISO      = {% if session.iso_name %}true{% else %}false{% endif %};
 
 let emulator  = null;
-let softcpu   = new SoftCPU("{{ session.cpu_id }}");
-let ram_mb    = {{ session.ram_mb }};
-let vhd_gb    = {{ session.vhd_size_gb }};
+let isRunning = false;
 let elapsed   = 0;
 let timerID   = null;
 let kbOpen    = false;
 let padOpen   = false;
 let sideOpen  = true;
 let padSens   = 4;
-let tmpCpuId  = "{{ session.cpu_id }}";
-let cpuListData = [];
+let tmpCpuId  = CURRENT_CPU_ID;
+let allCpus   = [];
 
-/* ══════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════
+   DOM 헬퍼 — null 체크 필수
+════════════════════════════════════════════════════ */
+function $id(id){ return document.getElementById(id); }
+function setProgress(pct){
+  const el = $id('boot-prog-fill');
+  if(el) el.style.width = Math.min(100,pct)+'%';
+}
+function setMsg(msg){
+  const el = $id('boot-msg');
+  if(el) el.textContent = msg;
+  const sb = $id('sb-msg');
+  if(sb) sb.textContent = msg;
+}
+function showOv(show){
+  const el = $id('boot-ov');
+  if(!el) return;
+  if(show){ el.classList.remove('hidden'); }
+  else    { el.classList.add('hidden'); }
+}
+
+/* ════════════════════════════════════════════════════
    초기화
-══════════════════════════════════════════════════════ */
-window.addEventListener('DOMContentLoaded', () => {
-  buildCpuDropdown();
+════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', ()=>{
+  buildDropdown();
   buildCpuList();
-  updateCpuInfo();
+  updateCpuInfo(CURRENT_CPU_ID);
+  updateStatusBar();
   initKeyboard();
   initMousepad();
-  initDrag(document.getElementById('fkb'), document.getElementById('kb-hnd'));
-  initDrag(document.getElementById('fpad'), document.getElementById('pad-hnd'));
-  setMsg('준비됨 — 재생 버튼을 눌러 가상 OS를 시작하세요');
+  makeDraggable($id('fkb'), $id('kb-hnd'));
+  makeDraggable($id('fpad'), $id('pad-hnd'));
+  // 처음엔 오버레이 숨김
+  showOv(false);
 });
 
-/* ── CPU 드롭다운 빌드 ── */
-function buildCpuDropdown() {
-  const sel = document.getElementById('cpu-sel');
+/* ════════════════════════════════════════════════════
+   CPU 드롭다운 + 모달
+════════════════════════════════════════════════════ */
+function buildDropdown(){
+  const sel = $id('cpu-sel');
   const groups = {};
-  for (const [id, s] of Object.entries(CPU_DB)) {
-    if (!groups[s.group]) groups[s.group] = [];
-    groups[s.group].push({id, s});
+  for(const [id,s] of Object.entries(CPU_DB)){
+    if(!groups[s.group]) groups[s.group]=[];
+    groups[s.group].push({id,s});
   }
-  for (const [g, list] of Object.entries(groups)) {
+  for(const [g,list] of Object.entries(groups)){
     const og = document.createElement('optgroup');
     og.label = g;
-    list.forEach(({id, s}) => {
+    list.forEach(({id,s})=>{
       const o = document.createElement('option');
       o.value = id;
-      o.textContent = s.label + ' — ' + s.cores + 'C ' + (s.boost_mhz/1000).toFixed(1) + 'GHz';
-      if (id === softcpu.id) o.selected = true;
+      o.textContent = s.label+' — '+(s.boost_mhz/1000).toFixed(1)+'GHz';
+      if(id===CURRENT_CPU_ID) o.selected=true;
       og.appendChild(o);
     });
     sel.appendChild(og);
   }
 }
 
-/* ── CPU 모달 목록 빌드 ── */
-function buildCpuList() {
-  cpuListData = Object.entries(CPU_DB).map(([id,s]) => ({id,s}));
-  renderCpuList(cpuListData);
+function buildCpuList(){
+  allCpus = Object.entries(CPU_DB).map(([id,s])=>({id,s}));
+  renderCpuList(allCpus);
 }
 
-function renderCpuList(list) {
-  const el = document.getElementById('cpu-list');
-  el.innerHTML = '';
-  let lastGroup = '';
-  list.forEach(({id,s}) => {
-    if (s.group !== lastGroup) {
-      const hd = document.createElement('div');
-      hd.className = 'cpu-group';
-      hd.textContent = s.group;
+function renderCpuList(list){
+  const el = $id('cpu-list');
+  el.innerHTML='';
+  let lastG='';
+  list.forEach(({id,s})=>{
+    if(s.group!==lastG){
+      const hd=document.createElement('div');
+      hd.className='cpu-group-hd';
+      hd.textContent=s.group;
       el.appendChild(hd);
-      lastGroup = s.group;
+      lastG=s.group;
     }
-    const item = document.createElement('div');
-    item.className = 'cpu-item' + (id === tmpCpuId ? ' sel' : '');
-    item.dataset.id = id;
-    const archTag = s.arch === 'x86_64'
+    const item=document.createElement('div');
+    item.className='cpu-item'+(id===tmpCpuId?' sel':'');
+    item.dataset.id=id;
+    const arch64 = s.arch==='x86_64'
       ? '<span class="arch-tag arch-64">64bit</span>'
       : '<span class="arch-tag arch-32">32bit</span>';
-    item.innerHTML = `
-      <div class="cpu-ic"><i class="${s.icon}" style="color:${s.color}"></i></div>
-      <div class="cpu-inf">
-        <div class="cpu-nm">${s.label}${archTag}</div>
-        <div class="cpu-ds">${s.desc}</div>
-      </div>
-    `;
-    item.onclick = () => {
+    item.innerHTML=`<div class="cpu-ic"><i class="${s.icon}" style="color:${s.color}"></i></div>
+      <div class="cpu-inf"><div class="cpu-nm">${s.label}${arch64}</div>
+      <div class="cpu-ds">${s.desc}</div></div>`;
+    item.addEventListener('click',()=>{
       document.querySelectorAll('.cpu-item').forEach(i=>i.classList.remove('sel'));
       item.classList.add('sel');
-      tmpCpuId = id;
-    };
+      tmpCpuId=id;
+    });
     el.appendChild(item);
   });
 }
 
-function filterCpu(q) {
-  const lq = q.toLowerCase();
-  const filtered = cpuListData.filter(({id,s}) =>
-    s.label.toLowerCase().includes(lq) ||
-    s.gen.toLowerCase().includes(lq) ||
-    s.group.toLowerCase().includes(lq) ||
-    s.desc.toLowerCase().includes(lq)
-  );
-  renderCpuList(filtered);
+function filterCpu(q){
+  const lq=q.toLowerCase();
+  renderCpuList(allCpus.filter(({id,s})=>
+    s.label.toLowerCase().includes(lq)||s.gen.toLowerCase().includes(lq)||
+    s.group.toLowerCase().includes(lq)||s.desc.toLowerCase().includes(lq)));
 }
 
-function openCpuModal() {
-  tmpCpuId = softcpu.id;
-  document.getElementById('cpu-modal').classList.add('show');
-  document.getElementById('cpu-search').value = '';
-  renderCpuList(cpuListData);
-}
-function closeCpuModal() { document.getElementById('cpu-modal').classList.remove('show'); }
-
-function applyCpu() {
+function openCpuModal(){ tmpCpuId=CURRENT_CPU_ID; $id('cpu-modal').classList.add('show'); $id('cpu-search').value=''; renderCpuList(allCpus); }
+function closeModal(id){ $id(id).classList.remove('show'); }
+function applyCpu(){
   onCpuChange(tmpCpuId);
-  document.getElementById('cpu-sel').value = tmpCpuId;
-  closeCpuModal();
+  $id('cpu-sel').value=tmpCpuId;
+  closeModal('cpu-modal');
 }
 
-function onCpuChange(id) {
-  if (!CPU_DB[id]) return;
-  softcpu = new SoftCPU(id);
-  updateCpuInfo();
-  document.getElementById('sb-cpu').innerHTML = '<i class="fas fa-microchip"></i> ' + CPU_DB[id].label;
-  toast('CPU: ' + CPU_DB[id].label + ' (재시작 시 적용)');
-  saveSettings();
+function onCpuChange(id){
+  if(!CPU_DB[id]) return;
+  CURRENT_CPU_ID=id;
+  updateCpuInfo(id);
+  updateStatusBar();
+  toast('CPU: '+CPU_DB[id].label+(emulator?' — 재시작 시 적용':''));
+  if(!emulator) saveSettings();
 }
 
-function updateCpuInfo() {
-  document.getElementById('cpu-info-box').innerHTML = softcpu.info_html();
+function updateCpuInfo(id){
+  const s=CPU_DB[id];
+  if(!s) return;
+  const l2 = s.l2>=1024?(s.l2/1024).toFixed(0)+'MB':s.l2+'KB';
+  const l3 = s.l3>=1024?(s.l3/1024).toFixed(0)+'MB':s.l3?s.l3+'KB':'없음';
+  const f  = (s.features||[]).join(' · ')||'—';
+  $id('cpu-info-box').innerHTML=`
+    <div><b style="color:var(--text)">${s.label}</b></div>
+    <div>코어: ${s.cores}C / ${s.threads}T</div>
+    <div>클럭: ${(s.base_mhz/1000).toFixed(1)} ~ ${(s.boost_mhz/1000).toFixed(1)} GHz</div>
+    <div>L1i/d: ${s.l1i}/${s.l1d}KB &nbsp; L2: ${l2}</div>
+    <div>L3: ${l3} &nbsp; TDP: ${s.tdp}W</div>
+    <div>메모리: ${s.mem||'—'} &nbsp; ${s.year}년</div>
+    <div style="margin-top:4px;color:#aaa;font-size:.66rem;">${f}</div>`;
 }
 
-function onRamChange(v) {
-  ram_mb = parseInt(v);
-  document.getElementById('ram-d').textContent = v + 'MB';
-  document.getElementById('sb-ram').innerHTML = '<i class="fas fa-memory"></i> ' + v + 'MB';
+function updateStatusBar(){
+  const s=CPU_DB[CURRENT_CPU_ID];
+  if(s) $id('sb-cpu').innerHTML='<i class="fas fa-microchip"></i> '+s.label;
+  $id('sb-ram').innerHTML='<i class="fas fa-memory"></i> '+ram_mb+'MB';
+  $id('sb-hdd').innerHTML='<i class="fas fa-hdd"></i> '+vhd_gb+'GB';
 }
 
-/* ══════════════════════════════════════════════════════
-   에뮬레이터 시작
-══════════════════════════════════════════════════════ */
-async function startEmu() {
-  if (emulator) return;
-  const ov = document.getElementById('boot-ov');
-  ov.classList.remove('hidden');
+function onRamChange(v){
+  ram_mb=parseInt(v);
+  $id('ram-d').textContent=v+'MB';
+  updateStatusBar();
+}
+
+/* ════════════════════════════════════════════════════
+   에뮬레이터 핵심 — 시작
+   [핵심] screen_container ID, BIOS static, RAM/CPU 인식
+════════════════════════════════════════════════════ */
+async function startEmu(){
+  if(emulator){ toast('이미 실행 중입니다', true); return; }
+
+  const spec = CPU_DB[CURRENT_CPU_ID] || CPU_DB['qemu_kvm'];
+  const screenContainer = $id('screen_container');
+  if(!screenContainer){ toast('화면 컨테이너를 찾을 수 없습니다', true); return; }
+
+  // 오버레이 표시
+  showOv(true);
   setProgress(5);
   setMsg('에뮬레이터 초기화 중...');
 
-  const wrap = document.getElementById('screen-container');
-
-  /* v86 옵션 구성 */
-  let opts = {
-    wasm_path: WASM_URL,
-    vga_memory_size: 8 * 1024 * 1024,
-    bios:     { url: SEABIOS_URL },
-    vga_bios: { url: VGABIOS_URL },
-    screen_container: wrap,
-    autostart: false,
-    acpi:      true,
-    fastboot:  false,
-  };
-
-  /* SoftCPU 옵션 주입 (V86CPUBridge 사용) */
-  softcpu.inject(opts, ram_mb);
-  // 메모리 크기 브릿지 정규화
-  if (window.V86CPUBridge) {
-    opts.memory_size = window.V86CPUBridge.normalize_memory(ram_mb, softcpu.spec);
+  /* ── 메모리 크기 계산 ──
+     CPU 스펙의 ram_limit 존재 시 그에 맞게 제한
+     레트로 CPU는 고정값 사용 */
+  let mem_bytes;
+  if(spec.v86_memory_mb !== null && spec.v86_memory_mb !== undefined){
+    mem_bytes = spec.v86_memory_mb;          // 레트로 CPU 고정값
+  } else {
+    const safe_mb = Math.min(ram_mb, spec.ram_limit_mb||65536);
+    mem_bytes = safe_mb * 1024 * 1024;
   }
 
-  /* ISO 마운트 */
-  {% if session.iso_name %}
-  opts.cdrom = { url: '/blog/virtual-os/{{ session.pk }}/iso/', async: true };
-  opts.boot_order = 0x132;
-  {% endif %}
+  /* ── v86 공식 옵션 구조 ── */
+  const opts = {
+    wasm_path:       WASM_URL,
+    memory_size:     mem_bytes,              // [핵심] 게스트 RAM
+    vga_memory_size: 8 * 1024 * 1024,       // VGA 8MB
+    bios:            { url: BIOS_URL },
+    vga_bios:        { url: VGABIOS_URL },
+    screen_container: screenContainer,      // [핵심] ID=screen_container
+    autostart:       false,
+    acpi:            true,
+  };
 
-  /* HDD (최소 버퍼) */
-  opts.hda = { buffer: new ArrayBuffer(Math.min(vhd_gb*1024*1024*1024, 64*1024*1024)) };
+  /* ── ISO 마운트 (있을 때만) ── */
+  if(HAS_ISO){
+    opts.cdrom    = { url: '/blog/virtual-os/'+SESSION_ID+'/iso/', async: true };
+    opts.boot_order = 0x132;  // CDROM → HDD → FDD
+  }
 
-  setProgress(30);
-  setMsg('BIOS 및 VGA ROM 로드 중...');
+  /* ── 가상 HDD ──
+     v86는 hda.buffer를 ArrayBuffer로 받음
+     최대 512MB 버퍼만 생성 (실제 디스크는 게스트 OS가 관리) */
+  const hdd_buf_mb = Math.min(vhd_gb * 1024, 512);
+  opts.hda = { buffer: new ArrayBuffer(hdd_buf_mb * 1024 * 1024) };
 
+  setProgress(20);
+  setMsg('BIOS/VGA ROM 로드 중...');
+
+  /* ── V86 인스턴스 생성 ── */
   try {
     emulator = new V86(opts);
-  } catch(e) {
-    toast('에뮬레이터 시작 오류: ' + e.message, true);
-    ov.classList.add('hidden');
+  } catch(err){
+    showOv(false);
+    emulator = null;
+    toast('V86 초기화 오류: '+err.message, true);
+    console.error('[VOS] V86 init error:', err);
     return;
   }
 
-  emulator.add_listener('emulator-ready', () => {
-    softcpu.patch(emulator);
-    setProgress(70);
+  /* ── 이벤트 리스너 등록 ── */
+  emulator.add_listener('emulator-ready', ()=>{
+    setProgress(60);
     setMsg('OS 부팅 중...');
     emulator.run();
-    setTimeout(() => {
-      setProgress(100);
-      ov.classList.add('hidden');
-      setRunning(true);
-      startTimer();
-      setMsg('실행 중');
-    }, 600);
   });
 
-  emulator.add_listener('emulator-stopped', () => {
-    setRunning(false);
+  emulator.add_listener('emulator-started', ()=>{
+    setProgress(90);
+    setMsg('실행 중');
+    setTimeout(()=>{
+      showOv(false);
+      setRunState(true);
+      startTimer();
+    }, 800);
+  });
+
+  emulator.add_listener('emulator-stopped', ()=>{
+    setRunState(false);
     stopTimer();
     setMsg('정지됨');
-    document.getElementById('sd').className = 'sd';
+    $id('sd').className='sd';
   });
 
-  /* 저장된 상태 자동 복원 */
-  {% if session.state_data %}
-  setProgress(50);
-  setMsg('저장된 상태 복원 중...');
-  try {
-    const r = await fetch('/blog/virtual-os/{{ session.pk }}/load-state/');
-    if (r.ok) {
-      const ab = await r.arrayBuffer();
-      emulator.restore_state(ab);
-      toast('이전 상태가 복원되었습니다');
+  emulator.add_listener('download-progress', ev=>{
+    if(ev.file_index===0 && ev.loaded){
+      const pct = ev.total ? Math.round(ev.loaded/ev.total*40)+20 : 30;
+      setProgress(pct);
+      const mb = (ev.loaded/1024/1024).toFixed(1);
+      setMsg('BIOS 로드 중... '+mb+'MB');
     }
-  } catch(e) {}
-  {% endif %}
+  });
+
+  /* ── 저장된 상태 복원 ── */
+  if(HAS_STATE){
+    setProgress(50);
+    setMsg('이전 상태 복원 중...');
+    try {
+      const r = await fetch('/blog/virtual-os/'+SESSION_ID+'/load-state/');
+      if(r.ok){
+        const ab = await r.arrayBuffer();
+        emulator.restore_state(ab);
+        toast('이전 상태 복원 완료');
+      }
+    } catch(e){ console.warn('[VOS] restore failed:', e); }
+  }
 }
 
 /* ── 일시정지 ── */
-function pauseEmu() {
-  if (!emulator) return;
+function pauseEmu(){
+  if(!emulator||!isRunning) return;
   emulator.stop();
-  document.getElementById('sd').className = 'sd pause';
-  document.getElementById('btn-p').disabled = true;
-  setMsg('일시 정지됨');
-  toast('일시 정지');
+  $id('sd').className='sd pause';
+  $id('btn-p').disabled=true;
+  setMsg('일시 정지');
+  toast('일시 정지됨');
 }
 
 /* ── 정지 ── */
-function stopEmu() {
-  if (!emulator) return;
-  if (!confirm('에뮬레이터를 정지합니다. 저장되지 않은 데이터는 손실됩니다.')) return;
+function stopEmu(){
+  if(!emulator) return;
+  if(!confirm('에뮬레이터를 정지합니다. 저장되지 않은 데이터는 손실됩니다.')) return;
   emulator.stop();
-  emulator = null;
-  setRunning(false);
+  emulator=null;
+  setRunState(false);
   stopTimer();
-  document.getElementById('screen-container').querySelectorAll('canvas').forEach(c=>c.remove());
-  document.getElementById('boot-ov').classList.add('hidden');
-  setMsg('정지됨');
-  toast('에뮬레이터 정지됨');
+  // 캔버스 제거
+  const sc = $id('screen_container');
+  if(sc) sc.innerHTML='';
+  showOv(false);
+  setMsg('정지됨. 다시 시작하려면 재생 버튼을 누르세요');
+  toast('정지됨');
 }
 
 /* ── 재시작 ── */
-function resetEmu() {
-  if (!emulator) return;
-  if (!confirm('에뮬레이터를 재시작합니다.')) return;
+function resetEmu(){
+  if(!emulator) return;
+  if(!confirm('에뮬레이터를 재시작합니다.')) return;
   emulator.restart();
   toast('재시작 중...');
 }
 
-function setRunning(b) {
-  document.getElementById('btn-s').disabled = b;
-  document.getElementById('btn-p').disabled = !b;
-  document.getElementById('btn-x').disabled = !b;
-  document.getElementById('btn-r').disabled = !b;
-  document.getElementById('sd').className   = 'sd' + (b ? ' run' : '');
-}
-
-/* ── 상태 저장/복원 ── */
-async function saveState() {
-  if (!emulator) { toast('에뮬레이터가 실행 중이 아닙니다', true); return; }
-  setMsg('상태 저장 중...');
-  try {
-    const state = emulator.save_state();
-    const r = await fetch('/blog/virtual-os/{{ session.pk }}/save-state/', {
-      method:'POST', headers:{'X-CSRFToken':CSRF,'Content-Type':'application/octet-stream'},
-      body: state,
-    });
-    const d = await r.json();
-    if (d.ok) {
-      toast('상태 저장 완료 (' + d.size_mb + 'MB)');
-      document.getElementById('st-saved').textContent = '저장됨';
-      document.getElementById('btn-ld').disabled = false;
-    } else toast('저장 실패: ' + d.error, true);
-  } catch(e) { toast('저장 오류: ' + e.message, true); }
-  setMsg('실행 중');
-}
-
-async function loadState() {
-  if (!emulator) { toast('에뮬레이터를 먼저 시작하세요', true); return; }
-  if (!confirm('저장된 상태를 불러옵니다. 현재 상태가 초기화됩니다.')) return;
-  try {
-    const r = await fetch('/blog/virtual-os/{{ session.pk }}/load-state/');
-    if (!r.ok) { toast('저장된 상태 없음', true); return; }
-    emulator.restore_state(await r.arrayBuffer());
-    toast('상태 복원 완료');
-  } catch(e) { toast('불러오기 오류: ' + e.message, true); }
-}
-
-/* ── ISO ── */
-function onIsoDrop(e) {
-  e.preventDefault();
-  const f = e.dataTransfer.files[0];
-  if (f) uploadIso(f);
-}
-function onIsoSel(inp) { if (inp.files[0]) uploadIso(inp.files[0]); }
-
-async function uploadIso(file) {
-  if (!file.name.match(/\.(iso|img)$/i)) { toast('ISO 또는 IMG 파일만 지원합니다', true); return; }
-  const dz = document.getElementById('iso-dz');
-  dz.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 업로드 중... ' + (file.size/1024/1024).toFixed(0) + 'MB';
-  const fd = new FormData(); fd.append('iso', file);
-  try {
-    const r = await fetch('/blog/virtual-os/{{ session.pk }}/upload-iso/', {
-      method:'POST', headers:{'X-CSRFToken':CSRF}, body:fd,
-    });
-    const d = await r.json();
-    if (d.ok) {
-      dz.innerHTML = '<i class="fas fa-check-circle" style="color:var(--green)"></i> ' + d.name + ' (' + d.size_mb + 'MB)';
-      toast('ISO 업로드 완료! 재시작 후 적용됩니다.');
-    } else {
-      dz.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> 클릭하거나 ISO 파일을 드래그';
-      toast('업로드 실패: ' + d.error, true);
-    }
-  } catch(e) {
-    dz.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> 클릭하거나 ISO 파일을 드래그';
-    toast('오류: ' + e.message, true);
+/* ── 전체화면 ── */
+function emuFullscreen(){
+  if(emulator && emulator.screen_go_fullscreen){
+    emulator.screen_go_fullscreen();
+  } else {
+    const wrap = $id('screen-wrap');
+    if(wrap.requestFullscreen) wrap.requestFullscreen();
   }
 }
 
-/* ── VHD ── */
-function openVhdModal() { document.getElementById('vhd-modal').classList.add('show'); }
-function closeVhdModal() { document.getElementById('vhd-modal').classList.remove('show'); }
-
-async function applyVhd() {
-  const gb = parseFloat(document.getElementById('vhd-inp').value);
-  if (isNaN(gb) || gb < 1) { toast('최소 1GB 이상 입력하세요', true); return; }
-  vhd_gb = gb;
-  document.getElementById('vhd-v').textContent = gb + 'GB';
-  await saveSettings();
-  closeVhdModal();
-  toast('가상 HDD ' + gb + 'GB 설정 완료');
+function setRunState(running){
+  isRunning=running;
+  $id('btn-s').disabled=running;
+  $id('btn-p').disabled=!running;
+  $id('btn-x').disabled=!running;
+  $id('btn-r').disabled=!running;
+  $id('sd').className='sd'+(running?' run':'');
 }
 
-/* ── 세션 이름 ── */
-async function saveName() {
-  const name = document.getElementById('sname').value.trim();
-  if (!name) return;
-  await fetch('/blog/virtual-os/{{ session.pk }}/api/', {
+/* ════════════════════════════════════════════════════
+   상태 저장 / 불러오기
+════════════════════════════════════════════════════ */
+async function saveState(){
+  if(!emulator){ toast('에뮬레이터가 실행 중이 아닙니다', true); return; }
+  setMsg('상태 저장 중...');
+  try {
+    const state = await emulator.save_state();       // v86 save_state는 async
+    const r = await fetch('/blog/virtual-os/'+SESSION_ID+'/save-state/',{
+      method:'POST',
+      headers:{'X-CSRFToken':CSRF,'Content-Type':'application/octet-stream'},
+      body: state,
+    });
+    const d = await r.json();
+    if(d.ok){
+      $id('st-saved').textContent='저장됨';
+      $id('btn-ld').disabled=false;
+      toast('상태 저장 완료 ('+d.size_mb+'MB)');
+    } else toast('저장 실패: '+(d.error||'?'), true);
+  } catch(e){ toast('저장 오류: '+e.message, true); }
+  setMsg(isRunning?'실행 중':'정지됨');
+}
+
+async function loadState(){
+  if(!emulator){ toast('먼저 에뮬레이터를 시작하세요', true); return; }
+  if(!confirm('저장된 상태를 불러옵니다. 현재 실행 상태가 교체됩니다.')) return;
+  try {
+    const r = await fetch('/blog/virtual-os/'+SESSION_ID+'/load-state/');
+    if(!r.ok){ toast('저장된 상태가 없습니다', true); return; }
+    const ab = await r.arrayBuffer();
+    emulator.restore_state(ab);
+    toast('상태 복원 완료');
+  } catch(e){ toast('불러오기 오류: '+e.message, true); }
+}
+
+/* ════════════════════════════════════════════════════
+   ISO 업로드
+════════════════════════════════════════════════════ */
+function onIsoDrop(e){
+  e.preventDefault();
+  const f=e.dataTransfer.files[0];
+  if(f) uploadIso(f);
+}
+function onIsoSel(inp){ if(inp.files[0]) uploadIso(inp.files[0]); }
+
+async function uploadIso(file){
+  if(!file.name.match(/\.(iso|img)$/i)){ toast('ISO 또는 IMG 파일만 지원합니다', true); return; }
+  const dz=$id('iso-dz');
+  dz.innerHTML='<i class="fas fa-spinner fa-spin"></i> 업로드 중... '+(file.size/1024/1024).toFixed(0)+'MB';
+  const fd=new FormData(); fd.append('iso',file);
+  try {
+    const r=await fetch('/blog/virtual-os/'+SESSION_ID+'/upload-iso/',{
+      method:'POST',headers:{'X-CSRFToken':CSRF},body:fd,
+    });
+    const d=await r.json();
+    if(d.ok){
+      dz.innerHTML='<i class="fas fa-check-circle" style="color:var(--green)"></i> '+d.name+'<br><small>('+d.size_mb+'MB — 재시작 후 적용)</small>';
+      toast('ISO 업로드 완료! 재시작 후 적용됩니다.');
+    } else { dz.innerHTML='<i class="fas fa-cloud-upload-alt"></i><br>클릭 또는 ISO 드래그'; toast('업로드 실패: '+d.error, true); }
+  } catch(e){ dz.innerHTML='<i class="fas fa-cloud-upload-alt"></i><br>클릭 또는 ISO 드래그'; toast('오류: '+e.message, true); }
+}
+
+/* ── VHD ── */
+function openVhdModal(){ $id('vhd-modal').classList.add('show'); }
+
+async function applyVhd(){
+  const gb=parseFloat($id('vhd-inp').value);
+  if(isNaN(gb)||gb<1){ toast('최소 1GB 이상 입력하세요', true); return; }
+  vhd_gb=gb;
+  $id('vhd-v').textContent=gb+'GB';
+  updateStatusBar();
+  await saveSettings();
+  closeModal('vhd-modal');
+  toast('가상 HDD '+gb+'GB 설정 완료');
+}
+
+/* ── 이름 저장 ── */
+async function saveName(){
+  const name=($id('sname').value||'').trim();
+  if(!name) return;
+  const r=await fetch('/blog/virtual-os/'+SESSION_ID+'/api/',{
     method:'POST',
     headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
-    body: JSON.stringify({name}),
+    body:JSON.stringify({name}),
   });
-  document.getElementById('tb-name').textContent = name;
-  toast('이름이 저장되었습니다');
+  if((await r.json()).ok){ $id('tb-name').textContent=name; toast('이름 저장됨'); }
 }
 
 /* ── 설정 저장 ── */
-async function saveSettings() {
-  await fetch('/blog/virtual-os/{{ session.pk }}/api/', {
+async function saveSettings(){
+  await fetch('/blog/virtual-os/'+SESSION_ID+'/api/',{
     method:'POST',
     headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
-    body: JSON.stringify({ cpu_id: softcpu.id, ram_mb, vhd_size_gb: vhd_gb }),
+    body:JSON.stringify({cpu_id:CURRENT_CPU_ID, ram_mb, vhd_size_gb:vhd_gb}),
   });
 }
 
 /* ── 타이머 ── */
-function startTimer() {
-  elapsed = 0;
-  timerID = setInterval(() => {
+function startTimer(){
+  elapsed=0;
+  timerID=setInterval(()=>{
     elapsed++;
-    const m = String(Math.floor(elapsed/60)).padStart(2,'0');
-    const s = String(elapsed%60).padStart(2,'0');
-    document.getElementById('sb-time').innerHTML = '<i class="fas fa-clock"></i> ' + m + ':' + s;
-  }, 1000);
+    const m=String(Math.floor(elapsed/60)).padStart(2,'0');
+    const s=String(elapsed%60).padStart(2,'0');
+    const el=$id('sb-time');
+    if(el) el.innerHTML='<i class="fas fa-clock"></i> '+m+':'+s;
+  },1000);
 }
-function stopTimer() { clearInterval(timerID); timerID = null; }
-
-/* ── 진행바 ── */
-function setProgress(p) { document.getElementById('boot-fill').style.width = p + '%'; }
-function setMsg(m) { document.getElementById('sb-msg').textContent = m; }
+function stopTimer(){ clearInterval(timerID); timerID=null; }
 
 /* ── 사이드 토글 ── */
-function toggleSide() {
-  sideOpen = !sideOpen;
-  document.getElementById('vos-side').classList.toggle('closed', !sideOpen);
+function toggleSide(){
+  sideOpen=!sideOpen;
+  $id('vos-side').classList.toggle('closed',!sideOpen);
 }
 
-/* ══════════════════════════════════════════════════════
-   가상 키보드
-══════════════════════════════════════════════════════ */
-function initKeyboard() {
-  document.querySelectorAll('.kk').forEach(btn => {
-    const code = btn.dataset.k;
-    const send = (down) => {
-      btn.classList.toggle('pr', down);
-      if (!emulator) return;
-      if (down) emulator.keyboard_send_keydown(code);
-      else      emulator.keyboard_send_keyup(code);
-    };
-    btn.addEventListener('pointerdown', e => { e.preventDefault(); send(true); });
-    btn.addEventListener('pointerup',   e => { e.preventDefault(); send(false); });
-    btn.addEventListener('pointerleave',()  => send(false));
+/* ════════════════════════════════════════════════════
+   가상 키보드 — v86 공식 API 사용
+   keyboard_send_scancodes 대신 keyboard_adapter.simulate_press
+════════════════════════════════════════════════════ */
+// PS/2 scancode 매핑
+const KEY_MAP = {
+  Escape:0x01,Digit1:0x02,Digit2:0x03,Digit3:0x04,Digit4:0x05,Digit5:0x06,
+  Digit6:0x07,Digit7:0x08,Digit8:0x09,Digit9:0x0A,Digit0:0x0B,Minus:0x0C,
+  Equal:0x0D,Backspace:0x0E,Tab:0x0F,KeyQ:0x10,KeyW:0x11,KeyE:0x12,KeyR:0x13,
+  KeyT:0x14,KeyY:0x15,KeyU:0x16,KeyI:0x17,KeyO:0x18,KeyP:0x19,BracketLeft:0x1A,
+  BracketRight:0x1B,Enter:0x1C,ControlLeft:0x1D,KeyA:0x1E,KeyS:0x1F,KeyD:0x20,
+  KeyF:0x21,KeyG:0x22,KeyH:0x23,KeyJ:0x24,KeyK:0x25,KeyL:0x26,Semicolon:0x27,
+  Quote:0x28,Backquote:0x29,ShiftLeft:0x2A,Backslash:0x2B,KeyZ:0x2C,KeyX:0x2D,
+  KeyC:0x2E,KeyV:0x2F,KeyB:0x30,KeyN:0x31,KeyM:0x32,Comma:0x33,Period:0x34,
+  Slash:0x35,ShiftRight:0x36,AltLeft:0x38,Space:0x39,CapsLock:0x3A,
+  F1:0x3B,F2:0x3C,F3:0x3D,F4:0x3E,F5:0x3F,F6:0x40,F7:0x41,F8:0x42,
+  F9:0x43,F10:0x44,F11:0x57,F12:0x58,
+  ArrowUp:0xE048,ArrowLeft:0xE04B,ArrowRight:0xE04D,ArrowDown:0xE050,
+  Delete:0xE053,Insert:0xE052,
+  ControlRight:0xE01D,AltRight:0xE038,
+};
+
+function sendKey(code, down){
+  if(!emulator) return;
+  const sc = KEY_MAP[code];
+  if(sc === undefined) return;
+  if(sc > 0xFF){
+    // 확장 키 (0xE0 prefix)
+    const lo = sc & 0xFF;
+    const scodes = down ? [0xE0, lo] : [0xE0, lo|0x80];
+    emulator.keyboard_send_scancodes(scodes);
+  } else {
+    emulator.keyboard_send_scancodes(down ? [sc] : [sc|0x80]);
+  }
+}
+
+function initKeyboard(){
+  document.querySelectorAll('.kk').forEach(btn=>{
+    const code=btn.dataset.k;
+    btn.addEventListener('pointerdown', e=>{ e.preventDefault(); btn.classList.add('pr'); sendKey(code,true); });
+    btn.addEventListener('pointerup',   e=>{ e.preventDefault(); btn.classList.remove('pr'); sendKey(code,false); });
+    btn.addEventListener('pointerleave',  ()=>{ btn.classList.remove('pr'); sendKey(code,false); });
   });
 }
 
-function toggleKb() {
-  kbOpen = !kbOpen;
-  document.getElementById('fkb').classList.toggle('show', kbOpen);
+function toggleKb(){
+  kbOpen=!kbOpen;
+  $id('fkb').classList.toggle('show',kbOpen);
 }
 
-/* ══════════════════════════════════════════════════════
-   가상 마우스패드
-══════════════════════════════════════════════════════ */
-function initMousepad() {
-  const area = document.getElementById('pad-area');
-  const cur  = document.getElementById('pad-cur');
-  let tracking = false;
-  let cx = 95, cy = 60;
+/* ════════════════════════════════════════════════════
+   가상 마우스패드 — bus 이벤트 직접 전송
+════════════════════════════════════════════════════ */
+function initMousepad(){
+  const area=$id('pad-area');
+  const cur =$id('pad-cur');
+  let tracking=false, cx=90, cy=55;
 
-  const mv = (x, y) => {
-    cx = Math.max(0, Math.min(190, x));
-    cy = Math.max(0, Math.min(120, y));
-    cur.style.left = cx + 'px';
-    cur.style.top  = cy + 'px';
+  const moveCur=(nx,ny)=>{
+    cx=Math.max(0,Math.min(180,nx));
+    cy=Math.max(0,Math.min(110,ny));
+    cur.style.left=cx+'px';
+    cur.style.top =cy+'px';
   };
-  mv(95, 60);
+  moveCur(90,55);
 
-  area.addEventListener('pointerdown', e => {
+  area.addEventListener('pointerdown', e=>{ e.preventDefault(); area.setPointerCapture(e.pointerId); tracking=true; });
+  area.addEventListener('pointermove', e=>{
+    if(!tracking) return;
     e.preventDefault();
-    area.setPointerCapture(e.pointerId);
-    tracking = true;
+    const dx=(e.movementX||0)*padSens;
+    const dy=(e.movementY||0)*padSens;
+    moveCur(cx+(e.movementX||0), cy+(e.movementY||0));
+    if(emulator && emulator.bus){
+      emulator.bus.send('mouse-delta',[dx, -dy]);
+    }
   });
-  area.addEventListener('pointermove', e => {
-    if (!tracking) return;
-    e.preventDefault();
-    const dx = (e.movementX || 0) * padSens;
-    const dy = (e.movementY || 0) * padSens;
-    mv(cx + e.movementX, cy + e.movementY);
-    if (emulator) emulator.mouse_move(dx, dy);
-  });
-  area.addEventListener('pointerup', () => tracking = false);
+  area.addEventListener('pointerup',  ()=>tracking=false);
+  area.addEventListener('pointercancel',()=>tracking=false);
+
+  // 버튼 — left=0, middle=1, right=2
+  // bus 이벤트: mouse-click([left,middle,right])
+  let btns=[false,false,false];
+  const sendClick=()=>{ if(emulator&&emulator.bus) emulator.bus.send('mouse-click',[btns[0],btns[1],btns[2]]); };
+  const setBtn=(i,v)=>{ btns[i]=v; sendClick(); };
+
+  $id('pb-l').addEventListener('pointerdown',e=>{ e.preventDefault(); setBtn(0,true); });
+  $id('pb-l').addEventListener('pointerup',  e=>{ e.preventDefault(); setBtn(0,false); });
+  $id('pb-m').addEventListener('pointerdown',e=>{ e.preventDefault(); setBtn(1,true); });
+  $id('pb-m').addEventListener('pointerup',  e=>{ e.preventDefault(); setBtn(1,false); });
+  $id('pb-r').addEventListener('pointerdown',e=>{ e.preventDefault(); setBtn(2,true); });
+  $id('pb-r').addEventListener('pointerup',  e=>{ e.preventDefault(); setBtn(2,false); });
 }
 
-function padBtn(b, down) {
-  if (!emulator) return;
-  if (down) emulator.mouse_button_down(b);
-  else      emulator.mouse_button_up(b);
+function togglePad(){
+  padOpen=!padOpen;
+  $id('fpad').classList.toggle('show',padOpen);
 }
 
-function setSens(v) {
-  padSens = parseInt(v);
-  document.getElementById('sens-v').textContent = v;
-}
-
-function togglePad() {
-  padOpen = !padOpen;
-  document.getElementById('fpad').classList.toggle('show', padOpen);
-}
-
-/* ══════════════════════════════════════════════════════
-   드래그 핸들러
-══════════════════════════════════════════════════════ */
-function initDrag(el, handle) {
-  let ox = 0, oy = 0, drag = false;
-  handle.addEventListener('pointerdown', e => {
-    drag = true;
-    const r = el.getBoundingClientRect();
-    ox = e.clientX - r.left;
-    oy = e.clientY - r.top;
-    el.style.transform = 'none';
+/* ════════════════════════════════════════════════════
+   드래그 핸들
+════════════════════════════════════════════════════ */
+function makeDraggable(el, handle){
+  let drag=false, ox=0, oy=0;
+  handle.addEventListener('pointerdown', e=>{
+    drag=true;
+    const r=el.getBoundingClientRect();
+    ox=e.clientX-r.left; oy=e.clientY-r.top;
+    el.style.transform='none';
     handle.setPointerCapture(e.pointerId);
   });
-  handle.addEventListener('pointermove', e => {
-    if (!drag) return;
-    el.style.left   = (e.clientX - ox) + 'px';
-    el.style.top    = (e.clientY - oy) + 'px';
-    el.style.bottom = 'auto';
-    el.style.right  = 'auto';
+  handle.addEventListener('pointermove', e=>{
+    if(!drag) return;
+    el.style.left =(e.clientX-ox)+'px';
+    el.style.top  =(e.clientY-oy)+'px';
+    el.style.bottom='auto';
+    el.style.right ='auto';
   });
-  handle.addEventListener('pointerup', () => drag = false);
+  handle.addEventListener('pointerup',   ()=>drag=false);
+  handle.addEventListener('pointercancel',()=>drag=false);
 }
 
 /* ── 토스트 ── */
-let toastTID = null;
-function toast(msg, err=false) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.style.borderColor = err ? 'var(--red)' : 'var(--green)';
+let toastTID=null;
+function toast(msg, err=false){
+  const t=$id('vos-toast');
+  t.textContent=msg;
+  t.style.borderColor=err?'var(--red)':'var(--green)';
   t.classList.add('show');
   clearTimeout(toastTID);
-  toastTID = setTimeout(() => t.classList.remove('show'), 2800);
+  toastTID=setTimeout(()=>t.classList.remove('show'), 3000);
 }
 
 /* ── 이탈 경고 ── */
-window.addEventListener('beforeunload', e => {
-  if (emulator) { e.preventDefault(); return e.returnValue = '에뮬레이터 실행 중입니다'; }
+window.addEventListener('beforeunload', e=>{
+  if(emulator){ e.preventDefault(); return e.returnValue='에뮬레이터 실행 중입니다'; }
 });
 </script>
 {% endblock %}
