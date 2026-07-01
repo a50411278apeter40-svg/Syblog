@@ -5,6 +5,7 @@
 {% block full_page %}
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
+body{overflow:hidden !important;}
 :root{
   --bg:#0d1117;--card:#161b22;--border:#30363d;
   --text:#c9d1d9;--muted:#8b949e;
@@ -995,8 +996,8 @@ class SoftCPU {
 const SESSION_ID = {{ session.pk }};
 const CSRF = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
 const WASM_URL    = "{% static 'blog/v86/v86.wasm' %}";
-const SEABIOS_URL = "https://copy.sh/v86/bios/seabios.bin";
-const VGABIOS_URL = "https://copy.sh/v86/bios/vgabios.bin";
+const SEABIOS_URL = "{% static 'blog/v86/bios/seabios.bin' %}";
+const VGABIOS_URL = "{% static 'blog/v86/bios/vgabios.bin' %}";
 
 let emulator  = null;
 let softcpu   = new SoftCPU("{{ session.cpu_id }}");

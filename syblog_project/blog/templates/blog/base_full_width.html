@@ -4,11 +4,54 @@
 <head>
     <title>{% block head_title %}Blog{% endblock %}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="stylesheet" href="{% static 'blog/bootstrap/bootstrap.min.css' %}" media="screen">
-    <script src="https://kit.fontawesome.com/726bbd6862.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'blog/css/blog-post.css' %}">
+    <style>
+        :root {
+            --primary: #6c63ff;
+            --navbar-bg: linear-gradient(135deg, #2d3436, #6c63ff);
+            --footer-bg: linear-gradient(135deg, #2d3436, #1e1e2e);
+            --body-bg: #f5f6fa;
+            --card-bg: #fff;
+            --text-color: #2d3436;
+            --text-muted: #636e72;
+            --border-color: #eee;
+        }
+        html.dark-mode {
+            --navbar-bg: linear-gradient(135deg, #0f3460, #6c63ff);
+            --footer-bg: linear-gradient(135deg, #0d0d1a, #1a1a2e);
+            --body-bg: #1a1a2e;
+            --card-bg: #16213e;
+            --text-color: #e0e0e0;
+            --text-muted: #a0a0b0;
+            --border-color: #2a2a4a;
+        }
+        /* ── 핵심: navbar 그라디언트 ── */
+        .navbar { background: var(--navbar-bg) !important; box-shadow: 0 2px 15px rgba(108,99,255,0.3); }
+        .navbar-brand { color: #fff !important; font-weight: 800; font-size: 1.3rem; }
+        .nav-link { color: rgba(255,255,255,0.85) !important; }
+        .nav-link:hover { color: #fff !important; }
+        .nav-badge { background: #ff6b6b; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.7rem; }
+        footer { background: var(--footer-bg); color: #adb5bd; padding: 25px 0; margin-top: 0; }
+        /* dark mode 토글 */
+        .dark-toggle { cursor: pointer; }
+    </style>
     {% block extra_css %}{% endblock %}
 </head>
-<body style="margin:0;padding:0;overflow:hidden;">
+<body style="margin:0;padding:0;">
+
+<!-- 다크모드 스크립트 (navbar 렌더링 전에 적용) -->
+<script>
+(function(){
+    try {
+        if (localStorage.getItem('darkMode') === 'true') {
+            document.documentElement.classList.add('dark-mode');
+        }
+    } catch(e) {}
+})();
+</script>
 
 {% include 'blog/navbar.html' %}
 
@@ -21,6 +64,13 @@
 <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" crossorigin="anonymous"></script>
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" crossorigin="anonymous"></script>
+<script>
+function toggleDarkMode() {
+    const html = document.documentElement;
+    html.classList.toggle('dark-mode');
+    try { localStorage.setItem('darkMode', html.classList.contains('dark-mode')); } catch(e) {}
+}
+</script>
 {% block extra_js %}{% endblock %}
 </body>
 </html>
