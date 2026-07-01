@@ -2,102 +2,111 @@
 {% block title %}무료 가상 OS — SyBlog{% endblock %}
 {% block full_page %}
 <style>
-:root{--vos-bg:#0d1117;--vos-card:#161b22;--vos-border:#30363d;--vos-text:#c9d1d9;--vos-muted:#8b949e;--vos-blue:#58a6ff;--vos-green:#3fb950;--vos-red:#f85149;--vos-yellow:#d29922;}
-#vos-root{min-height:100vh;background:var(--vos-bg);color:var(--vos-text);padding:0;font-family:'Segoe UI',system-ui,sans-serif;}
-.vos-hero{background:linear-gradient(135deg,#0d1117 0%,#161b22 40%,#1f2937 100%);border-bottom:1px solid var(--vos-border);padding:48px 24px 36px;text-align:center;}
-.vos-hero h1{font-size:2.2rem;font-weight:800;margin-bottom:10px;background:linear-gradient(90deg,#58a6ff,#3fb950,#d29922);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
-.vos-hero p{color:var(--vos-muted);font-size:1.05rem;max-width:600px;margin:0 auto 24px;}
-.btn-new{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#58a6ff,#1f6feb);color:#fff;border:none;border-radius:12px;padding:14px 32px;font-size:1rem;font-weight:700;cursor:pointer;text-decoration:none;transition:all .2s;}
-.btn-new:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(88,166,255,.35);}
-.vos-main{max-width:1000px;margin:0 auto;padding:32px 16px;}
-.vos-section-title{font-size:1.1rem;font-weight:700;color:var(--vos-muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:16px;}
-.vos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;}
-.vos-card{background:var(--vos-card);border:1px solid var(--vos-border);border-radius:14px;padding:20px;cursor:pointer;transition:all .2s;text-decoration:none;display:block;color:var(--vos-text);}
-.vos-card:hover{border-color:var(--vos-blue);box-shadow:0 4px 16px rgba(88,166,255,.2);transform:translateY(-2px);}
-.vos-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
-.vos-card-name{font-weight:700;font-size:1rem;}
-.vos-badge{font-size:.7rem;padding:3px 8px;border-radius:999px;border:1px solid var(--vos-border);color:var(--vos-muted);}
-.vos-card-info{font-size:.82rem;color:var(--vos-muted);line-height:1.7;}
-.vos-card-info span{margin-right:12px;}
-.vos-card-footer{margin-top:12px;padding-top:12px;border-top:1px solid var(--vos-border);display:flex;justify-content:space-between;align-items:center;font-size:.78rem;color:var(--vos-muted);}
-.del-btn{background:none;border:1px solid var(--vos-red);color:var(--vos-red);border-radius:8px;padding:4px 10px;font-size:.75rem;cursor:pointer;transition:.2s;}
-.del-btn:hover{background:var(--vos-red);color:#fff;}
-.vos-empty{text-align:center;padding:60px 24px;color:var(--vos-muted);}
-.vos-empty h3{font-size:1.3rem;margin-bottom:8px;}
-.spec-chip{display:inline-block;background:#1f2937;border:1px solid var(--vos-border);border-radius:6px;padding:2px 8px;font-size:.72rem;margin:2px;}
+:root{--vbg:#0d1117;--vcard:#161b22;--vbr:#30363d;--vt:#c9d1d9;--vm:#8b949e;--vbl:#58a6ff;--vg:#3fb950;--vr:#f85149;--vy:#d29922;}
+#vos-root{min-height:calc(100vh - 120px);background:var(--vbg);color:var(--vt);font-family:'Segoe UI',system-ui,sans-serif;}
+.vhero{background:linear-gradient(135deg,#0d1117 0%,#161b22 45%,#1a2332 100%);border-bottom:1px solid var(--vbr);padding:40px 20px 30px;text-align:center;}
+.vhero h1{font-size:2rem;font-weight:800;margin-bottom:8px;background:linear-gradient(90deg,#58a6ff,#3fb950,#d29922);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.vhero h1 i{-webkit-text-fill-color:#58a6ff;background:none;}
+.vhero p{color:var(--vm);font-size:.97rem;max-width:560px;margin:0 auto 20px;}
+.btn-new{display:inline-flex;align-items:center;gap:7px;background:linear-gradient(135deg,#58a6ff,#1f6feb);color:#fff;border:none;border-radius:11px;padding:12px 28px;font-size:.95rem;font-weight:700;cursor:pointer;text-decoration:none;transition:.2s;}
+.btn-new:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(88,166,255,.35);color:#fff;text-decoration:none;}
+.vmain{max-width:980px;margin:0 auto;padding:28px 14px;}
+.vsec-title{font-size:.82rem;font-weight:700;color:var(--vm);text-transform:uppercase;letter-spacing:.1em;margin-bottom:13px;display:flex;align-items:center;gap:6px;}
+.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px;}
+.vcard{background:var(--vcard);border:1px solid var(--vbr);border-radius:13px;padding:18px;cursor:pointer;transition:.2s;text-decoration:none;display:block;color:var(--vt);}
+.vcard:hover{border-color:var(--vbl);box-shadow:0 4px 16px rgba(88,166,255,.18);transform:translateY(-2px);color:var(--vt);text-decoration:none;}
+.vcard-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.vcard-nm{font-weight:700;font-size:.95rem;display:flex;align-items:center;gap:6px;}
+.vbadge{font-size:.67rem;padding:2px 7px;border-radius:999px;border:1px solid var(--vbr);color:var(--vm);display:inline-flex;align-items:center;gap:3px;}
+.vbadge.g{border-color:var(--vg);color:var(--vg);}
+.vcard-inf{font-size:.8rem;color:var(--vm);line-height:1.75;}
+.vcard-inf span{margin-right:10px;display:inline-flex;align-items:center;gap:3px;}
+.vcard-ft{margin-top:10px;padding-top:10px;border-top:1px solid var(--vbr);display:flex;justify-content:space-between;align-items:center;font-size:.75rem;color:var(--vm);}
+.del-btn{background:none;border:1px solid var(--vr);color:var(--vr);border-radius:7px;padding:3px 9px;font-size:.72rem;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:4px;}
+.del-btn:hover{background:var(--vr);color:#fff;}
+.vempty{text-align:center;padding:50px 20px;color:var(--vm);}
+.vempty h3{font-size:1.2rem;margin-bottom:6px;}
+.vinfo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;font-size:.85rem;line-height:1.75;color:var(--vm);}
+.vinfo-item strong{color:var(--vt);display:flex;align-items:center;gap:5px;margin-bottom:3px;}
 </style>
 
 <div id="vos-root">
-  <div class="vos-hero">
-    <h1>💻 무료 가상 OS</h1>
-    <p>브라우저 안에서 실제 운영체제를 실행하세요.<br>20종 이상의 CPU 선택, 동적 가상 하드드라이브, 상태 자동저장 지원</p>
+  <div class="vhero">
+    <h1><i class="fas fa-desktop" style="-webkit-text-fill-color:#58a6ff"></i> 무료 가상 OS</h1>
+    <p>브라우저 안에서 실제 운영체제를 실행하세요.<br>30종 이상의 CPU, 동적 가상 하드드라이브, 상태 자동저장 지원</p>
     <a href="{% url 'blog:virtual_os_new' %}" class="btn-new">
-      ＋ 새 가상 OS 만들기
+      <i class="fas fa-plus"></i> 새 가상 OS 만들기
     </a>
   </div>
 
-  <div class="vos-main">
+  <div class="vmain">
     {% if sessions %}
-    <div class="vos-section-title">내 가상 OS 세션 ({{ sessions|length }}개)</div>
-    <div class="vos-grid">
+    <div class="vsec-title"><i class="fas fa-list"></i> 내 가상 OS 세션 ({{ sessions|length }}개)</div>
+    <div class="vgrid">
       {% for s in sessions %}
-      <div class="vos-card" onclick="location.href='{% url 'blog:virtual_os_session' s.pk %}'">
-        <div class="vos-card-header">
-          <div class="vos-card-name">🖥 {{ s.name }}</div>
+      <div class="vcard" onclick="location.href='{% url 'blog:virtual_os_session' s.pk %}'">
+        <div class="vcard-hd">
+          <div class="vcard-nm"><i class="fas fa-desktop" style="color:#58a6ff"></i> {{ s.name }}</div>
           <div>
-            {% if s.state_data %}<span class="vos-badge">💾 저장됨</span>{% endif %}
-            {% if s.iso_name %}<span class="vos-badge">💿 ISO</span>{% endif %}
+            {% if s.state_data %}<span class="vbadge g"><i class="fas fa-save fa-xs"></i> 저장됨</span>{% endif %}
+            {% if s.iso_name %}<span class="vbadge"><i class="fas fa-compact-disc fa-xs"></i> ISO</span>{% endif %}
           </div>
         </div>
-        <div class="vos-card-info">
-          <span>🧠 RAM {{ s.ram_mb }}MB</span>
-          <span>💽 {{ s.vhd_size_gb }}GB VHD</span>
-          <span>🔁 부팅 {{ s.boot_count }}회</span>
+        <div class="vcard-inf">
+          <span><i class="fas fa-memory"></i> {{ s.ram_mb }}MB</span>
+          <span><i class="fas fa-hdd"></i> {{ s.vhd_size_gb }}GB</span>
+          <span><i class="fas fa-redo"></i> {{ s.boot_count }}회</span>
         </div>
-        <div class="vos-card-info" style="margin-top:6px;">
-          <span class="spec-chip">{{ s.cpu_id }}</span>
+        <div class="vcard-inf" style="margin-top:5px;">
+          <span><i class="fas fa-microchip"></i> {{ s.cpu_id }}</span>
         </div>
         {% if s.iso_name %}
-        <div class="vos-card-info" style="margin-top:6px;">
-          <span>💿 {{ s.iso_name }}</span>
+        <div class="vcard-inf" style="margin-top:4px;">
+          <span><i class="fas fa-compact-disc"></i> {{ s.iso_name }}</span>
         </div>
         {% endif %}
-        <div class="vos-card-footer">
-          <span>마지막 사용: {{ s.last_used|date:"Y.m.d H:i" }}</span>
-          <form method="post" action="{% url 'blog:virtual_os_delete' s.pk %}" onsubmit="return confirm('세션을 삭제할까요?');" style="display:inline;" onclick="event.stopPropagation();">
+        <div class="vcard-ft">
+          <span><i class="fas fa-clock"></i> {{ s.last_used|date:"Y.m.d H:i" }}</span>
+          <form method="post" action="{% url 'blog:virtual_os_delete' s.pk %}"
+                onsubmit="return confirm('세션을 삭제할까요?');"
+                onclick="event.stopPropagation();" style="display:inline;">
             {% csrf_token %}
-            <button type="submit" class="del-btn">🗑 삭제</button>
+            <button type="submit" class="del-btn"><i class="fas fa-trash fa-xs"></i> 삭제</button>
           </form>
         </div>
       </div>
       {% endfor %}
     </div>
     {% else %}
-    <div class="vos-empty">
-      <div style="font-size:3rem;margin-bottom:16px;">🖥</div>
+    <div class="vempty">
+      <i class="fas fa-desktop" style="font-size:3rem;color:#30363d;display:block;margin-bottom:14px;"></i>
       <h3>아직 가상 OS가 없어요</h3>
       <p>위의 버튼을 눌러 첫 번째 가상 OS를 만들어보세요!</p>
     </div>
     {% endif %}
 
-    <!-- 안내 섹션 -->
-    <div style="margin-top:48px;background:var(--vos-card);border:1px solid var(--vos-border);border-radius:14px;padding:24px;">
-      <div class="vos-section-title">📖 사용 방법</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;font-size:.88rem;line-height:1.7;color:var(--vos-muted);">
-        <div><strong style="color:var(--vos-text);">1️⃣ ISO 업로드</strong><br>리눅스, DOS, 기타 OS의 ISO 파일을 업로드하면 가상 CD-ROM으로 부팅합니다.</div>
-        <div><strong style="color:var(--vos-text);">2️⃣ CPU 선택</strong><br>20종 이상의 CPU 중 원하는 것을 선택. Intel, AMD, 레거시 CPU 모두 지원.</div>
-        <div><strong style="color:var(--vos-text);">3️⃣ 상태 저장</strong><br>가상 OS 실행 중 언제든 상태를 저장하고, 나중에 그 시점부터 다시 시작합니다.</div>
-        <div><strong style="color:var(--vos-text);">4️⃣ 가상 HDD</strong><br>동적 할당 방식으로 실제 용량만 사용. 최대 수십 GB 설정 가능.</div>
+    <!-- 안내 -->
+    <div style="margin-top:40px;background:var(--vcard);border:1px solid var(--vbr);border-radius:13px;padding:20px;">
+      <div class="vsec-title" style="margin-bottom:14px;"><i class="fas fa-book-open"></i> 사용 방법</div>
+      <div class="vinfo-grid">
+        <div class="vinfo-item">
+          <strong><i class="fas fa-compact-disc"></i> ISO 업로드</strong>
+          리눅스, DOS, 기타 OS의 ISO 파일을 업로드하면 가상 CD-ROM으로 부팅합니다.
+        </div>
+        <div class="vinfo-item">
+          <strong><i class="fas fa-microchip"></i> CPU 선택</strong>
+          30종 이상의 CPU 중 원하는 것을 선택. Intel, AMD, 레거시, EPYC 모두 지원.
+        </div>
+        <div class="vinfo-item">
+          <strong><i class="fas fa-save"></i> 상태 저장</strong>
+          가상 OS 실행 중 언제든 상태를 저장하고 나중에 그 시점부터 다시 시작합니다.
+        </div>
+        <div class="vinfo-item">
+          <strong><i class="fas fa-hdd"></i> 가상 HDD</strong>
+          동적 할당 방식으로 실제 용량만 사용. 최대 수십 GB 설정 가능.
+        </div>
       </div>
     </div>
   </div>
 </div>
-
-<script>
-document.querySelectorAll('form.del-form').forEach(f=>{
-  f.addEventListener('submit',e=>{
-    if(!confirm('정말 삭제하시겠습니까?')) e.preventDefault();
-  });
-});
-</script>
 {% endblock %}

@@ -3561,6 +3561,7 @@ def virtual_os_index(request):
     return render(request, 'blog/virtual_os.html', {'sessions': sessions})
 
 
+
 @login_required
 def virtual_os_session(request, pk=None):
     """가상 OS 에뮬레이터 페이지 — 신규 또는 기존 세션"""
@@ -3572,7 +3573,6 @@ def virtual_os_session(request, pk=None):
     else:
         sess = VirtualOSSession.objects.create(user=request.user)
     return render(request, 'blog/virtual_os_emulator.html', {'session': sess})
-
 
 @login_required
 def virtual_os_api_session(request, pk):
