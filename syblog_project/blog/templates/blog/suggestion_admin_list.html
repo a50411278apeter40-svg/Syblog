@@ -1,6 +1,14 @@
 {% extends 'blog/base.html' %}
 {% block title %}건의함 관리{% endblock %}
 {% block full_page %}
+{% if access_denied %}
+<div class="container" style="max-width:480px;padding:60px 16px;text-align:center;">
+  <div style="font-size:4rem;margin-bottom:16px;">🔒</div>
+  <h3 style="font-weight:700;margin-bottom:8px;">관리자 전용 페이지</h3>
+  <p style="color:#6b7280;margin-bottom:24px;">건의함 관리는 관리자만 접근할 수 있습니다.</p>
+  <a href="{% url 'blog:suggestion_list' %}" class="btn btn-primary" style="border-radius:10px;">건의함 보기 →</a>
+</div>
+{% else %}
 <div class="container mt-4 mb-5">
   <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
     <h3 class="fw-bold mb-0">📬 건의함 관리</h3>
@@ -55,4 +63,5 @@
   </div>
 </div>
 <style>.suggestion-card:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(108,99,255,.15)!important;transition:.15s;}</style>
+{% endif %}
 {% endblock %}

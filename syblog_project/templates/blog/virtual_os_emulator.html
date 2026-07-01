@@ -1,0 +1,940 @@
+{% extends 'blog/base_full_width.html' %}
+{% block title %}가상 OS — {{ session.name }}{% endblock %}
+{% block full_page %}
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0d1117;--card:#161b22;--border:#30363d;--text:#c9d1d9;--muted:#8b949e;
+  --blue:#58a6ff;--green:#3fb950;--red:#f85149;--yellow:#d29922;--purple:#bc8cff;
+}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden;}
+#vos-wrap{display:flex;flex-direction:column;height:100vh;height:100dvh;}
+
+/* 상단 툴바 */
+#vos-toolbar{
+  display:flex;align-items:center;gap:8px;padding:6px 12px;
+  background:var(--card);border-bottom:1px solid var(--border);
+  flex-shrink:0;flex-wrap:wrap;min-height:48px;
+}
+.tb-title{font-weight:700;font-size:.95rem;margin-right:4px;white-space:nowrap;}
+.tb-sep{width:1px;height:24px;background:var(--border);margin:0 4px;}
+.tb-btn{
+  display:inline-flex;align-items:center;gap:5px;
+  background:#21262d;border:1px solid var(--border);color:var(--text);
+  border-radius:8px;padding:5px 10px;font-size:.78rem;cursor:pointer;
+  white-space:nowrap;transition:.15s;
+}
+.tb-btn:hover{border-color:var(--blue);color:var(--blue);}
+.tb-btn.green:hover{border-color:var(--green);color:var(--green);}
+.tb-btn.red:hover{border-color:var(--red);color:var(--red);}
+.tb-btn.yellow:hover{border-color:var(--yellow);color:var(--yellow);}
+.tb-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0;}
+.status-dot.run{background:var(--green);box-shadow:0 0 6px var(--green);}
+.status-dot.pause{background:var(--yellow);}
+#cpu-select{background:#21262d;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:4px 8px;font-size:.78rem;max-width:260px;cursor:pointer;}
+#cpu-select:focus{outline:none;border-color:var(--blue);}
+.tb-spacer{flex:1;}
+
+/* 메인 영역 */
+#vos-body{display:flex;flex:1;overflow:hidden;}
+
+/* 에뮬레이터 화면 */
+#vos-screen-wrap{
+  flex:1;display:flex;align-items:center;justify-content:center;
+  background:#000;position:relative;overflow:hidden;
+}
+#vos-screen-container{
+  position:relative;
+  line-height:0;
+}
+#vos-screen-container canvas{
+  display:block;max-width:100%;max-height:calc(100vh - 48px - 60px);
+  image-rendering:pixelated;
+}
+/* 부팅 오버레이 */
+#boot-overlay{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;background:#000;z-index:10;
+  gap:16px;
+}
+#boot-overlay.hidden{display:none;}
+.boot-spinner{width:48px;height:48px;border:3px solid #333;border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+#boot-msg{color:var(--muted);font-size:.9rem;}
+#boot-progress-bar{width:240px;height:4px;background:#333;border-radius:2px;overflow:hidden;}
+#boot-progress-fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--green));width:0%;transition:width .3s;}
+
+/* 사이드 패널 */
+#vos-side{
+  width:280px;flex-shrink:0;background:var(--card);
+  border-left:1px solid var(--border);display:flex;flex-direction:column;
+  overflow-y:auto;transition:width .2s;
+}
+#vos-side.collapsed{width:0;overflow:hidden;}
+.side-section{padding:14px;border-bottom:1px solid var(--border);}
+.side-label{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;}
+.side-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-size:.82rem;}
+.side-val{color:var(--blue);font-weight:600;}
+.side-input{width:100%;background:#21262d;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 8px;font-size:.8rem;}
+.side-input:focus{outline:none;border-color:var(--blue);}
+.side-btn{width:100%;background:#21262d;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px;font-size:.8rem;cursor:pointer;margin-top:6px;transition:.15s;text-align:center;}
+.side-btn:hover{border-color:var(--blue);color:var(--blue);}
+.side-btn.g:hover{border-color:var(--green);color:var(--green);}
+.side-btn.r:hover{border-color:var(--red);color:var(--red);}
+.vhd-bar{height:6px;background:#21262d;border-radius:3px;overflow:hidden;margin-top:4px;}
+.vhd-fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--purple));transition:width .5s;}
+.stat-chip{display:inline-block;background:#21262d;border:1px solid var(--border);border-radius:5px;padding:2px 7px;font-size:.72rem;margin:2px;}
+
+/* 하단 상태바 */
+#vos-statusbar{
+  background:var(--card);border-top:1px solid var(--border);
+  padding:4px 12px;font-size:.72rem;color:var(--muted);
+  display:flex;align-items:center;gap:16px;flex-shrink:0;
+}
+
+/* ── 플로팅 키보드 ── */
+#float-kb{
+  position:fixed;bottom:70px;left:50%;transform:translateX(-50%);
+  background:rgba(22,27,34,.96);border:1px solid var(--border);
+  border-radius:16px;padding:12px;z-index:200;
+  box-shadow:0 12px 40px rgba(0,0,0,.6);
+  display:none;backdrop-filter:blur(12px);
+  user-select:none;touch-action:none;
+  cursor:grab;
+}
+#float-kb.show{display:block;}
+#float-kb.dragging{cursor:grabbing;}
+.kb-drag-handle{text-align:center;color:var(--muted);font-size:.7rem;margin-bottom:6px;cursor:grab;}
+.kb-row{display:flex;gap:4px;margin-bottom:4px;justify-content:center;flex-wrap:wrap;}
+.kb-key{
+  min-width:32px;height:36px;background:#21262d;border:1px solid var(--border);
+  border-radius:7px;color:var(--text);font-size:.75rem;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:.1s;padding:0 6px;
+  border-bottom:3px solid #30363d;
+}
+.kb-key:active,.kb-key.pressed{background:var(--blue);color:#fff;border-bottom-width:1px;transform:translateY(2px);}
+.kb-key.wide{min-width:56px;}
+.kb-key.wider{min-width:80px;}
+.kb-key.space{min-width:180px;}
+
+/* ── 플로팅 마우스패드 ── */
+#float-pad{
+  position:fixed;bottom:70px;right:16px;
+  background:rgba(22,27,34,.96);border:1px solid var(--border);
+  border-radius:16px;padding:12px;z-index:200;
+  box-shadow:0 12px 40px rgba(0,0,0,.6);
+  display:none;backdrop-filter:blur(12px);
+  cursor:grab;touch-action:none;user-select:none;
+}
+#float-pad.show{display:block;}
+#float-pad.dragging{cursor:grabbing;}
+.pad-area{
+  width:200px;height:130px;background:#21262d;border:1px solid var(--border);
+  border-radius:10px;cursor:crosshair;overflow:hidden;position:relative;
+}
+.pad-cursor{
+  position:absolute;width:10px;height:10px;
+  background:var(--blue);border-radius:50%;pointer-events:none;
+  transform:translate(-50%,-50%);transition:left .02s,top .02s;
+  box-shadow:0 0 6px var(--blue);
+}
+.pad-btns{display:flex;gap:6px;margin-top:8px;}
+.pad-btn{flex:1;background:#21262d;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 0;font-size:.75rem;cursor:pointer;text-align:center;transition:.1s;}
+.pad-btn:active{background:var(--blue);color:#fff;}
+.pad-title{font-size:.7rem;color:var(--muted);margin-bottom:6px;text-align:center;}
+.pad-sens{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:.72rem;color:var(--muted);}
+.pad-sens input{flex:1;}
+
+/* ── ISO 드롭존 ── */
+#iso-dropzone{
+  border:2px dashed var(--border);border-radius:10px;padding:16px;
+  text-align:center;font-size:.8rem;color:var(--muted);cursor:pointer;
+  transition:.2s;
+}
+#iso-dropzone:hover,#iso-dropzone.drag-over{border-color:var(--blue);color:var(--blue);}
+#iso-file-input{display:none;}
+
+/* ── 모달 ── */
+.vos-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:300;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+.vos-modal-bg.show{display:flex;}
+.vos-modal{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;max-width:480px;width:90%;max-height:80vh;overflow-y:auto;}
+.vos-modal h3{font-size:1.1rem;font-weight:700;margin-bottom:16px;}
+.vos-modal label{display:block;font-size:.82rem;color:var(--muted);margin-bottom:4px;margin-top:12px;}
+.vos-modal input,.vos-modal select{width:100%;background:#21262d;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;font-size:.85rem;}
+.vos-modal input:focus,.vos-modal select:focus{outline:none;border-color:var(--blue);}
+.modal-footer{display:flex;gap:8px;margin-top:20px;justify-content:flex-end;}
+.modal-btn{padding:8px 20px;border-radius:8px;font-size:.85rem;cursor:pointer;border:1px solid var(--border);transition:.15s;}
+.modal-btn.primary{background:var(--blue);border-color:var(--blue);color:#fff;}
+.modal-btn.primary:hover{background:#79b8ff;}
+.modal-btn.cancel{background:#21262d;color:var(--text);}
+
+/* CPU 카드 리스트 */
+.cpu-list{display:flex;flex-direction:column;gap:6px;max-height:400px;overflow-y:auto;}
+.cpu-item{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:.15s;}
+.cpu-item:hover,.cpu-item.selected{border-color:var(--blue);background:#1f2937;}
+.cpu-item.selected{background:rgba(88,166,255,.1);}
+.cpu-icon{font-size:1.4rem;flex-shrink:0;}
+.cpu-info{flex:1;min-width:0;}
+.cpu-name{font-size:.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cpu-desc{font-size:.72rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cpu-arch{font-size:.68rem;padding:2px 6px;border-radius:4px;margin-left:4px;}
+.cpu-arch.x64{background:rgba(63,185,80,.15);color:var(--green);}
+.cpu-arch.x32{background:rgba(210,153,34,.15);color:var(--yellow);}
+
+/* 알림 토스트 */
+#toast{
+  position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+  background:#1f2937;border:1px solid var(--border);border-radius:10px;
+  padding:10px 20px;font-size:.85rem;z-index:400;opacity:0;
+  transition:opacity .3s;pointer-events:none;white-space:nowrap;
+}
+#toast.show{opacity:1;}
+
+/* 모바일 반응형 */
+@media(max-width:700px){
+  #vos-side{width:100%;max-height:260px;flex-direction:row;flex-wrap:wrap;overflow-y:auto;}
+  #vos-body{flex-direction:column;}
+  #vos-side .side-section{flex:1;min-width:200px;}
+  .space{min-width:120px!important;}
+  .kb-key.space{min-width:100px!important;}
+}
+</style>
+
+<div id="vos-wrap">
+  <!-- ── 상단 툴바 ── -->
+  <div id="vos-toolbar">
+    <div class="status-dot" id="status-dot"></div>
+    <div class="tb-title" id="tb-session-name">{{ session.name }}</div>
+    <div class="tb-sep"></div>
+
+    <button class="tb-btn green" onclick="startEmulator()" id="btn-start">▶ 시작</button>
+    <button class="tb-btn yellow" onclick="pauseEmulator()" id="btn-pause" disabled>⏸ 일시정지</button>
+    <button class="tb-btn red" onclick="stopEmulator()" id="btn-stop" disabled>⏹ 정지</button>
+    <button class="tb-btn" onclick="resetEmulator()" id="btn-reset" disabled>🔄 재시작</button>
+
+    <div class="tb-sep"></div>
+
+    <select id="cpu-select" onchange="onCpuChange(this.value)" title="CPU 선택"></select>
+
+    <div class="tb-sep"></div>
+
+    <button class="tb-btn" onclick="toggleKeyboard()" title="가상 키보드">⌨️</button>
+    <button class="tb-btn" onclick="toggleMousepad()" title="가상 마우스패드">🖱️</button>
+
+    <div class="tb-sep"></div>
+
+    <button class="tb-btn green" onclick="saveState()" title="상태 저장">💾 저장</button>
+    <button class="tb-btn" onclick="loadState()" title="상태 불러오기" id="btn-load" {% if not session.state_data %}disabled{% endif %}>📂 불러오기</button>
+
+    <div class="tb-spacer"></div>
+
+    <button class="tb-btn" onclick="toggleSide()">⚙️ 설정</button>
+    <a href="{% url 'blog:virtual_os_index' %}" class="tb-btn">← 목록</a>
+  </div>
+
+  <!-- ── 메인 ── -->
+  <div id="vos-body">
+    <!-- 에뮬레이터 화면 -->
+    <div id="vos-screen-wrap">
+      <div id="vos-screen-container">
+        <div id="boot-overlay">
+          <div class="boot-spinner"></div>
+          <div id="boot-msg">에뮬레이터 준비 중...</div>
+          <div id="boot-progress-bar"><div id="boot-progress-fill"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 사이드 패널 -->
+    <div id="vos-side">
+      <!-- ISO 섹션 -->
+      <div class="side-section">
+        <div class="side-label">💿 ISO / 디스크 이미지</div>
+        <div id="iso-dropzone" onclick="document.getElementById('iso-file-input').click()" ondragover="onDragOver(event)" ondrop="onIsoDrop(event)" ondragleave="onDragLeave(event)">
+          {% if session.iso_name %}
+          ✅ {{ session.iso_name }}
+          {% else %}
+          클릭하거나 ISO 파일을 드래그하세요
+          {% endif %}
+        </div>
+        <input type="file" id="iso-file-input" accept=".iso,.img" onchange="onIsoSelect(this)">
+        {% if session.iso_name %}
+        <div style="font-size:.72rem;color:var(--muted);margin-top:4px;text-align:center;">현재: {{ session.iso_name }}</div>
+        {% endif %}
+      </div>
+
+      <!-- 가상 HDD 섹션 -->
+      <div class="side-section">
+        <div class="side-label">💽 가상 하드드라이브</div>
+        <div class="side-row">
+          <span>가상 크기</span>
+          <span class="side-val" id="vhd-virtual">{{ session.vhd_size_gb }}GB</span>
+        </div>
+        <div class="side-row">
+          <span>실제 사용</span>
+          <span class="side-val" id="vhd-actual">—</span>
+        </div>
+        <div class="vhd-bar"><div class="vhd-fill" id="vhd-bar-fill" style="width:0%"></div></div>
+        <button class="side-btn" onclick="openVhdModal()">💽 새 HDD 설정</button>
+      </div>
+
+      <!-- RAM 섹션 -->
+      <div class="side-section">
+        <div class="side-label">🧠 메모리 설정</div>
+        <div class="side-row">
+          <span>RAM</span>
+          <span class="side-val" id="ram-display">{{ session.ram_mb }}MB</span>
+        </div>
+        <input type="range" id="ram-slider" min="128" max="2048" step="128" value="{{ session.ram_mb }}"
+               oninput="onRamChange(this.value)" style="width:100%;margin-top:6px;" title="RAM 크기">
+        <div style="display:flex;justify-content:space-between;font-size:.68rem;color:var(--muted);margin-top:2px;"><span>128MB</span><span>2GB</span></div>
+      </div>
+
+      <!-- 세션 이름 -->
+      <div class="side-section">
+        <div class="side-label">🏷 세션 이름</div>
+        <input type="text" class="side-input" id="sess-name-input" value="{{ session.name }}" maxlength="100">
+        <button class="side-btn g" onclick="saveName()">저장</button>
+      </div>
+
+      <!-- 통계 -->
+      <div class="side-section">
+        <div class="side-label">📊 통계</div>
+        <div style="font-size:.78rem;color:var(--muted);line-height:1.8;">
+          <div>세션 ID: <span class="stat-chip">{{ session.pk }}</span></div>
+          <div>부팅 횟수: <span class="stat-chip">{{ session.boot_count }}</span></div>
+          <div>상태 저장: <span class="stat-chip" id="stat-saved">{% if session.state_data %}있음{% else %}없음{% endif %}</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 상태바 -->
+  <div id="vos-statusbar">
+    <span id="sb-cpu">CPU: {{ session.cpu_id }}</span>
+    <span id="sb-ram">RAM: {{ session.ram_mb }}MB</span>
+    <span id="sb-fps">FPS: —</span>
+    <span id="sb-time">시간: 00:00</span>
+    <div style="flex:1"></div>
+    <span id="sb-msg">준비됨</span>
+  </div>
+</div>
+
+<!-- ══ 플로팅 가상 키보드 ══ -->
+<div id="float-kb">
+  <div class="kb-drag-handle" id="kb-handle">⠿ 가상 키보드 (드래그 가능)</div>
+  <div class="kb-row">
+    <div class="kb-key" data-key="Escape">Esc</div>
+    <div class="kb-key" data-key="F1">F1</div><div class="kb-key" data-key="F2">F2</div>
+    <div class="kb-key" data-key="F3">F3</div><div class="kb-key" data-key="F4">F4</div>
+    <div class="kb-key" data-key="F5">F5</div><div class="kb-key" data-key="F6">F6</div>
+    <div class="kb-key" data-key="F7">F7</div><div class="kb-key" data-key="F8">F8</div>
+    <div class="kb-key" data-key="F9">F9</div><div class="kb-key" data-key="F10">F10</div>
+    <div class="kb-key" data-key="F11">F11</div><div class="kb-key" data-key="F12">F12</div>
+    <div class="kb-key" data-key="Delete">Del</div>
+  </div>
+  <div class="kb-row">
+    <div class="kb-key" data-key="Backquote">`</div>
+    <div class="kb-key" data-key="Digit1">1</div><div class="kb-key" data-key="Digit2">2</div>
+    <div class="kb-key" data-key="Digit3">3</div><div class="kb-key" data-key="Digit4">4</div>
+    <div class="kb-key" data-key="Digit5">5</div><div class="kb-key" data-key="Digit6">6</div>
+    <div class="kb-key" data-key="Digit7">7</div><div class="kb-key" data-key="Digit8">8</div>
+    <div class="kb-key" data-key="Digit9">9</div><div class="kb-key" data-key="Digit0">0</div>
+    <div class="kb-key" data-key="Minus">-</div><div class="kb-key" data-key="Equal">=</div>
+    <div class="kb-key wide" data-key="Backspace">⌫</div>
+  </div>
+  <div class="kb-row">
+    <div class="kb-key wide" data-key="Tab">Tab</div>
+    <div class="kb-key" data-key="KeyQ">Q</div><div class="kb-key" data-key="KeyW">W</div>
+    <div class="kb-key" data-key="KeyE">E</div><div class="kb-key" data-key="KeyR">R</div>
+    <div class="kb-key" data-key="KeyT">T</div><div class="kb-key" data-key="KeyY">Y</div>
+    <div class="kb-key" data-key="KeyU">U</div><div class="kb-key" data-key="KeyI">I</div>
+    <div class="kb-key" data-key="KeyO">O</div><div class="kb-key" data-key="KeyP">P</div>
+    <div class="kb-key" data-key="BracketLeft">[</div><div class="kb-key" data-key="BracketRight">]</div>
+    <div class="kb-key" data-key="Backslash">\</div>
+  </div>
+  <div class="kb-row">
+    <div class="kb-key wider" data-key="CapsLock">Caps</div>
+    <div class="kb-key" data-key="KeyA">A</div><div class="kb-key" data-key="KeyS">S</div>
+    <div class="kb-key" data-key="KeyD">D</div><div class="kb-key" data-key="KeyF">F</div>
+    <div class="kb-key" data-key="KeyG">G</div><div class="kb-key" data-key="KeyH">H</div>
+    <div class="kb-key" data-key="KeyJ">J</div><div class="kb-key" data-key="KeyK">K</div>
+    <div class="kb-key" data-key="KeyL">L</div>
+    <div class="kb-key" data-key="Semicolon">;</div><div class="kb-key" data-key="Quote">'</div>
+    <div class="kb-key wider" data-key="Enter">⏎</div>
+  </div>
+  <div class="kb-row">
+    <div class="kb-key wider" data-key="ShiftLeft">⇧ Shift</div>
+    <div class="kb-key" data-key="KeyZ">Z</div><div class="kb-key" data-key="KeyX">X</div>
+    <div class="kb-key" data-key="KeyC">C</div><div class="kb-key" data-key="KeyV">V</div>
+    <div class="kb-key" data-key="KeyB">B</div><div class="kb-key" data-key="KeyN">N</div>
+    <div class="kb-key" data-key="KeyM">M</div>
+    <div class="kb-key" data-key="Comma">,</div><div class="kb-key" data-key="Period">.</div>
+    <div class="kb-key" data-key="Slash">/</div>
+    <div class="kb-key wider" data-key="ShiftRight">⇧ Shift</div>
+  </div>
+  <div class="kb-row">
+    <div class="kb-key" data-key="ControlLeft">Ctrl</div>
+    <div class="kb-key" data-key="AltLeft">Alt</div>
+    <div class="kb-key" data-key="MetaLeft">⌘</div>
+    <div class="kb-key space" data-key="Space">Space</div>
+    <div class="kb-key" data-key="MetaRight">⌘</div>
+    <div class="kb-key" data-key="AltRight">Alt</div>
+    <div class="kb-key" data-key="ControlRight">Ctrl</div>
+  </div>
+  <div class="kb-row">
+    <div class="kb-key" data-key="Insert">Ins</div>
+    <div class="kb-key" data-key="Home">Home</div>
+    <div class="kb-key" data-key="PageUp">PgUp</div>
+    <div class="kb-key" data-key="ArrowUp">↑</div>
+    <div class="kb-key" data-key="ArrowLeft">←</div>
+    <div class="kb-key" data-key="ArrowDown">↓</div>
+    <div class="kb-key" data-key="ArrowRight">→</div>
+    <div class="kb-key" data-key="End">End</div>
+    <div class="kb-key" data-key="PageDown">PgDn</div>
+  </div>
+</div>
+
+<!-- ══ 플로팅 마우스패드 ══ -->
+<div id="float-pad">
+  <div class="pad-title" id="pad-handle">🖱️ 가상 마우스패드 (드래그 가능)</div>
+  <div class="pad-area" id="pad-area">
+    <div class="pad-cursor" id="pad-cursor"></div>
+  </div>
+  <div class="pad-btns">
+    <div class="pad-btn" id="pad-lbtn" onpointerdown="padClick(0)" onpointerup="padRelease(0)">좌클릭</div>
+    <div class="pad-btn" id="pad-mbtn" onpointerdown="padClick(1)" onpointerup="padRelease(1)">중간</div>
+    <div class="pad-btn" id="pad-rbtn" onpointerdown="padClick(2)" onpointerup="padRelease(2)">우클릭</div>
+  </div>
+  <div class="pad-sens">
+    <span>감도</span>
+    <input type="range" id="pad-sens-slider" min="1" max="10" value="4">
+    <span id="pad-sens-val">4</span>
+  </div>
+</div>
+
+<!-- ══ VHD 설정 모달 ══ -->
+<div class="vos-modal-bg" id="vhd-modal">
+  <div class="vos-modal">
+    <h3>💽 가상 하드드라이브 설정</h3>
+    <label>가상 크기 (GB) — OS에서 보이는 크기</label>
+    <input type="number" id="vhd-size-input" min="1" max="2000" step="1" value="{{ session.vhd_size_gb }}" placeholder="예: 80">
+    <div style="font-size:.78rem;color:var(--muted);margin-top:6px;">
+      ⚡ 실제 저장 공간은 동적 할당(최초 1MB)으로 시작하며, 사용한 만큼만 증가합니다.<br>
+      가상 OS 내에서는 설정한 크기 그대로 인식됩니다.
+    </div>
+    <div class="modal-footer">
+      <button class="modal-btn cancel" onclick="closeVhdModal()">취소</button>
+      <button class="modal-btn primary" onclick="applyVhd()">✅ 적용</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 토스트 ══ -->
+<div id="toast"></div>
+
+<!-- ══ v86 라이브러리 ══ -->
+<script src="{% load static %}{% static 'blog/v86/libv86.js' %}"></script>
+<script src="{% load static %}{% static 'blog/v86/cpu_patch.js' %}"></script>
+
+<script>
+{% load static %}
+'use strict';
+
+/* ─── 세션 데이터 ─── */
+const SESSION_ID   = {{ session.pk }};
+const CSRF         = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+const WASM_URL     = "{% static 'blog/v86/v86.wasm' %}";
+const SEABIOS_URL  = "https://copy.sh/v86/bios/seabios.bin";
+const VGABIOS_URL  = "https://copy.sh/v86/bios/vgabios.bin";
+
+let emulator = null;
+let vhd      = null;
+let elapsedSec = 0;
+let timerInterval = null;
+let fpsCounter = 0;
+let selectedCpuId = "{{ session.cpu_id }}";
+let currentRamMb  = {{ session.ram_mb }};
+let currentVhdGb  = {{ session.vhd_size_gb }};
+let padLastX = null, padLastY = null;
+let padSensitivity = 4;
+let kbVisible = false, padVisible = false;
+let sideOpen = true;
+
+/* ─── 초기화 ─── */
+window.addEventListener('DOMContentLoaded', () => {
+  buildCpuSelect();
+  initDraggable(document.getElementById('float-kb'), document.getElementById('kb-handle'));
+  initDraggable(document.getElementById('float-pad'), document.getElementById('pad-handle'));
+  initMousepad();
+  initKeyboard();
+  initPadSens();
+  updateVhdDisplay();
+  // 부팅 오버레이 숨기기 (아직 시작 전)
+  document.getElementById('boot-overlay').classList.add('hidden');
+  updateStatusBar('준비됨 — ▶ 시작을 눌러 가상 OS를 구동하세요');
+});
+
+/* ─── CPU 선택 드롭다운 ─── */
+function buildCpuSelect() {
+  const sel = document.getElementById('cpu-select');
+  const list = window.SyV86CPU.get_list();
+  const groups = {};
+  list.forEach(c => {
+    const g = c.vendor.replace('GenuineIntel','Intel').replace('AuthenticAMD','AMD').replace('ARM','ARM').replace('SiFive','RISC-V') + ' ' + c.arch;
+    if(!groups[g]) groups[g] = [];
+    groups[g].push(c);
+  });
+  for(const [grp, cpus] of Object.entries(groups)) {
+    const og = document.createElement('optgroup');
+    og.label = grp;
+    cpus.forEach(c => {
+      const o = document.createElement('option');
+      o.value = c.id;
+      o.textContent = c.icon + ' ' + c.gen + ' — ' + c.cores + '코어 ' + c.boost + 'MHz';
+      if(c.id === selectedCpuId) o.selected = true;
+      og.appendChild(o);
+    });
+    sel.appendChild(og);
+  }
+}
+
+function onCpuChange(id) {
+  selectedCpuId = id;
+  const spec = window.SyV86CPU.get_spec(id);
+  document.getElementById('sb-cpu').textContent = 'CPU: ' + spec.brand.slice(0,40);
+  showToast('CPU 변경: ' + spec.brand.slice(0,30) + '… (재시작 시 적용)');
+  saveSessionSettings();
+}
+
+function onRamChange(v) {
+  currentRamMb = parseInt(v);
+  document.getElementById('ram-display').textContent = v + 'MB';
+  document.getElementById('sb-ram').textContent = 'RAM: ' + v + 'MB';
+}
+
+/* ─── 에뮬레이터 시작 ─── */
+async function startEmulator() {
+  if(emulator) return;
+  document.getElementById('boot-overlay').classList.remove('hidden');
+  setProgress(10);
+  updateStatusBar('에뮬레이터 초기화 중...');
+
+  // 스크린 컨테이너 준비
+  const wrap = document.getElementById('vos-screen-container');
+
+  // VHD 초기화
+  if(!vhd) {
+    vhd = new window.SyV86CPU.DynamicVHD(currentVhdGb * 1024 * 1024 * 1024, 1048576);
+    updateVhdDisplay();
+  }
+
+  // v86 옵션
+  const spec = window.SyV86CPU.get_spec(selectedCpuId);
+  const opts = {
+    wasm_path:    WASM_URL,
+    memory_size:  currentRamMb * 1024 * 1024,
+    vga_memory_size: 8 * 1024 * 1024,
+    bios:         { url: SEABIOS_URL },
+    vga_bios:     { url: VGABIOS_URL },
+    screen_container: wrap,
+    autostart:    false,
+    disable_jit:  false,
+    acpi:         true,
+    fastboot:     false,
+  };
+
+  // CPU 설정 주입
+  window.SyV86CPU.inject_opts(opts, selectedCpuId);
+
+  // ISO 마운트
+  const isoUrl = "{% url 'blog:virtual_os_stream_iso' session.pk %}";
+  {% if session.iso_name %}
+  opts.cdrom = { url: isoUrl, async: true };
+  opts.boot_order = 0x132; // cdrom 우선
+  {% endif %}
+
+  // HDD 설정 (동적 VHD 어댑터)
+  opts.hda = {
+    buffer: makeVhdBuffer(),
+    async:  false,
+  };
+
+  setProgress(40);
+  updateStatusBar('BIOS 로딩 중...');
+
+  try {
+    emulator = new V86(opts);
+  } catch(e) {
+    showToast('❌ 에뮬레이터 시작 실패: ' + e.message, true);
+    document.getElementById('boot-overlay').classList.add('hidden');
+    return;
+  }
+
+  // CPU 패치 적용
+  emulator.add_listener('emulator-ready', () => {
+    window.SyV86CPU.apply_patch(emulator, selectedCpuId);
+    setProgress(70);
+    updateStatusBar('OS 부팅 중...');
+    emulator.run();
+    setTimeout(()=>{
+      setProgress(100);
+      document.getElementById('boot-overlay').classList.add('hidden');
+      setRunning(true);
+      startTimer();
+      updateStatusBar('실행 중');
+    }, 800);
+  });
+
+  emulator.add_listener('emulator-stopped', () => {
+    setRunning(false);
+    stopTimer();
+    updateStatusBar('정지됨');
+    document.getElementById('status-dot').className='status-dot';
+  });
+
+  // FPS 측정
+  emulator.add_listener('screen-set-size-xy', () => {});
+  setInterval(()=>{
+    if(emulator) document.getElementById('sb-fps').textContent = 'FPS: —';
+  }, 2000);
+
+  // 저장된 상태 자동 로드
+  {% if session.state_data %}
+  setProgress(50);
+  updateStatusBar('저장된 상태 불러오는 중...');
+  try {
+    const resp = await fetch(`/blog/virtual-os/${SESSION_ID}/load-state/`);
+    if(resp.ok) {
+      const ab = await resp.arrayBuffer();
+      emulator.restore_state(ab);
+      showToast('✅ 이전 상태를 복원했습니다');
+    }
+  } catch(e) {}
+  {% endif %}
+}
+
+/* HDD 버퍼 생성 (VHD 기반) */
+function makeVhdBuffer() {
+  // v86에 전달할 최소 HDD 헤더 포함 ArrayBuffer 생성
+  // 실제 데이터는 vhd 객체에서 관리
+  const sectorCount = Math.floor(currentVhdGb * 1024 * 1024 * 1024 / 512);
+  const buf = new ArrayBuffer(Math.min(sectorCount * 512, 32 * 1024 * 1024)); // 최대 32MB 초기 버퍼
+  return buf;
+}
+
+/* ─── 에뮬레이터 제어 ─── */
+function pauseEmulator() {
+  if(!emulator) return;
+  emulator.stop();
+  document.getElementById('status-dot').className='status-dot pause';
+  document.getElementById('btn-pause').disabled=true;
+  updateStatusBar('일시 정지됨');
+  showToast('⏸ 일시 정지');
+}
+
+function stopEmulator() {
+  if(!emulator) return;
+  if(!confirm('에뮬레이터를 정지합니다. 저장되지 않은 데이터는 손실됩니다.')) return;
+  emulator.stop();
+  emulator = null;
+  setRunning(false);
+  stopTimer();
+  // 스크린 초기화
+  const wrap = document.getElementById('vos-screen-container');
+  const canvases = wrap.querySelectorAll('canvas');
+  canvases.forEach(c=>c.remove());
+  document.getElementById('boot-overlay').classList.add('hidden');
+  updateStatusBar('정지됨 — 다시 시작하려면 ▶ 시작을 누르세요');
+  showToast('⏹ 에뮬레이터 정지됨');
+}
+
+function resetEmulator() {
+  if(!emulator) return;
+  if(!confirm('에뮬레이터를 재시작합니다.')) return;
+  emulator.restart();
+  showToast('🔄 재시작 중...');
+}
+
+function setRunning(b) {
+  document.getElementById('btn-start').disabled = b;
+  document.getElementById('btn-pause').disabled = !b;
+  document.getElementById('btn-stop').disabled  = !b;
+  document.getElementById('btn-reset').disabled = !b;
+  document.getElementById('status-dot').className = 'status-dot' + (b?' run':'');
+}
+
+/* ─── 상태 저장/로드 ─── */
+async function saveState() {
+  if(!emulator) { showToast('⚠️ 에뮬레이터가 실행 중이 아닙니다'); return; }
+  updateStatusBar('상태 저장 중...');
+  try {
+    const state = emulator.save_state();
+    const resp = await fetch(`/blog/virtual-os/${SESSION_ID}/save-state/`, {
+      method:'POST', headers:{'X-CSRFToken':CSRF,'Content-Type':'application/octet-stream'},
+      body: state,
+    });
+    const d = await resp.json();
+    if(d.ok) {
+      showToast('✅ 상태 저장 완료 (' + d.size_mb + 'MB)');
+      document.getElementById('stat-saved').textContent='있음';
+      document.getElementById('btn-load').disabled=false;
+    } else { showToast('❌ 저장 실패: '+d.error, true); }
+  } catch(e){ showToast('❌ 저장 오류: '+e.message, true); }
+  updateStatusBar('실행 중');
+}
+
+async function loadState() {
+  if(!emulator) { showToast('⚠️ 에뮬레이터를 먼저 시작해주세요'); return; }
+  if(!confirm('저장된 상태를 불러옵니다. 현재 상태는 초기화됩니다.')) return;
+  try {
+    const resp = await fetch(`/blog/virtual-os/${SESSION_ID}/load-state/`);
+    if(!resp.ok){ showToast('❌ 저장된 상태 없음'); return; }
+    const ab = await resp.arrayBuffer();
+    emulator.restore_state(ab);
+    showToast('✅ 상태 복원 완료');
+  } catch(e){ showToast('❌ 불러오기 오류: '+e.message, true); }
+}
+
+/* ─── ISO 업로드 ─── */
+function onDragOver(e){ e.preventDefault(); document.getElementById('iso-dropzone').classList.add('drag-over'); }
+function onDragLeave(){ document.getElementById('iso-dropzone').classList.remove('drag-over'); }
+function onIsoDrop(e){
+  e.preventDefault(); onDragLeave();
+  const file = e.dataTransfer.files[0];
+  if(file) uploadIso(file);
+}
+function onIsoSelect(input){ if(input.files[0]) uploadIso(input.files[0]); }
+
+async function uploadIso(file) {
+  if(!file.name.match(/\.(iso|img)$/i)){ showToast('⚠️ ISO 또는 IMG 파일만 지원합니다'); return; }
+  if(file.size > 2*1024*1024*1024){ showToast('⚠️ 최대 2GB까지 지원합니다'); return; }
+  const dz = document.getElementById('iso-dropzone');
+  dz.textContent = '⏳ 업로드 중... ' + (file.size/1024/1024).toFixed(0) + 'MB';
+  const fd = new FormData();
+  fd.append('iso', file);
+  try {
+    const resp = await fetch(`/blog/virtual-os/${SESSION_ID}/upload-iso/`, {
+      method:'POST', headers:{'X-CSRFToken':CSRF}, body:fd,
+    });
+    const d = await resp.json();
+    if(d.ok){
+      dz.textContent = '✅ ' + d.name + ' (' + d.size_mb + 'MB)';
+      showToast('✅ ISO 업로드 완료! 재시작 후 적용됩니다.');
+    } else {
+      dz.textContent = '클릭하거나 ISO 파일을 드래그하세요';
+      showToast('❌ 업로드 실패: '+d.error, true);
+    }
+  } catch(e){
+    dz.textContent='클릭하거나 ISO 파일을 드래그하세요';
+    showToast('❌ 오류: '+e.message, true);
+  }
+}
+
+/* ─── 가상 HDD ─── */
+function openVhdModal(){ document.getElementById('vhd-modal').classList.add('show'); }
+function closeVhdModal(){ document.getElementById('vhd-modal').classList.remove('show'); }
+
+async function applyVhd() {
+  const gb = parseFloat(document.getElementById('vhd-size-input').value);
+  if(isNaN(gb)||gb<1){ showToast('⚠️ 최소 1GB 이상 입력하세요'); return; }
+  currentVhdGb = gb;
+  document.getElementById('vhd-virtual').textContent = gb + 'GB';
+  vhd = new window.SyV86CPU.DynamicVHD(gb*1024*1024*1024, 1048576);
+  updateVhdDisplay();
+  // 서버에 크기 저장
+  await saveSessionSettings();
+  closeVhdModal();
+  showToast('💽 가상 HDD ' + gb + 'GB 설정 완료 (동적 할당)');
+}
+
+function updateVhdDisplay() {
+  if(!vhd){ document.getElementById('vhd-actual').textContent='—'; return; }
+  const st = vhd.stats();
+  document.getElementById('vhd-actual').textContent = st.actual_mb + 'MB';
+  document.getElementById('vhd-bar-fill').style.width = Math.min(parseFloat(st.pct),100) + '%';
+}
+
+/* ─── 세션 설정 저장 ─── */
+async function saveSessionSettings() {
+  await fetch(`/blog/virtual-os/${SESSION_ID}/api/`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+    body:JSON.stringify({
+      cpu_id: selectedCpuId,
+      ram_mb: currentRamMb,
+      vhd_size_gb: currentVhdGb,
+    }),
+  });
+}
+
+async function saveName() {
+  const name = document.getElementById('sess-name-input').value.trim();
+  if(!name) return;
+  await fetch(`/blog/virtual-os/${SESSION_ID}/api/`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+    body:JSON.stringify({name}),
+  });
+  document.getElementById('tb-session-name').textContent = name;
+  showToast('✅ 이름 저장됨');
+}
+
+/* ─── 가상 키보드 ─── */
+function initKeyboard() {
+  document.querySelectorAll('.kb-key').forEach(btn => {
+    const code = btn.dataset.key;
+    const sendKey = (down) => {
+      btn.classList.toggle('pressed', down);
+      if(!emulator) return;
+      if(down) emulator.keyboard_send_keydown(code);
+      else     emulator.keyboard_send_keyup(code);
+    };
+    btn.addEventListener('pointerdown', e=>{ e.preventDefault(); sendKey(true); });
+    btn.addEventListener('pointerup',   e=>{ e.preventDefault(); sendKey(false); });
+    btn.addEventListener('pointerleave',e=>{ sendKey(false); });
+  });
+}
+
+function toggleKeyboard() {
+  kbVisible = !kbVisible;
+  document.getElementById('float-kb').classList.toggle('show', kbVisible);
+}
+
+/* ─── 가상 마우스패드 ─── */
+function initMousepad() {
+  const area = document.getElementById('pad-area');
+  const cur  = document.getElementById('pad-cursor');
+  let tracking = false;
+  let curX = 100, curY = 65;
+
+  const moveCursor = (x, y) => {
+    curX = Math.max(0,Math.min(200,x));
+    curY = Math.max(0,Math.min(130,y));
+    cur.style.left = curX + 'px';
+    cur.style.top  = curY + 'px';
+  };
+  moveCursor(100, 65);
+
+  area.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    area.setPointerCapture(e.pointerId);
+    tracking = true;
+    padLastX = e.offsetX;
+    padLastY = e.offsetY;
+  });
+
+  area.addEventListener('pointermove', e => {
+    if(!tracking) return;
+    e.preventDefault();
+    const dx = (e.offsetX - padLastX) * padSensitivity;
+    const dy = (e.offsetY - padLastY) * padSensitivity;
+    padLastX = e.offsetX;
+    padLastY = e.offsetY;
+    moveCursor(curX + (e.offsetX - 100)/200*padSensitivity*2,
+               curY + (e.offsetY - 65)/130*padSensitivity*2);
+    if(emulator) emulator.mouse_move(dx, dy);
+  });
+
+  area.addEventListener('pointerup', e => { tracking = false; padLastX=padLastY=null; });
+}
+
+function padClick(btn) {
+  if(emulator) emulator.mouse_button_down(btn);
+}
+function padRelease(btn) {
+  if(emulator) emulator.mouse_button_up(btn);
+}
+
+function initPadSens() {
+  const sl = document.getElementById('pad-sens-slider');
+  sl.addEventListener('input', ()=>{
+    padSensitivity = parseInt(sl.value);
+    document.getElementById('pad-sens-val').textContent = sl.value;
+  });
+}
+
+function toggleMousepad() {
+  padVisible = !padVisible;
+  document.getElementById('float-pad').classList.toggle('show', padVisible);
+}
+
+/* ─── 드래그 가능 패널 ─── */
+function initDraggable(el, handle) {
+  let ox=0, oy=0, isDragging=false;
+  handle.addEventListener('pointerdown', e => {
+    isDragging = true;
+    ox = e.clientX - el.getBoundingClientRect().left;
+    oy = e.clientY - el.getBoundingClientRect().top;
+    el.classList.add('dragging');
+    el.style.transform = 'none';
+    handle.setPointerCapture(e.pointerId);
+  });
+  handle.addEventListener('pointermove', e => {
+    if(!isDragging) return;
+    el.style.left = (e.clientX - ox) + 'px';
+    el.style.top  = (e.clientY - oy) + 'px';
+    el.style.bottom = 'auto';
+    el.style.right  = 'auto';
+  });
+  handle.addEventListener('pointerup', () => { isDragging=false; el.classList.remove('dragging'); });
+}
+
+/* ─── 사이드 패널 토글 ─── */
+function toggleSide() {
+  sideOpen = !sideOpen;
+  document.getElementById('vos-side').classList.toggle('collapsed', !sideOpen);
+}
+
+/* ─── 타이머 ─── */
+function startTimer() {
+  elapsedSec = 0;
+  timerInterval = setInterval(()=>{
+    elapsedSec++;
+    const m = String(Math.floor(elapsedSec/60)).padStart(2,'0');
+    const s = String(elapsedSec%60).padStart(2,'0');
+    document.getElementById('sb-time').textContent = '시간: '+m+':'+s;
+    // VHD 통계 갱신
+    if(vhd) updateVhdDisplay();
+  }, 1000);
+}
+function stopTimer() {
+  clearInterval(timerInterval); timerInterval=null;
+}
+
+/* ─── 진행바 ─── */
+function setProgress(pct) {
+  document.getElementById('boot-progress-fill').style.width = pct + '%';
+}
+
+/* ─── 상태바 ─── */
+function updateStatusBar(msg) {
+  document.getElementById('sb-msg').textContent = msg;
+}
+
+/* ─── 토스트 알림 ─── */
+let toastTimer = null;
+function showToast(msg, isErr=false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.borderColor = isErr ? 'var(--red)' : 'var(--green)';
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2800);
+}
+
+/* ─── 페이지 이탈 경고 ─── */
+window.addEventListener('beforeunload', e => {
+  if(emulator) {
+    e.preventDefault();
+    return e.returnValue = '에뮬레이터가 실행 중입니다. 상태를 저장하지 않으면 데이터가 손실됩니다.';
+  }
+});
+
+/* ─── Safe Area (iOS) ─── */
+document.documentElement.style.setProperty('--sat','env(safe-area-inset-top,0px)');
+document.documentElement.style.setProperty('--sab','env(safe-area-inset-bottom,0px)');
+</script>
+{% endblock %}

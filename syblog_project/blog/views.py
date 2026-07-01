@@ -918,9 +918,8 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.utils.decorators import method_decorator
 
 
-@staff_member_required
 def notice_detail(request, pk):
-    """공지사항 상세 페이지"""
+    """공지사항 상세 페이지 — 로그인 불필요, 누구나 접근 가능"""
     from blog.models import Notice
     from django.utils import timezone
     notice = get_object_or_404(Notice, pk=pk)
@@ -3497,9 +3496,16 @@ def suggestion_create(request):
     return render(request, 'blog/suggestion_form.html', {'categories': _Sugg2.CATEGORY_CHOICES})
 
 # ── 건의함 관리자 목록 ──────────────────────────────────────────
-@staff_member_required
+@login_required
 def suggestion_admin_list(request):
     from blog.models import Suggestion as _Sugg
+    if not request.user.is_staff:
+        return render(request, 'blog/suggestion_admin_list.html', {
+            'suggestions': _Sugg.objects.none(),
+            'status_choices': _Sugg.STATUS_CHOICES,
+            'status_filter': '',
+            'access_denied': True,
+        })
     status_filter = request.GET.get('status', '')
     suggestions = _Sugg.objects.all()
     if status_filter:
@@ -3508,6 +3514,7 @@ def suggestion_admin_list(request):
         'suggestions': suggestions,
         'status_choices': _Sugg.STATUS_CHOICES,
         'status_filter': status_filter,
+        'access_denied': False,
     })
 
 # ── 건의함 관리자 상세/답변 ─────────────────────────────────────
