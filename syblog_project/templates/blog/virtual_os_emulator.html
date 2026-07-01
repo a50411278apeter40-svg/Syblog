@@ -42,11 +42,19 @@ body{overflow:hidden !important;}
 #vos-body{display:flex;flex:1;overflow:hidden;min-height:0;}
 
 /* ── 화면 영역 ── */
-#screen-wrap{flex:1;display:flex;align-items:center;justify-content:center;background:#000;position:relative;overflow:hidden;min-width:0;}
+#screen-wrap{flex:1;display:flex;align-items:flex-start;justify-content:center;background:#000;position:relative;overflow:auto;min-width:0;}
 
 /* v86 screen_container — ID는 반드시 screen_container (v86 내부 hardcode) */
-#screen_container{position:relative;line-height:0;display:flex;align-items:center;justify-content:center;}
-#screen_container canvas{display:block;image-rendering:pixelated;max-width:100%;max-height:calc(100vh - var(--navbar-h,90px) - 68px - 26px);cursor:default;}
+#screen_container{position:relative;line-height:0;display:inline-block;}
+#screen_container canvas{
+  display:block;
+  image-rendering:pixelated;
+  image-rendering:crisp-edges;
+  /* canvas 내부 픽셀을 그대로 유지 — 짤림 없음 */
+  max-width:none !important;
+  max-height:none !important;
+  cursor:default;
+}
 
 /* ── 부팅 오버레이 — screen-wrap에 absolute, z-index 높게 ── */
 #boot-ov{
@@ -521,6 +529,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   makeDraggable($id('fpad'), $id('pad-hnd'));
   // 처음엔 오버레이 숨김
   showOv(false);
+  // canvas 크기 조정 — resize 시
+  window.addEventListener('resize', fitCanvas);
 });
 
 /* ════════════════════════════════════════════════════
@@ -708,6 +718,8 @@ async function startEmu(){
   });
 
   emulator.add_listener('emulator-started', ()=>{
+    // canvas를 screen-wrap에 맞게 scale 조정
+    fitCanvas();
     setProgress(90);
     setMsg('실행 중');
     setTimeout(()=>{
@@ -953,6 +965,28 @@ function startTimer(){
   },1000);
 }
 function stopTimer(){ clearInterval(timerID); timerID=null; }
+
+/* ── canvas fit (짤림 방지) ── */
+function fitCanvas(){
+  const wrap = $id('screen-wrap');
+  const sc   = $id('screen_container');
+  if(!wrap || !sc) return;
+  const canvas = sc.querySelector('canvas');
+  if(!canvas) return;
+
+  const wrapW = wrap.clientWidth;
+  const wrapH = wrap.clientHeight;
+  const canW  = canvas.width  || 640;
+  const canH  = canvas.height || 480;
+
+  // 가로/세로 중 더 작은 비율로 맞춤 (비율 유지, 짤림 없음)
+  const scaleW = wrapW / canW;
+  const scaleH = wrapH / canH;
+  const scale  = Math.min(scaleW, scaleH, 1); // 최대 100% (확대 안 함)
+
+  canvas.style.width  = Math.floor(canW * scale) + 'px';
+  canvas.style.height = Math.floor(canH * scale) + 'px';
+}
 
 /* ── 사이드 토글 ── */
 function toggleSide(){
