@@ -108,6 +108,18 @@ urlpatterns = [
     path('suggestions/new/', views.suggestion_create, name='suggestion_create'),
     path('suggestions/admin/', views.suggestion_admin_list, name='suggestion_admin_list'),
     path('suggestions/admin/<int:pk>/', views.suggestion_admin_detail, name='suggestion_admin_detail'),
+
+    # ── Virtual OS ──────────────────────────────────────────────
+    path('virtual-os/', views.virtual_os_index, name='virtual_os_index'),
+    path('virtual-os/new/', views.virtual_os_session, name='virtual_os_new'),
+    path('virtual-os/<int:pk>/', views.virtual_os_session, name='virtual_os_session'),
+    path('virtual-os/<int:pk>/api/', views.virtual_os_api_session, name='virtual_os_api'),
+    path('virtual-os/<int:pk>/save-state/', views.virtual_os_save_state, name='virtual_os_save_state'),
+    path('virtual-os/<int:pk>/load-state/', views.virtual_os_load_state, name='virtual_os_load_state'),
+    path('virtual-os/<int:pk>/save-vhd/', views.virtual_os_save_vhd, name='virtual_os_save_vhd'),
+    path('virtual-os/<int:pk>/upload-iso/', views.virtual_os_upload_iso, name='virtual_os_upload_iso'),
+    path('virtual-os/<int:pk>/iso/', views.virtual_os_stream_iso, name='virtual_os_stream_iso'),
+    path('virtual-os/<int:pk>/delete/', views.virtual_os_delete_session, name='virtual_os_delete'),
 ]
 
     # ── AI 크레딧 & 스트리밍 & 웹개발 ─────────────────────────────

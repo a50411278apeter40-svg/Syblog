@@ -3534,3 +3534,182 @@ def suggestion_admin_detail(request, pk):
         'status_choices': _Sugg.STATUS_CHOICES,
     })
 
+
+
+# ════════════════════════════════════════════════════════════════
+#  가상 OS (Virtual OS) 뷰
+# ════════════════════════════════════════════════════════════════
+
+import os as _vos_os
+import json as _vos_json
+
+VIRT_OS_UPLOAD_DIR = '/tmp/syblog_vos_iso'
+
+
+@login_required
+def virtual_os_index(request):
+    """가상 OS 메인 페이지 — 세션 목록"""
+    from blog.models import VirtualOSSession
+    sessions = VirtualOSSession.objects.filter(user=request.user)
+    return render(request, 'blog/virtual_os.html', {'sessions': sessions})
+
+
+@login_required
+def virtual_os_session(request, pk=None):
+    """가상 OS 에뮬레이터 페이지 — 신규 또는 기존 세션"""
+    from blog.models import VirtualOSSession
+    if pk:
+        sess = get_object_or_404(VirtualOSSession, pk=pk, user=request.user)
+        sess.boot_count += 1
+        sess.save(update_fields=['boot_count', 'last_used'])
+    else:
+        sess = VirtualOSSession.objects.create(user=request.user)
+    return render(request, 'blog/virtual_os_emulator.html', {'session': sess})
+
+
+@login_required
+def virtual_os_api_session(request, pk):
+    """세션 설정 조회/수정 API"""
+    from blog.models import VirtualOSSession
+    sess = get_object_or_404(VirtualOSSession, pk=pk, user=request.user)
+
+    if request.method == 'GET':
+        return JsonResponse({
+            'id': sess.pk,
+            'name': sess.name,
+            'cpu_id': sess.cpu_id,
+            'ram_mb': sess.ram_mb,
+            'vhd_size_gb': sess.vhd_size_gb,
+            'has_state': bool(sess.state_data),
+            'has_vhd': bool(sess.vhd_data),
+            'iso_name': sess.iso_name,
+            'boot_count': sess.boot_count,
+        })
+
+    if request.method == 'POST':
+        try:
+            body = _vos_json.loads(request.body)
+        except Exception:
+            return JsonResponse({'error': '잘못된 요청'}, status=400)
+        for field in ['name', 'cpu_id', 'ram_mb', 'vhd_size_gb']:
+            if field in body:
+                setattr(sess, field, body[field])
+        sess.save()
+        return JsonResponse({'ok': True})
+
+    return JsonResponse({'error': 'method not allowed'}, status=405)
+
+
+@login_required
+def virtual_os_save_state(request, pk):
+    """에뮬레이터 상태 저장 (state ArrayBuffer → DB)"""
+    from blog.models import VirtualOSSession
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST only'}, status=405)
+    sess = get_object_or_404(VirtualOSSession, pk=pk, user=request.user)
+    try:
+        data = request.body  # raw binary
+        # 최대 256MB 제한
+        if len(data) > 256 * 1024 * 1024:
+            return JsonResponse({'error': '상태 파일이 너무 큽니다 (최대 256MB)'}, status=413)
+        sess.state_data = data
+        sess.save(update_fields=['state_data', 'last_used'])
+        return JsonResponse({'ok': True, 'size_mb': round(len(data) / 1024 / 1024, 2)})
+    except Exception as e:
+        return JsonResponse({'error': str(e)[:100]}, status=500)
+
+
+@login_required
+def virtual_os_load_state(request, pk):
+    """저장된 상태 로드 (DB → binary response)"""
+    from blog.models import VirtualOSSession
+    sess = get_object_or_404(VirtualOSSession, pk=pk, user=request.user)
+    if not sess.state_data:
+        return JsonResponse({'error': '저장된 상태가 없습니다'}, status=404)
+    from django.http import HttpResponse
+    resp = HttpResponse(bytes(sess.state_data), content_type='application/octet-stream')
+    resp['Content-Length'] = len(sess.state_data)
+    return resp
+
+
+@login_required
+def virtual_os_save_vhd(request, pk):
+    """가상 하드드라이브 데이터 저장 (JSON)"""
+    from blog.models import VirtualOSSession
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST only'}, status=405)
+    sess = get_object_or_404(VirtualOSSession, pk=pk, user=request.user)
+    try:
+        body = _vos_json.loads(request.body)
+        vhd_json = body.get('vhd_data', '')
+        if len(vhd_json) > 128 * 1024 * 1024:
+            return JsonResponse({'error': 'VHD 데이터가 너무 큽니다'}, status=413)
+        sess.vhd_data = vhd_json
+        sess.save(update_fields=['vhd_data', 'last_used'])
+        return JsonResponse({'ok': True})
+    except Exception as e:
+        return JsonResponse({'error': str(e)[:100]}, status=500)
+
+
+@login_required
+def virtual_os_upload_iso(request, pk):
+    """ISO 파일 업로드"""
+    from blog.models import VirtualOSSession
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST only'}, status=405)
+    sess = get_object_or_404(VirtualOSSession, pk=pk, user=request.user)
+    iso_file = request.FILES.get('iso')
+    if not iso_file:
+        return JsonResponse({'error': 'ISO 파일이 없습니다'}, status=400)
+    # 최대 2GB
+    if iso_file.size > 2 * 1024 * 1024 * 1024:
+        return JsonResponse({'error': 'ISO 파일은 최대 2GB까지 지원합니다'}, status=413)
+
+    upload_dir = _vos_os.path.join(VIRT_OS_UPLOAD_DIR, str(request.user.pk))
+    _vos_os.makedirs(upload_dir, exist_ok=True)
+    save_path = _vos_os.path.join(upload_dir, iso_file.name)
+
+    try:
+        with open(save_path, 'wb') as f:
+            for chunk in iso_file.chunks(chunk_size=8 * 1024 * 1024):
+                f.write(chunk)
+        sess.iso_path = save_path
+        sess.iso_name = iso_file.name
+        sess.save(update_fields=['iso_path', 'iso_name', 'last_used'])
+        return JsonResponse({
+            'ok': True,
+            'name': iso_file.name,
+            'size_mb': round(iso_file.size / 1024 / 1024, 1),
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)[:100]}, status=500)
+
+
+@login_required
+def virtual_os_stream_iso(request, pk):
+    """저장된 ISO 파일을 스트리밍 (v86 cdrom url로 사용)"""
+    from blog.models import VirtualOSSession
+    sess = get_object_or_404(VirtualOSSession, pk=pk, user=request.user)
+    if not sess.iso_path or not _vos_os.path.exists(sess.iso_path):
+        from django.http import Http404
+        raise Http404('ISO 파일을 찾을 수 없습니다')
+    from django.http import FileResponse
+    return FileResponse(open(sess.iso_path, 'rb'),
+                        content_type='application/octet-stream',
+                        filename=sess.iso_name or 'disk.iso')
+
+
+@login_required
+def virtual_os_delete_session(request, pk):
+    """세션 삭제"""
+    from blog.models import VirtualOSSession
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST only'}, status=405)
+    sess = get_object_or_404(VirtualOSSession, pk=pk, user=request.user)
+    if sess.iso_path and _vos_os.path.exists(sess.iso_path):
+        try:
+            _vos_os.remove(sess.iso_path)
+        except Exception:
+            pass
+    sess.delete()
+    return JsonResponse({'ok': True})

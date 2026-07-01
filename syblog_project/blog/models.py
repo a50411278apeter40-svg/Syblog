@@ -487,3 +487,40 @@ class Suggestion(models.Model):
 
     def __str__(self):
         return f'[{self.get_category_display()}] {self.title}'
+
+
+# ════════════════════════════════════════════
+#  가상 OS (VirtualOS) 모델
+# ════════════════════════════════════════════
+
+class VirtualOSSession(models.Model):
+    """사용자의 가상 OS 세션 (하드드라이브 + 상태 저장)"""
+    user        = models.ForeignKey(User, on_delete=models.CASCADE, related_name='virtual_os_sessions')
+    name        = models.CharField(max_length=100, default='내 가상 OS')
+    cpu_id      = models.CharField(max_length=80, default='intel_core_i9_14900k')
+    # 가상 메모리 크기 (MB)
+    ram_mb      = models.PositiveIntegerField(default=512)
+    # 가상 하드드라이브: 가상 크기(GB, 사용자 설정), 실제 저장 데이터(JSON)
+    vhd_size_gb = models.FloatField(default=8.0)          # 사용자가 설정한 가상 크기
+    vhd_data    = models.TextField(blank=True)            # DynamicVHD.serialize() 결과
+    # 에뮬레이터 상태 스냅샷
+    state_data  = models.BinaryField(blank=True, null=True)  # save_state() ArrayBuffer
+    # ISO 파일 경로 (업로드된 것)
+    iso_path    = models.CharField(max_length=500, blank=True)
+    iso_name    = models.CharField(max_length=200, blank=True)
+    # 메타
+    last_used   = models.DateTimeField(auto_now=True)
+    created_at  = models.DateTimeField(auto_now_add=True)
+    # 통계
+    boot_count  = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['-last_used']
+
+    def __str__(self):
+        return f'{self.user.username} — {self.name}'
+
+    @property
+    def vhd_actual_mb(self):
+        """실제 저장된 VHD 용량 (MB 추정)"""
+        return round(len(self.vhd_data) / 1024 / 1024 * 0.75, 2) if self.vhd_data else 0
