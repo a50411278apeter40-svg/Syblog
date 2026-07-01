@@ -110,6 +110,15 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, '_media')
+# ── 가상 OS ISO 업로드: 최대 4GB까지 허용 ──
+DATA_UPLOAD_MAX_MEMORY_SIZE = 4 * 1024 * 1024 * 1024   # 4GB
+FILE_UPLOAD_MAX_MEMORY_SIZE  = 4 * 1024 * 1024 * 1024   # 4GB (temp 파일 기준)
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000
+FILE_UPLOAD_TEMP_DIR         = '/tmp'           # Render 임시 파일 경로
+FILE_UPLOAD_HANDLERS         = [
+    'django.core.files.uploadhandler.TemporaryFileUploadHandler',  # 항상 임시파일로 처리
+]
+
 
 CRISPY_ALLOWED_TEMPLATE_PACKS = 'bootstrap4'
 CRISPY_TEMPLATE_PACK = 'bootstrap4'

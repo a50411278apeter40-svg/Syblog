@@ -3694,16 +3694,70 @@ def virtual_os_upload_iso(request, pk):
 
 @login_required
 def virtual_os_stream_iso(request, pk):
-    """저장된 ISO 파일을 스트리밍 (v86 cdrom url로 사용)"""
+    """ISO 스트리밍 — v86 async cdrom을 위한 HTTP Range 완전 지원"""
     from blog.models import VirtualOSSession
+    import os as _iso_os
+    from django.http import StreamingHttpResponse, HttpResponse
     sess = get_object_or_404(VirtualOSSession, pk=pk, user=request.user)
-    if not sess.iso_path or not _vos_os.path.exists(sess.iso_path):
-        from django.http import Http404
-        raise Http404('ISO 파일을 찾을 수 없습니다')
-    from django.http import FileResponse
-    return FileResponse(open(sess.iso_path, 'rb'),
-                        content_type='application/octet-stream',
-                        filename=sess.iso_name or 'disk.iso')
+    path = sess.iso_path
+    if not path or not _iso_os.path.exists(path):
+        return HttpResponse('ISO not found', status=404)
+
+    file_size = _iso_os.path.getsize(path)
+    range_header = request.META.get('HTTP_RANGE', '').strip()
+
+    if range_header and range_header.startswith('bytes='):
+        # Range 파싱
+        ranges = range_header[6:].split(',')[0].strip()
+        parts  = ranges.split('-')
+        try:
+            range_start = int(parts[0]) if parts[0] else 0
+            range_end   = int(parts[1]) if parts[1] else file_size - 1
+        except (ValueError, IndexError):
+            range_start, range_end = 0, file_size - 1
+        range_end = min(range_end, file_size - 1)
+        length    = range_end - range_start + 1
+
+        def _iter_file(path, start, length, chunk=1024*1024):
+            with open(path, 'rb') as f:
+                f.seek(start)
+                remaining = length
+                while remaining > 0:
+                    data = f.read(min(chunk, remaining))
+                    if not data:
+                        break
+                    remaining -= len(data)
+                    yield data
+
+        resp = StreamingHttpResponse(
+            _iter_file(path, range_start, length),
+            status=206,
+            content_type='application/octet-stream',
+        )
+        resp['Content-Length']     = str(length)
+        resp['Content-Range']      = f'bytes {range_start}-{range_end}/{file_size}'
+        resp['Accept-Ranges']      = 'bytes'
+        resp['Content-Disposition'] = f'inline; filename="{sess.iso_name or "disk.iso"}"'
+        return resp
+    else:
+        # 전체 파일 스트리밍
+        def _iter_all(path, chunk=1024*1024):
+            with open(path, 'rb') as f:
+                while True:
+                    data = f.read(chunk)
+                    if not data:
+                        break
+                    yield data
+
+        resp = StreamingHttpResponse(
+            _iter_all(path),
+            status=200,
+            content_type='application/octet-stream',
+        )
+        resp['Content-Length']     = str(file_size)
+        resp['Accept-Ranges']      = 'bytes'
+        resp['Content-Disposition'] = f'inline; filename="{sess.iso_name or "disk.iso"}"'
+        return resp
 
 
 @login_required

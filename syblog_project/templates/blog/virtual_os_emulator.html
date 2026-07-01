@@ -12,7 +12,7 @@ body{overflow:hidden !important;}
   --blue:#58a6ff;--green:#3fb950;--red:#f85149;
   --yellow:#d29922;--purple:#bc8cff;
 }
-#vos-wrap{display:flex;flex-direction:column;height:calc(100vh - 56px);background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;}
+#vos-wrap{display:flex;flex-direction:column;height:calc(100vh - var(--navbar-h,90px));background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;}
 
 /* ── 툴바 ── */
 #vos-tb{
@@ -46,7 +46,7 @@ body{overflow:hidden !important;}
 
 /* v86 screen_container — ID는 반드시 screen_container (v86 내부 hardcode) */
 #screen_container{position:relative;line-height:0;display:flex;align-items:center;justify-content:center;}
-#screen_container canvas{display:block;image-rendering:pixelated;max-width:100%;cursor:default;}
+#screen_container canvas{display:block;image-rendering:pixelated;max-width:100%;max-height:calc(100vh - var(--navbar-h,90px) - 68px - 26px);cursor:default;}
 
 /* ── 부팅 오버레이 — screen-wrap에 absolute, z-index 높게 ── */
 #boot-ov{
@@ -461,7 +461,8 @@ let CURRENT_CPU_ID = "{{ session.cpu_id }}";
 let ram_mb         = {{ session.ram_mb }};
 let vhd_gb         = {{ session.vhd_size_gb }};
 const HAS_STATE    = {% if session.state_data %}true{% else %}false{% endif %};
-const HAS_ISO      = {% if session.iso_name %}true{% else %}false{% endif %};
+const HAS_ISO_INIT = {% if session.iso_name %}true{% else %}false{% endif %};
+let isoReady = HAS_ISO_INIT;   // 업로드 후 즉시 true로 전환
 
 let emulator  = null;
 let isRunning = false;
@@ -499,6 +500,17 @@ function showOv(show){
    초기화
 ════════════════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', ()=>{
+  // navbar 실제 높이 측정 → CSS 변수로 주입
+  const nb = document.querySelector('.navbar');
+  if(nb){
+    const h = nb.offsetHeight;
+    document.documentElement.style.setProperty('--navbar-h', h+'px');
+    // resize 시에도 재계산
+    window.addEventListener('resize', ()=>{
+      const nh = nb.offsetHeight;
+      document.documentElement.style.setProperty('--navbar-h', nh+'px');
+    });
+  }
   buildDropdown();
   buildCpuList();
   updateCpuInfo(CURRENT_CPU_ID);
@@ -663,7 +675,7 @@ async function startEmu(){
   };
 
   /* ── ISO 마운트 (있을 때만) ── */
-  if(HAS_ISO){
+  if(isoReady){
     opts.cdrom    = { url: '/blog/virtual-os/'+SESSION_ID+'/iso/', async: true };
     opts.boot_order = 0x132;  // CDROM → HDD → FDD
   }
@@ -834,21 +846,64 @@ function onIsoDrop(e){
 }
 function onIsoSel(inp){ if(inp.files[0]) uploadIso(inp.files[0]); }
 
-async function uploadIso(file){
+function uploadIso(file){
   if(!file.name.match(/\.(iso|img)$/i)){ toast('ISO 또는 IMG 파일만 지원합니다', true); return; }
   const dz=$id('iso-dz');
-  dz.innerHTML='<i class="fas fa-spinner fa-spin"></i> 업로드 중... '+(file.size/1024/1024).toFixed(0)+'MB';
-  const fd=new FormData(); fd.append('iso',file);
-  try {
-    const r=await fetch('/blog/virtual-os/'+SESSION_ID+'/upload-iso/',{
-      method:'POST',headers:{'X-CSRFToken':CSRF},body:fd,
-    });
-    const d=await r.json();
-    if(d.ok){
-      dz.innerHTML='<i class="fas fa-check-circle" style="color:var(--green)"></i> '+d.name+'<br><small>('+d.size_mb+'MB — 재시작 후 적용)</small>';
-      toast('ISO 업로드 완료! 재시작 후 적용됩니다.');
-    } else { dz.innerHTML='<i class="fas fa-cloud-upload-alt"></i><br>클릭 또는 ISO 드래그'; toast('업로드 실패: '+d.error, true); }
-  } catch(e){ dz.innerHTML='<i class="fas fa-cloud-upload-alt"></i><br>클릭 또는 ISO 드래그'; toast('오류: '+e.message, true); }
+  const sizeMB = (file.size/1024/1024).toFixed(0);
+  // XHR로 업로드해야 progress 이벤트 사용 가능
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/blog/virtual-os/'+SESSION_ID+'/upload-iso/');
+  xhr.setRequestHeader('X-CSRFToken', CSRF);
+
+  // ── 진행률 ──
+  xhr.upload.addEventListener('progress', ev=>{
+    if(!ev.lengthComputable) return;
+    const pct = Math.round(ev.loaded / ev.total * 100);
+    const sent = (ev.loaded/1024/1024).toFixed(0);
+    dz.innerHTML =
+      '<i class="fas fa-spinner fa-spin"></i> 업로드 중... '+sent+' / '+sizeMB+'MB ('+pct+'%)<br>'+
+      '<div style="margin-top:6px;height:5px;background:#21262d;border-radius:3px;overflow:hidden;">'+
+      '<div style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,#58a6ff,#3fb950);transition:width .3s;"></div></div>';
+  });
+
+  // ── 완료 ──
+  xhr.addEventListener('load', ()=>{
+    try {
+      const d = JSON.parse(xhr.responseText);
+      if(d.ok){
+        isoReady = true;
+        dz.innerHTML =
+          '<i class="fas fa-check-circle" style="color:var(--green)"></i> <b>'+d.name+'</b><br>'+
+          '<small style="color:#3fb950">'+d.size_mb+'MB — 업로드 완료! 에뮬레이터를 시작하면 바로 부팅됩니다.</small>';
+        toast('ISO 업로드 완료 ('+d.size_mb+'MB)');
+        // 에뮬레이터가 이미 실행 중이면 재시작 안내
+        if(emulator){ toast('ISO 적용을 위해 에뮬레이터를 재시작하세요'); }
+      } else {
+        dz.innerHTML='<i class="fas fa-cloud-upload-alt"></i><br>클릭 또는 ISO 드래그';
+        toast('업로드 실패: '+(d.error||xhr.status), true);
+      }
+    } catch(e){
+      dz.innerHTML='<i class="fas fa-cloud-upload-alt"></i><br>클릭 또는 ISO 드래그';
+      toast('응답 파싱 오류: '+e.message, true);
+    }
+  });
+
+  xhr.addEventListener('error', ()=>{
+    dz.innerHTML='<i class="fas fa-cloud-upload-alt"></i><br>클릭 또는 ISO 드래그';
+    toast('네트워크 오류 — 업로드 실패', true);
+  });
+
+  xhr.addEventListener('timeout', ()=>{
+    dz.innerHTML='<i class="fas fa-cloud-upload-alt"></i><br>클릭 또는 ISO 드래그';
+    toast('업로드 시간 초과', true);
+  });
+
+  // Render 프리 티어 타임아웃 10분
+  xhr.timeout = 10 * 60 * 1000;
+
+  const fd = new FormData();
+  fd.append('iso', file);
+  xhr.send(fd);
 }
 
 /* ── VHD ── */
