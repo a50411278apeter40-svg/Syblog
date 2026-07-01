@@ -42,17 +42,15 @@ body{overflow:hidden !important;}
 #vos-body{display:flex;flex:1;overflow:hidden;min-height:0;}
 
 /* ── 화면 영역 ── */
-#screen-wrap{flex:1;display:flex;align-items:flex-start;justify-content:center;background:#000;position:relative;overflow:auto;min-width:0;}
+#screen-wrap{flex:1;display:flex;align-items:center;justify-content:center;background:#000;position:relative;overflow:hidden;min-width:0;}
 
 /* v86 screen_container — ID는 반드시 screen_container (v86 내부 hardcode) */
-#screen_container{position:relative;line-height:0;display:inline-block;}
+#screen_container{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
 #screen_container canvas{
   display:block;
   image-rendering:pixelated;
   image-rendering:crisp-edges;
-  /* canvas 내부 픽셀을 그대로 유지 — 짤림 없음 */
-  max-width:none !important;
-  max-height:none !important;
+  /* fitCanvas()가 width/height를 동적으로 설정 */
   cursor:default;
 }
 
@@ -529,8 +527,15 @@ document.addEventListener('DOMContentLoaded', ()=>{
   makeDraggable($id('fpad'), $id('pad-hnd'));
   // 처음엔 오버레이 숨김
   showOv(false);
-  // canvas 크기 조정 — resize 시
+  // canvas 크기 조정 — resize + v86가 canvas 속성 바꿀 때
   window.addEventListener('resize', fitCanvas);
+  // v86는 해상도 변경 시 canvas width/height 속성을 직접 변경함 → MutationObserver로 감지
+  const scNode = $id('screen_container');
+  if(scNode){
+    const obs = new MutationObserver(()=>{ fitCanvas(); });
+    obs.observe(scNode, { attributes:true, childList:true, subtree:true,
+                          attributeFilter:['width','height'] });
+  }
 });
 
 /* ════════════════════════════════════════════════════
@@ -966,7 +971,7 @@ function startTimer(){
 }
 function stopTimer(){ clearInterval(timerID); timerID=null; }
 
-/* ── canvas fit (짤림 방지) ── */
+/* ── canvas fit — 짤림/잘림 없이 screen-wrap에 꽉 맞춤 ── */
 function fitCanvas(){
   const wrap = $id('screen-wrap');
   const sc   = $id('screen_container');
@@ -976,16 +981,15 @@ function fitCanvas(){
 
   const wrapW = wrap.clientWidth;
   const wrapH = wrap.clientHeight;
-  const canW  = canvas.width  || 640;
-  const canH  = canvas.height || 480;
+  // canvas.width/height = v86가 설정한 실제 픽셀 해상도
+  const canW = canvas.width  || 640;
+  const canH = canvas.height || 480;
+  if(!canW || !canH) return;
 
-  // 가로/세로 중 더 작은 비율로 맞춤 (비율 유지, 짤림 없음)
-  const scaleW = wrapW / canW;
-  const scaleH = wrapH / canH;
-  const scale  = Math.min(scaleW, scaleH, 1); // 최대 100% (확대 안 함)
-
-  canvas.style.width  = Math.floor(canW * scale) + 'px';
-  canvas.style.height = Math.floor(canH * scale) + 'px';
+  // wrap 전체를 채우되 비율 유지 (letterbox — 짤림 없음)
+  const scale = Math.min(wrapW / canW, wrapH / canH);
+  canvas.style.width  = Math.round(canW * scale) + 'px';
+  canvas.style.height = Math.round(canH * scale) + 'px';
 }
 
 /* ── 사이드 토글 ── */
