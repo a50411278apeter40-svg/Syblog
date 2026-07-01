@@ -1,1 +1,1 @@
-web: python keepalive.py & gunicorn do_it_django_prj.wsgi:application --workers 2 --bind 0.0.0.0:$PORT
+web: python keepalive.py & gunicorn do_it_django_prj.wsgi:application --workers 2 --worker-class sync --timeout 600 --keep-alive 5 --bind 0.0.0.0:$PORT

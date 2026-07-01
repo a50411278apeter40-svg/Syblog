@@ -3660,36 +3660,61 @@ def virtual_os_save_vhd(request, pk):
 
 @login_required
 def virtual_os_upload_iso(request, pk):
-    """ISO 파일 업로드"""
+    """ISO 파일 업로드 — TemporaryFileUploadHandler로 이미 /tmp에 저장된 파일을 이동"""
     from blog.models import VirtualOSSession
+    import shutil
     if request.method != 'POST':
         return JsonResponse({'error': 'POST only'}, status=405)
     sess = get_object_or_404(VirtualOSSession, pk=pk, user=request.user)
     iso_file = request.FILES.get('iso')
     if not iso_file:
         return JsonResponse({'error': 'ISO 파일이 없습니다'}, status=400)
-    # 최대 2GB
-    if iso_file.size > 2 * 1024 * 1024 * 1024:
-        return JsonResponse({'error': 'ISO 파일은 최대 2GB까지 지원합니다'}, status=413)
+    # 최대 4GB
+    MAX_BYTES = 4 * 1024 * 1024 * 1024
+    if iso_file.size > MAX_BYTES:
+        return JsonResponse({'error': 'ISO 파일은 최대 4GB까지 지원합니다'}, status=413)
 
     upload_dir = _vos_os.path.join(VIRT_OS_UPLOAD_DIR, str(request.user.pk))
     _vos_os.makedirs(upload_dir, exist_ok=True)
-    save_path = _vos_os.path.join(upload_dir, iso_file.name)
+    # 안전한 파일명 처리
+    import re as _re
+    safe_name = _re.sub(r'[^a-zA-Z0-9._\-]', '_', iso_file.name)
+    save_path = _vos_os.path.join(upload_dir, safe_name)
 
     try:
-        with open(save_path, 'wb') as f:
-            for chunk in iso_file.chunks(chunk_size=8 * 1024 * 1024):
-                f.write(chunk)
+        # TemporaryFileUploadHandler: 이미 /tmp에 기록된 임시 파일을 그대로 이동
+        if hasattr(iso_file, 'temporary_file_path'):
+            # 같은 파티션이면 rename(빠름), 다른 파티션이면 copy 후 삭제
+            tmp_path = iso_file.temporary_file_path()
+            try:
+                _vos_os.rename(tmp_path, save_path)
+            except OSError:
+                shutil.move(tmp_path, save_path)
+        else:
+            # InMemory 폴백 (소용량)
+            with open(save_path, 'wb') as f:
+                for chunk in iso_file.chunks(chunk_size=4 * 1024 * 1024):
+                    f.write(chunk)
+
+        # 이전 ISO 삭제 (다른 경로인 경우)
+        if sess.iso_path and sess.iso_path != save_path:
+            try:
+                _vos_os.remove(sess.iso_path)
+            except Exception:
+                pass
+
         sess.iso_path = save_path
-        sess.iso_name = iso_file.name
+        sess.iso_name = safe_name
         sess.save(update_fields=['iso_path', 'iso_name', 'last_used'])
         return JsonResponse({
             'ok': True,
-            'name': iso_file.name,
+            'name': safe_name,
             'size_mb': round(iso_file.size / 1024 / 1024, 1),
         })
     except Exception as e:
-        return JsonResponse({'error': str(e)[:100]}, status=500)
+        import logging
+        logging.getLogger('django').error(f'[VOS] ISO upload error: {e}', exc_info=True)
+        return JsonResponse({'error': str(e)[:200]}, status=500)
 
 
 @login_required
