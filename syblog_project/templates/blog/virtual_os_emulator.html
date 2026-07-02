@@ -748,10 +748,45 @@ async function startEmu(){
     acpi:            true,
   };
 
-  /* ── ISO 마운트 (있을 때만) ── */
+  /* ── ISO 마운트 ── */
   if(isoReady){
-    opts.cdrom    = { url: '/blog/virtual-os/'+SESSION_ID+'/iso/', async: true };
-    opts.boot_order = 0x132;  // CDROM → HDD → FDD
+    // v86의 async cdrom은 Range fetch 실패가 잦음
+    // → ISO를 ArrayBuffer로 완전 로드 후 마운트 (더 안정적)
+    setProgress(30);
+    setMsg('ISO 이미지 로드 중...');
+    try {
+      const isoResp = await fetch('/blog/virtual-os/'+SESSION_ID+'/iso/', {credentials:'include'});
+      if(!isoResp.ok) throw new Error('ISO fetch 실패: HTTP '+isoResp.status);
+      const isoTotal = parseInt(isoResp.headers.get('Content-Length')||'0');
+      // 스트리밍으로 진행률 표시하며 읽기
+      const reader = isoResp.body.getReader();
+      const chunks = [];
+      let received = 0;
+      while(true){
+        const {done, value} = await reader.read();
+        if(done) break;
+        chunks.push(value);
+        received += value.length;
+        if(isoTotal > 0){
+          const p = Math.round(30 + (received/isoTotal)*25);
+          setProgress(p);
+          setMsg('ISO 로드 중... '+(received/1024/1024).toFixed(0)+'MB / '+(isoTotal/1024/1024).toFixed(0)+'MB');
+        }
+      }
+      // Uint8Array 합치기
+      const isoBuf = new Uint8Array(received);
+      let offset = 0;
+      for(const c of chunks){ isoBuf.set(c, offset); offset += c.length; }
+      opts.cdrom      = { buffer: isoBuf.buffer };
+      opts.boot_order = 0x132;  // CDROM → HDD → FDD
+      setMsg('ISO 로드 완료! 부팅 준비 중...');
+    } catch(isoErr){
+      console.error('[VOS] ISO 로드 실패:', isoErr);
+      toast('ISO 로드 실패: '+isoErr.message+' — async 모드로 재시도', true);
+      // 실패 시 async 폴백
+      opts.cdrom      = { url: '/blog/virtual-os/'+SESSION_ID+'/iso/', async: true };
+      opts.boot_order = 0x132;
+    }
   }
 
   /* ── 가상 HDD ──
@@ -760,7 +795,7 @@ async function startEmu(){
   const hdd_buf_mb = Math.min(vhd_gb * 1024, 512);
   opts.hda = { buffer: new ArrayBuffer(hdd_buf_mb * 1024 * 1024) };
 
-  setProgress(20);
+  setProgress(55);
   setMsg('BIOS/VGA ROM 로드 중...');
 
   /* ── V86 인스턴스 생성 ── */

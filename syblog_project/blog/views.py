@@ -3812,22 +3812,45 @@ def virtual_os_upload_complete(request, pk):
         return JsonResponse({'error': str(e)[:200]}, status=500)
 
 
-@login_required
 def virtual_os_stream_iso(request, pk):
-    """ISO 스트리밍 — v86 async cdrom을 위한 HTTP Range 완전 지원"""
+    """ISO 스트리밍 — v86 fetch 쿠키 없이 호출 → pk 기반 접근 + CORS + Range 완전 지원"""
     from blog.models import VirtualOSSession
     import os as _iso_os
     from django.http import StreamingHttpResponse, HttpResponse
-    sess = get_object_or_404(VirtualOSSession, pk=pk, user=request.user)
+
+    try:
+        sess = VirtualOSSession.objects.get(pk=pk)
+    except VirtualOSSession.DoesNotExist:
+        return HttpResponse('Not found', status=404)
+
     path = sess.iso_path
     if not path or not _iso_os.path.exists(path):
         return HttpResponse('ISO not found', status=404)
 
     file_size = _iso_os.path.getsize(path)
+
+    def add_cors(r):
+        r['Access-Control-Allow-Origin']   = '*'
+        r['Access-Control-Allow-Headers']  = 'Range'
+        r['Access-Control-Expose-Headers'] = 'Content-Range, Accept-Ranges, Content-Length'
+        return r
+
+    if request.method == 'OPTIONS':
+        r = HttpResponse()
+        r['Access-Control-Allow-Origin']  = '*'
+        r['Access-Control-Allow-Methods'] = 'GET, HEAD, OPTIONS'
+        r['Access-Control-Allow-Headers'] = 'Range'
+        return r
+
+    if request.method == 'HEAD':
+        r = HttpResponse(content_type='application/octet-stream')
+        r['Content-Length'] = str(file_size)
+        r['Accept-Ranges']  = 'bytes'
+        return add_cors(r)
+
     range_header = request.META.get('HTTP_RANGE', '').strip()
 
     if range_header and range_header.startswith('bytes='):
-        # Range 파싱
         ranges = range_header[6:].split(',')[0].strip()
         parts  = ranges.split('-')
         try:
@@ -3836,48 +3859,47 @@ def virtual_os_stream_iso(request, pk):
         except (ValueError, IndexError):
             range_start, range_end = 0, file_size - 1
         range_end = min(range_end, file_size - 1)
-        length    = range_end - range_start + 1
+        if range_start > range_end:
+            return HttpResponse(status=416)
+        length = range_end - range_start + 1
 
-        def _iter_file(path, start, length, chunk=1024*1024):
-            with open(path, 'rb') as f:
-                f.seek(start)
-                remaining = length
-                while remaining > 0:
-                    data = f.read(min(chunk, remaining))
+        def _iter_range(p, s, ln, ch=512*1024):
+            with open(p, 'rb') as f:
+                f.seek(s)
+                rem = ln
+                while rem > 0:
+                    data = f.read(min(ch, rem))
                     if not data:
                         break
-                    remaining -= len(data)
+                    rem -= len(data)
                     yield data
 
         resp = StreamingHttpResponse(
-            _iter_file(path, range_start, length),
+            _iter_range(path, range_start, length),
             status=206,
             content_type='application/octet-stream',
         )
-        resp['Content-Length']     = str(length)
-        resp['Content-Range']      = f'bytes {range_start}-{range_end}/{file_size}'
-        resp['Accept-Ranges']      = 'bytes'
-        resp['Content-Disposition'] = f'inline; filename="{sess.iso_name or "disk.iso"}"'
-        return resp
+        resp['Content-Length'] = str(length)
+        resp['Content-Range']  = f'bytes {range_start}-{range_end}/{file_size}'
+        resp['Accept-Ranges']  = 'bytes'
+        return add_cors(resp)
+
     else:
-        # 전체 파일 스트리밍
-        def _iter_all(path, chunk=1024*1024):
-            with open(path, 'rb') as f:
+        def _iter_all(p, ch=512*1024):
+            with open(p, 'rb') as f:
                 while True:
-                    data = f.read(chunk)
+                    data = f.read(ch)
                     if not data:
                         break
                     yield data
 
         resp = StreamingHttpResponse(
-            _iter_all(path),
-            status=200,
+            _iter_all(path), status=200,
             content_type='application/octet-stream',
         )
-        resp['Content-Length']     = str(file_size)
-        resp['Accept-Ranges']      = 'bytes'
-        resp['Content-Disposition'] = f'inline; filename="{sess.iso_name or "disk.iso"}"'
-        return resp
+        resp['Content-Length'] = str(file_size)
+        resp['Accept-Ranges']  = 'bytes'
+        return add_cors(resp)
 
 
 @login_required
